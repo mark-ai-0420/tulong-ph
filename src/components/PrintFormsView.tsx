@@ -34,6 +34,7 @@ import {
   Trash2,
   FolderCheck,
   Share2,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   convertAndCompressImageToPdf,
@@ -441,14 +442,25 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           </div>
         </div>
 
-        {/* Printer Optimization Advice Note */}
-        <div className="mt-4 pt-4 border-t border-[#E2DFD6] flex items-center gap-2 text-xs text-slate-600">
-          <BadgeAlert className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>
-            {language === 'taglish'
-              ? 'Black & White / Monochrome Optimized: Walang makakapal na tinta o gradients para matipid at mabilis i-print sa kahit anong Pisonet o computer shop malapit sa ospital.'
-              : 'Black & White / Monochrome Optimized: High-contrast vector layouts designed to save ink on budget computer shop laser/inkjet printers.'}
-          </span>
+        {/* Printer Optimization & Public PC Advice Notes */}
+        <div className="mt-4 pt-4 border-t border-[#E2DFD6] space-y-2">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <BadgeAlert className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              {language === 'taglish'
+                ? 'Black & White / Monochrome Optimized: Walang makakapal na tinta o gradients para matipid at mabilis i-print sa kahit anong Pisonet o computer shop malapit sa ospital.'
+                : 'Black & White / Monochrome Optimized: High-contrast vector layouts designed to save ink on budget computer shop laser/inkjet printers.'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-amber-900 bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-lg">
+            <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>
+              {language === 'taglish'
+                ? '💡 Payo sa Pisonet / Computer Shop: Mas ligtas gamitin ang "I-print ang Form" kaysa mag-download upang walang maiwang PDF file sa Downloads folder ng publikong computer.'
+                : '💡 Public PC Privacy Tip: Using "Print Form" is safer than downloading because no permanent PDF file is left behind in the shared computer\'s Downloads folder.'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -725,13 +737,18 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
 
         {/* Quick Edit Drawer */}
         {showQuickEdit && (
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6]">
+          <form
+            autoComplete="off"
+            onSubmit={(e) => e.preventDefault()}
+            className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6]"
+          >
             <div>
               <label htmlFor="quick-edit-last-name" className="block text-xs font-bold text-slate-800 mb-1">Apelyido (Last Name)</label>
               <input
                 id="quick-edit-last-name"
                 name="lastName"
                 type="text"
+                autoComplete="off"
                 value={patient.lastName}
                 onChange={(e) => onUpdatePatient({ ...patient, lastName: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -744,6 +761,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-first-name"
                 name="firstName"
                 type="text"
+                autoComplete="off"
                 value={patient.firstName}
                 onChange={(e) => onUpdatePatient({ ...patient, firstName: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -756,6 +774,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-philhealth"
                 name="philhealthPIN"
                 type="text"
+                autoComplete="off"
                 value={patient.philhealthNumber || ''}
                 onChange={(e) => onUpdatePatient({ ...patient, philhealthNumber: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -768,6 +787,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-hospital-name"
                 name="hospitalName"
                 type="text"
+                autoComplete="off"
                 value={medicalCase.hospitalName}
                 onChange={(e) => onUpdateMedicalCase({ ...medicalCase, hospitalName: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -780,6 +800,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-diagnosis"
                 name="diagnosis"
                 type="text"
+                autoComplete="off"
                 value={medicalCase.diagnosis}
                 onChange={(e) => onUpdateMedicalCase({ ...medicalCase, diagnosis: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -792,6 +813,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-physician"
                 name="physician"
                 type="text"
+                autoComplete="off"
                 value={medicalCase.attendingPhysician}
                 onChange={(e) => onUpdateMedicalCase({ ...medicalCase, attendingPhysician: e.target.value })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
@@ -804,6 +826,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-total-bill"
                 name="totalBill"
                 type="number"
+                autoComplete="off"
                 value={medicalCase.totalHospitalBill}
                 onChange={(e) => {
                   const gross = Number(e.target.value);
@@ -819,12 +842,13 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 id="quick-edit-net-balance"
                 name="netBalance"
                 type="number"
+                autoComplete="off"
                 value={medicalCase.netRemainingBalance}
                 onChange={(e) => onUpdateMedicalCase({ ...medicalCase, netRemainingBalance: Number(e.target.value) })}
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          </div>
+          </form>
         )}
       </div>
 

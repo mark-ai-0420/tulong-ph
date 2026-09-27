@@ -119,16 +119,39 @@ export async function loadApplications(): Promise<ApplicationRecord[]> {
 }
 
 export async function clearAllUserData(): Promise<void> {
-  await Promise.all([
-    del(KEYS.PATIENT),
-    del(KEYS.REPRESENTATIVE),
-    del(KEYS.CASE),
-    del(KEYS.DOCUMENTS),
-    del(KEYS.APPLICATIONS),
-  ]);
+  // 1. Purge all keys from IndexedDB (idb-keyval store)
+  try {
+    const { clear } = await import('idb-keyval');
+    await clear();
+  } catch {
+    // Fallback to explicit key deletions
+    await Promise.all([
+      del(KEYS.PATIENT),
+      del(KEYS.REPRESENTATIVE),
+      del(KEYS.CASE),
+      del(KEYS.DOCUMENTS),
+      del(KEYS.APPLICATIONS),
+    ]);
+  }
+
+  // 2. Wipe browser local and session storage
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(KEYS.LANGUAGE);
-    localStorage.removeItem('tulong_lang');
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('Storage wipe warning:', e);
+    }
+
+    // 3. Purge browser CacheStorage if registered
+    if ('caches' in window) {
+      try {
+        const cacheKeys = await caches.keys();
+        await Promise.all(cacheKeys.map((k) => caches.delete(k)));
+      } catch {
+        // ignore
+      }
+    }
   }
 }
 

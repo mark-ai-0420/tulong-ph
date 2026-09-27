@@ -662,7 +662,14 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
       {/* STEP 1: Patient and Claimant Information */}
       {currentStep === 1 && (
-        <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 sm:p-7 shadow-xs space-y-6">
+        <form
+          autoComplete="off"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleNextToStep2();
+          }}
+          className="bg-white rounded-2xl border border-[#E2DFD6] p-6 sm:p-7 shadow-xs space-y-6"
+        >
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 mb-2">
               <User className="w-4 h-4 text-blue-700" />
@@ -752,6 +759,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     id="rep-full-name"
                     name="representativeFullName"
                     type="text"
+                    autoComplete="off"
                     required={!representative.isPatientHimself}
                     aria-required={!representative.isPatientHimself ? 'true' : undefined}
                     aria-invalid={isFieldInvalid('representativeFullName')}
@@ -815,6 +823,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         id="rep-relationship-other"
                         name="representativeCustomRelationship"
                         type="text"
+                        autoComplete="off"
                         required
                         aria-required="true"
                         aria-invalid={isFieldInvalid('representativeRelationship')}
@@ -864,6 +873,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-first-name"
                   name="firstName"
                   type="text"
+                  autoComplete="off"
                   required
                   aria-required="true"
                   aria-invalid={isFieldInvalid('firstName')}
@@ -898,6 +908,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-middle-name"
                   name="middleName"
                   type="text"
+                  autoComplete="off"
                   value={patient.middleName}
                   onChange={(e) => onUpdatePatient({ ...patient, middleName: e.target.value })}
                   placeholder="e.g. Ramos"
@@ -915,6 +926,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-last-name"
                   name="lastName"
                   type="text"
+                  autoComplete="off"
                   required
                   aria-required="true"
                   aria-invalid={isFieldInvalid('lastName')}
@@ -952,6 +964,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-dob"
                   name="dateOfBirth"
                   type="date"
+                  autoComplete="off"
                   value={patient.dateOfBirth}
                   onChange={(e) => onUpdatePatient({ ...patient, dateOfBirth: e.target.value })}
                   className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
@@ -968,6 +981,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-contact"
                   name="contactNumber"
                   type="tel"
+                  autoComplete="off"
                   inputMode="tel"
                   pattern="[0-9]*"
                   required
@@ -1004,6 +1018,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-philhealth"
                   name="philhealthNumber"
                   type="text"
+                  autoComplete="off"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={patient.philhealthNumber || ''}
@@ -1029,6 +1044,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-barangay"
                   name="barangay"
                   type="text"
+                  autoComplete="off"
                   value={patient.address.barangay}
                   onChange={(e) =>
                     onUpdatePatient({
@@ -1051,6 +1067,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-city"
                   name="cityMunicipality"
                   type="text"
+                  autoComplete="off"
                   value={patient.address.cityMunicipality}
                   onChange={(e) =>
                     onUpdatePatient({
@@ -1073,6 +1090,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="patient-province"
                   name="province"
                   type="text"
+                  autoComplete="off"
                   value={patient.address.province}
                   onChange={(e) =>
                     onUpdatePatient({
@@ -1185,20 +1203,26 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
           {/* Navigation Button */}
           <div className="flex justify-end pt-4 border-t border-slate-200">
             <button
-              type="button"
-              onClick={handleNextToStep2}
+              type="submit"
               className="h-11 min-h-11 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors cursor-pointer"
             >
               <span>{language === 'taglish' ? 'Susunod: Detalye ng Ospital' : 'Next: Hospital & Case'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {/* STEP 2: Emergency & Hospital Details */}
       {currentStep === 2 && (
-        <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 sm:p-7 shadow-xs space-y-6">
+        <form
+          autoComplete="off"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCalculateRoadmap();
+          }}
+          className="bg-white rounded-2xl border border-[#E2DFD6] p-6 sm:p-7 shadow-xs space-y-6"
+        >
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 mb-2">
               <HeartPulse className="w-4 h-4 text-blue-700" />
@@ -1251,6 +1275,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 id="case-diagnosis"
                 name="diagnosis"
                 type="text"
+                autoComplete="off"
                 required
                 aria-required="true"
                 aria-invalid={isFieldInvalid('diagnosis')}
@@ -1314,6 +1339,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     id="hospital-name"
                     name="hospitalName"
                     type="text"
+                    autoComplete="off"
                     required
                     aria-required="true"
                     aria-autocomplete="list"
@@ -1428,6 +1454,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     id="total-bill"
                     name="totalHospitalBill"
                     type="number"
+                    autoComplete="off"
                     inputMode="numeric"
                     min="0"
                     aria-invalid={isFieldInvalid('totalHospitalBill')}
@@ -1469,6 +1496,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     id="philhealth-deduction"
                     name="philhealthDeduction"
                     type="number"
+                    autoComplete="off"
                     inputMode="numeric"
                     min="0"
                     value={medicalCase.philhealthDeduction || ''}
@@ -1494,6 +1522,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     id="senior-pwd-discount"
                     name="seniorPwdDiscount"
                     type="number"
+                    autoComplete="off"
                     inputMode="numeric"
                     min="0"
                     value={medicalCase.seniorPwdDiscount || ''}
@@ -1545,8 +1574,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <span>{language === 'taglish' ? 'Bumalik' : 'Back'}</span>
             </button>
             <button
-              type="button"
-              onClick={handleCalculateRoadmap}
+              type="submit"
               className="h-11 min-h-11 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
@@ -1554,7 +1582,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {/* STEP 3: Personalized Aid Stacking Roadmap */}

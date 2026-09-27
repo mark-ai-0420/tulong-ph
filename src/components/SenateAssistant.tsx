@@ -320,7 +320,7 @@ export const SenateAssistant: React.FC<SenateAssistantProps> = ({
                 : 'Log the reference code issued upon submitting on assist.senate.gov.ph.'}
             </p>
 
-            <form onSubmit={handleAddTracking} className="space-y-3.5">
+            <form autoComplete="off" onSubmit={handleAddTracking} className="space-y-3.5">
               <div>
                 <label htmlFor="senate-ref-no" className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5">
                   Senate Reference Number *
@@ -329,6 +329,7 @@ export const SenateAssistant: React.FC<SenateAssistantProps> = ({
                   id="senate-ref-no"
                   name="senateReferenceNumber"
                   type="text"
+                  autoComplete="off"
                   required
                   aria-required="true"
                   value={newRefNumber}
@@ -346,6 +347,7 @@ export const SenateAssistant: React.FC<SenateAssistantProps> = ({
                   id="senate-filing-date"
                   name="senateFilingDate"
                   type="date"
+                  autoComplete="off"
                   required
                   aria-required="true"
                   value={filingDate}
@@ -362,6 +364,7 @@ export const SenateAssistant: React.FC<SenateAssistantProps> = ({
                   id="senate-amount-granted"
                   name="senateAmountGranted"
                   type="number"
+                  autoComplete="off"
                   inputMode="numeric"
                   min="0"
                   value={amountGranted || ''}

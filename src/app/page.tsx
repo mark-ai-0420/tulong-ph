@@ -121,7 +121,26 @@ export default function Home() {
 
   const handleConfirmWipeData = async () => {
     try {
+      // 1. Revoke all active document blob URLs to purge in-memory scans
+      documents.forEach((d) => {
+        if (d.dataUrl?.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(d.dataUrl);
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      // 2. Clean up any residual print iframes in the DOM
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('iframe[src^="blob:"]').forEach((el) => el.remove());
+      }
+
+      // 3. Purge storage layers (IndexedDB, localStorage, sessionStorage, caches)
       await clearAllUserData();
+
+      // 4. Reset React memory states to blank profiles
       setPatient(defaultPatientProfile);
       setRepresentative(defaultRepresentativeProfile);
       setMedicalCase(defaultMedicalCase);
@@ -129,6 +148,12 @@ export default function Home() {
       setApplications([]);
       setTriageResetKey((prev) => prev + 1);
       setCurrentTab('triage');
+
+      // 5. Replace browser history state so pressing "Back" cannot recall filled inputs
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        window.history.replaceState(null, '', '/');
+      }
+
       setIsPrivacyModalOpen(false);
       setPrivacyToast(
         language === 'taglish'
@@ -399,7 +424,7 @@ export default function Home() {
             <p id="privacy-modal-desc" className="text-xs sm:text-sm text-slate-600 leading-relaxed">
               {language === 'taglish'
                 ? 'Nasa computer shop o pisonet ka ba? Buburahin nito ang inyong profile, medical abstract, PhilHealth PIN, at na-upload na mga dokumento mula sa browser na ito upang hindi makita ng susunod na gagamit ng computer.'
-                : 'Nasa computer shop o pisonet ka ba? Buburahin nito ang inyong profile, medical abstract, PhilHealth PIN, at na-upload na mga dokumento mula sa browser na ito upang hindi makita ng susunod na gagamit ng computer.'}
+                : 'Using a public computer or internet cafe? This will permanently wipe your patient profile, diagnosis, PhilHealth PIN, and uploaded documents from this browser so the next user cannot access your records.'}
             </p>
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 text-xs flex items-center gap-2">
