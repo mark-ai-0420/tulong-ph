@@ -409,7 +409,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <button
               onClick={handleDirectPrint}
               disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-white" />
               <span>{language === 'taglish' ? 'I-print ang Form' : 'Print Form'}</span>
@@ -417,26 +417,26 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <button
               onClick={handleDownload}
               disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-bold text-sm transition-all shadow-md shadow-blue-900/30 active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-950 font-bold text-sm border border-stone-200/90 shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4 text-slate-600" />
               <span>{isGenerating ? (language === 'taglish' ? 'Ginagawa...' : 'Generating...') : (language === 'taglish' ? 'I-download ang PDF' : 'Download PDF')}</span>
             </button>
             <button
               onClick={handleShareToRelatives}
               disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-sm transition-all shadow-md shadow-emerald-950/20 active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-950 font-bold text-sm border border-stone-200/90 shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               title={
                 language === 'taglish'
                   ? 'I-share sa Kamag-anak (Viber / Messenger)'
                   : 'Share to Relatives (Viber / Messenger)'
               }
             >
-              <Share2 className="w-4 h-4 text-white" />
+              <Share2 className="w-4 h-4 text-slate-600" />
               <span>
                 {language === 'taglish'
-                  ? 'I-share sa Kamag-anak (Viber / Messenger)'
-                  : 'Share to Relatives (Viber / Messenger)'}
+                  ? 'I-share (Viber/Messenger)'
+                  : 'Share (Viber/Messenger)'}
               </span>
             </button>
           </div>
@@ -867,7 +867,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 : 'Preview: Filing Checklist & Cover Sheet'}
             </span>
           </div>
-          <span className="text-xs bg-white px-2 py-0.5 rounded-md border border-[#E2DFD6] shadow-2xs font-semibold text-slate-700">
+          <span className="text-xs bg-white px-2 py-0.5 rounded-lg border border-[#E2DFD6] shadow-2xs font-semibold text-slate-700">
             Standard A4 • Monochrome Print
           </span>
         </div>

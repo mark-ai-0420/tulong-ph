@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
 import { TriageWizard } from '@/components/TriageWizard';
 import { PrintFormsView } from '@/components/PrintFormsView';
@@ -208,18 +209,16 @@ export default function Home() {
 
         {/* Authoritative Civic Editorial Announcement Board */}
         {currentTab === 'triage' && (
-          <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs">
+          <div className="bg-white border border-[#E2DFD6] rounded-2xl p-4 sm:p-8 shadow-xs">
             <div className="max-w-3xl space-y-4">
               {/* Civic Seal & Dignified Reassurance Badge */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200/80 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200/80 shadow-2xs">
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-900" />
                   <span>{t.badgeOfficialData}</span>
-                </div>
-                <span className="text-xs text-slate-500 font-medium">
-                  {language === 'taglish'
-                    ? '• 100% Libre at Pribado sa Inyong Device'
-                    : '• 100% Free & Private on Your Device'}
+                </span>
+                <span className="text-xs text-slate-600 font-medium">
+                  • {language === 'taglish' ? '100% Libre at Naka-save sa Inyong Device' : '100% Free & Saved on Your Device'}
                 </span>
               </div>
 
@@ -337,54 +336,75 @@ export default function Home() {
               <span className="font-bold text-slate-900">TulongPH</span>
               <span className="text-slate-600">— Open-Source Philippine Assistance Navigator</span>
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-slate-700 font-medium">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <button
+                type="button"
                 onClick={() => setCurrentTab('triage')}
-                className="min-h-[44px] inline-flex items-center hover:text-blue-700 transition-colors cursor-pointer"
+                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-slate-700 hover:text-blue-900 transition-colors cursor-pointer"
               >
                 {language === 'taglish' ? 'Gabay sa Tulong' : 'Aid Navigator'}
               </button>
               <button
+                type="button"
                 onClick={() => setCurrentTab('print_forms')}
-                className="min-h-[44px] inline-flex items-center hover:text-blue-700 transition-colors cursor-pointer"
+                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-slate-700 hover:text-blue-900 transition-colors cursor-pointer"
               >
                 {language === 'taglish' ? 'I-print ang Forms' : 'Print Official Forms'}
               </button>
               <button
+                type="button"
                 onClick={() => setCurrentTab('directory')}
-                className="min-h-[44px] inline-flex items-center hover:text-blue-700 transition-colors cursor-pointer"
+                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-slate-700 hover:text-blue-900 transition-colors cursor-pointer"
               >
                 {language === 'taglish' ? 'Direktoryo at Desks' : 'Directory & Desks'}
               </button>
+              <Link
+                href="/privacy"
+                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-slate-700 hover:text-blue-900 transition-colors cursor-pointer"
+              >
+                {language === 'taglish'
+                  ? 'Patakaran sa Privacy at Disclaimer'
+                  : 'Privacy Policy & Civic Disclaimer'}
+              </Link>
             </div>
           </div>
 
-          {/* Computer Shop Privacy Wipe Action Banner in Footer */}
-          <div className="p-3.5 bg-red-50/70 border border-red-200 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 text-red-950 text-center sm:text-left">
-              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+          {/* Public Computer Shop Security Notice */}
+          <div className="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 text-xs text-amber-950 font-medium text-center sm:text-left">
+              <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
               <span>
                 {language === 'taglish'
-                  ? 'Nasa computer shop o pisonet ka ba? Burahin ang inyong mga pribadong datos bago umalis ng computer.'
-                  : 'Using a public computer shop or pisonet? Wipe your private data before leaving the terminal.'}
+                  ? 'Nasa computer shop o pisonet ka ba? Burahin ang inyong profile at mga dokumento bago umalis para sa inyong privacy.'
+                  : 'Using a public computer or pisonet? Wipe your profile and documents before leaving for your privacy.'}
               </span>
             </div>
             <button
               type="button"
               onClick={() => setIsPrivacyModalOpen(true)}
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer shrink-0 w-full sm:w-auto"
+              className="min-h-[44px] h-11 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0 transition-colors w-full sm:w-auto"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5 text-amber-300" />
               <span>
                 {language === 'taglish'
-                  ? 'Burahin ang Aking Datos (Pisonet / Shop Mode)'
-                  : 'Burahin ang Aking Datos (Pisonet / Shop Mode)'}
+                  ? 'Burahin ang Datos (Pisonet)'
+                  : 'Wipe Data (Public PC)'}
               </span>
             </button>
           </div>
 
           <p className="text-xs text-slate-600 leading-relaxed text-center sm:text-left">
-            Disclaimer: Ang TulongPH ay isang open-source civic technology tool na binuo upang tulungan ang mga mamamayang Pilipino na maorganisa at ma-compress ang kanilang mga dokumento para sa pag-file ng tulong medikal. Hindi ito kapalit ng opisyal na portal ng gobyerno. Ang lahat ng opisyal na Guarantee Letter ay eksklusibong iniisyu ng kaukulang ahensya (Senado, PCSO, DOH, DSWD).
+            {language === 'taglish'
+              ? 'Disclaimer: Ang TulongPH ay isang independiyenteng civic utility at hindi ahensya ng gobyerno. Ang tulong pinansyal at mga Guarantee Letter ay eksklusibong ipinagkakaloob ng mga opisyal na hospital social workers (MSWD), DOH, DSWD, PCSO, at Senado alinsunod sa kanilang opisyal na proseso.'
+              : 'Disclaimer: TulongPH is an independent civic utility and not a government agency. Financial aid and Guarantee Letters are evaluated and granted exclusively by official hospital social workers (MSWD), DOH, DSWD, PCSO, and the Senate.'}{' '}
+            <Link
+              href="/privacy"
+              className="text-blue-900 font-bold underline hover:text-blue-700 inline-flex items-center gap-1 min-h-[44px] py-1 cursor-pointer focus-ring rounded"
+            >
+              {language === 'taglish'
+                ? 'Basahin ang buong Data Privacy Charter →'
+                : 'Read the full Data Privacy Charter →'}
+            </Link>
           </p>
         </div>
       </footer>
@@ -415,7 +435,7 @@ export default function Home() {
                     ? 'Burahin ang Lahat ng Datos sa Computer na Ito?'
                     : 'Clear All Data from this Device?'}
                 </h2>
-                <span className="inline-block text-[11px] font-bold text-red-700 uppercase tracking-wider bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                <span className="inline-block text-xs font-bold text-red-800 uppercase tracking-wider bg-red-50 px-2 py-0.5 rounded border border-red-200">
                   {language === 'taglish' ? 'Pisonet / Shop Mode' : 'Computer Shop Mode'}
                 </span>
               </div>
@@ -436,18 +456,39 @@ export default function Home() {
               </span>
             </div>
 
+            {/* Helpful Data Privacy Charter Reference */}
+            <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-xl text-xs text-blue-950 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-blue-800 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span>
+                  {language === 'taglish'
+                    ? 'Nais malaman kung paano pinoprotektahan ang iyong datos? '
+                    : 'Want to know how your data is protected? '}
+                </span>
+                <Link
+                  href="/privacy"
+                  onClick={() => setIsPrivacyModalOpen(false)}
+                  className="font-bold text-blue-900 underline hover:text-blue-700 inline-flex items-center min-h-[44px] py-1 cursor-pointer focus-ring rounded"
+                >
+                  {language === 'taglish'
+                    ? 'Basahin ang aming Data Privacy Charter →'
+                    : 'Read our Data Privacy Charter →'}
+                </Link>
+              </div>
+            </div>
+
             <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setIsPrivacyModalOpen(false)}
-                className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
+                className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer focus-ring"
               >
                 {language === 'taglish' ? 'Kanselahin' : 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmWipeData}
-                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-md shadow-red-900/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-md shadow-red-900/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2 focus-ring"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{language === 'taglish' ? 'Oo, Burahin ang Lahat' : 'Yes, Wipe All Data'}</span>

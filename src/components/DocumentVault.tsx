@@ -179,22 +179,22 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white rounded-2xl p-6 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header Announcement Board */}
+      <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs text-slate-900">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-400 text-amber-950">
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
                 CLIENT-SIDE ENGINE
               </span>
-              <span className="text-xs text-blue-200">
-                Strict PCSO & Senate 2.0MB Limit Enforced
+              <span className="text-xs text-slate-500 font-medium">
+                • Strict PCSO & Senate 2.0MB Limit Enforced
               </span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
               {language === 'taglish' ? 'Document Vault & Auto-Compressor' : 'Document Vault & Auto-Compressor'}
             </h2>
-            <p className="text-sm text-blue-100 max-w-2xl mt-1">
+            <p className="text-sm text-slate-600 max-w-2xl mt-1.5 leading-relaxed">
               {language === 'taglish'
                 ? 'Mag-upload ng picture mula sa cellphone. Awtomatikong lilinisin, gagawing PDF, at icocompress sa ilalim ng 2MB para hindi ma-reject sa portal ng PCSO at Senado.'
                 : 'Upload photos directly from your phone. Our engine auto-converts, cleans, and compresses each document into a high-clarity PDF under 2MB so government portals never reject your upload.'}
@@ -203,15 +203,15 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({
 
           {/* Readiness Badges */}
           <div className="flex flex-row md:flex-col gap-3 shrink-0">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10">
-              <div className="text-xs text-blue-200 font-medium">Senate Assist Ready</div>
-              <div className="text-lg font-black text-amber-300">
+            <div className="bg-amber-50/80 rounded-xl p-3 border border-amber-200/90 shadow-2xs">
+              <div className="text-xs text-amber-900 font-semibold">Senate Assist Ready</div>
+              <div className="text-lg font-black text-amber-950">
                 {senateReadyCount} / {senateReqs.length} Documents
               </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10">
-              <div className="text-xs text-blue-200 font-medium">PCSO MAP Ready</div>
-              <div className="text-lg font-black text-emerald-300">
+            <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/90 shadow-2xs">
+              <div className="text-xs text-emerald-900 font-semibold">PCSO MAP Ready</div>
+              <div className="text-lg font-black text-emerald-950">
                 {pcsoReadyCount} / {pcsoReqs.length} Documents
               </div>
             </div>

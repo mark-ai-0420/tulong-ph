@@ -770,7 +770,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     }}
                     onBlur={() => setTouched((prev) => ({ ...prev, representativeFullName: true }))}
                     placeholder="e.g. Maria Santos Dela Cruz"
-                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                       isFieldInvalid('representativeFullName')
                         ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                         : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -798,7 +798,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     aria-invalid={isFieldInvalid('representativeRelationship')}
                     value={relationSelectValue}
                     onChange={(e) => handleRelationChange(e.target.value)}
-                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm font-semibold transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white ${
+                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm font-semibold transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white ${
                       isFieldInvalid('representativeRelationship')
                         ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950'
                         : 'border-slate-300 text-slate-900'
@@ -835,7 +835,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                             ? 'Hal. Kinakapatid, Kapitbahay, Legal Guardian'
                             : 'e.g. Legal Guardian, Neighbor, Foster Parent'
                         }
-                        className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white ${
+                        className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white ${
                           isFieldInvalid('representativeRelationship')
                             ? 'border-red-500 bg-red-50/20 text-red-950 placeholder-red-300'
                             : 'border-slate-300 text-slate-900'
@@ -884,7 +884,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, firstName: true }))}
                   placeholder="e.g. Juan"
-                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                     isFieldInvalid('firstName')
                       ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                       : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -912,7 +912,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   value={patient.middleName}
                   onChange={(e) => onUpdatePatient({ ...patient, middleName: e.target.value })}
                   placeholder="e.g. Ramos"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
               <div>
@@ -937,7 +937,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, lastName: true }))}
                   placeholder="e.g. Santos"
-                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                     isFieldInvalid('lastName')
                       ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                       : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -967,7 +967,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   autoComplete="off"
                   value={patient.dateOfBirth}
                   onChange={(e) => onUpdatePatient({ ...patient, dateOfBirth: e.target.value })}
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
               <div>
@@ -994,7 +994,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, contactNumber: true }))}
                   placeholder="0917XXXXXXX"
-                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                     isFieldInvalid('contactNumber')
                       ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                       : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -1026,7 +1026,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     onUpdatePatient({ ...patient, philhealthNumber: e.target.value })
                   }
                   placeholder="12-digit PhilHealth PIN"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
             </div>
@@ -1053,7 +1053,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     })
                   }
                   placeholder="e.g. Brgy. 142"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
               <div>
@@ -1076,7 +1076,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     })
                   }
                   placeholder="e.g. Manila / Quezon City"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
               <div>
@@ -1099,7 +1099,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     })
                   }
                   placeholder="e.g. Metro Manila / Cavite"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 />
               </div>
             </div>
@@ -1250,7 +1250,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     category: e.target.value as EmergencyCategory,
                   })
                 }
-                className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
               >
                 <option value="hospitalization">Hospital Confinement / Inpatient Care</option>
                 <option value="chemotherapy">Chemotherapy / Cancer Treatment</option>
@@ -1286,7 +1286,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 }}
                 onBlur={() => setTouched((prev) => ({ ...prev, diagnosis: true }))}
                 placeholder="e.g. Acute Coronary Syndrome, Chronic Kidney Disease Stage 5, Pneumonia"
-                className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                   isFieldInvalid('diagnosis')
                     ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                     : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -1320,7 +1320,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       hasMalasakitCenter: e.target.value.startsWith('public'),
                     })
                   }
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 >
                   <option value="public_doh">{t.publicDOH} (Malasakit Active)</option>
                   <option value="public_lgu">{t.publicLGU}</option>
@@ -1362,7 +1362,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         ? 'Hal. Philippine General Hospital, Heart Center, EAMC'
                         : 'e.g. Philippine General Hospital, Heart Center, EAMC'
                     }
-                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 pr-10 rounded-lg border text-sm transition-colors focus:outline-hidden ${
+                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 pr-10 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
                       isFieldInvalid('hospitalName')
                         ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                         : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -1380,9 +1380,9 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     aria-label="Malasakit Centers Directory"
                     className="absolute z-30 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150"
                   >
-                    <div className="px-3.5 py-1.5 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                    <div className="px-3.5 py-1.5 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
                       <span>160+ Malasakit Centers Directory</span>
-                      <span className="text-blue-600 font-semibold">{hospitalSuggestions.length} found</span>
+                      <span className="text-blue-900 font-semibold">{hospitalSuggestions.length} found</span>
                     </div>
                     {hospitalSuggestions.map((center) => (
                       <button
@@ -1395,19 +1395,19 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         className="w-full text-left p-3 hover:bg-blue-50/80 transition-colors flex items-start justify-between gap-3 group cursor-pointer"
                       >
                         <div className="space-y-0.5 min-w-0">
-                          <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 flex items-center gap-1.5">
-                            <Building className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900 flex items-center gap-1.5">
+                            <Building className="w-3.5 h-3.5 text-blue-900 shrink-0" />
                             <span className="truncate">{center.hospitalName}</span>
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate pl-5">
+                          <p className="text-xs text-slate-500 truncate pl-5">
                             {center.address} • {center.provinceOrCity}
                           </p>
                         </div>
                         <div className="shrink-0 flex flex-col items-end gap-1">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
                             Malasakit Desk
                           </span>
-                          <span className="text-[10px] text-slate-600">
+                          <span className="text-xs text-slate-600">
                             {center.hospitalType.includes('LGU') ? 'Public LGU' : 'Public DOH'}
                           </span>
                         </div>
@@ -1472,7 +1472,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     }}
                     onBlur={() => setTouched((prev) => ({ ...prev, totalHospitalBill: true }))}
                     placeholder="₱ 80,000"
-                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-sm font-bold transition-colors focus:outline-hidden ${
+                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm font-bold transition-colors focus:outline-hidden ${
                       isFieldInvalid('totalHospitalBill')
                         ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                         : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
@@ -1508,7 +1508,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       )
                     }
                     placeholder="₱ 18,000"
-                    className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                    className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                   />
                 </div>
                 <div>
@@ -1534,7 +1534,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       )
                     }
                     placeholder="₱ 0"
-                    className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                    className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                   />
                 </div>
               </div>
@@ -1654,10 +1654,10 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-5 h-5 rounded-full bg-blue-900 text-white text-xs font-bold flex items-center justify-center shrink-0">
                       3
                     </span>
-                    <span className="text-xs font-bold text-indigo-900">Malasakit Center</span>
+                    <span className="text-xs font-bold text-slate-900">Malasakit Center</span>
                   </div>
                   <p className="text-xs text-slate-600 leading-normal">
                     {language === 'taglish'
@@ -1970,22 +1970,22 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 {step.agencyId === 'doh_malasakit' && (
                   <div className="pl-12 mt-4">
                     {matchedMalasakitCenter ? (
-                      <div className="p-5 rounded-2xl bg-indigo-50/90 border-2 border-indigo-200 space-y-3.5 shadow-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200/80 pb-3">
+                      <div className="p-5 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-3.5 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <div className="w-8 h-8 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-2xs">
                               <Building className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold text-indigo-950">
+                                <h4 className="text-sm font-bold text-slate-900">
                                   {language === 'taglish' ? 'Inyong Malasakit Center Desk' : 'Your In-Hospital Malasakit Center Desk'}
                                 </h4>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300">
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300">
                                   Matched Facility
                                 </span>
                               </div>
-                              <p className="text-xs text-indigo-900/80 font-medium">
+                              <p className="text-xs text-slate-600 font-medium">
                                 {matchedMalasakitCenter.hospitalType}
                               </p>
                             </div>
@@ -1993,22 +1993,22 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          <div className="p-3 bg-white/90 rounded-xl border border-indigo-100 space-y-1">
+                          <div className="p-3 bg-white/90 rounded-xl border border-slate-200 space-y-1">
                             <span className="font-bold text-slate-800 block text-xs">
                               {matchedMalasakitCenter.hospitalName}
                             </span>
                             <div className="flex items-start gap-1.5 text-slate-600">
-                              <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                              <MapPin className="w-3.5 h-3.5 text-blue-900 shrink-0 mt-0.5" />
                               <span>{matchedMalasakitCenter.address} ({matchedMalasakitCenter.provinceOrCity})</span>
                             </div>
                           </div>
 
-                          <div className="p-3 bg-white/90 rounded-xl border border-indigo-100 space-y-1">
+                          <div className="p-3 bg-white/90 rounded-xl border border-slate-200 space-y-1">
                             <span className="font-bold text-slate-800 block text-xs">
                               {language === 'taglish' ? 'Oras ng Operasyon:' : 'Operating Hours:'}
                             </span>
                             <div className="flex items-center gap-1.5 text-slate-600">
-                              <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                              <Clock className="w-3.5 h-3.5 text-blue-900 shrink-0" />
                               <span>{matchedMalasakitCenter.operatingHours}</span>
                             </div>
                           </div>
@@ -2018,7 +2018,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <a
                             href={`tel:${parseDialableNumber(matchedMalasakitCenter.contactNumber)}`}
-                            className="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                            className="h-11 px-4 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                           >
                             <Phone className="w-4 h-4" />
                             <span>
@@ -2031,7 +2031,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                           <button
                             type="button"
                             onClick={() => handleCopyCenterPhone(matchedMalasakitCenter.contactNumber)}
-                            className="h-11 px-4 rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-950 font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                            className="h-11 px-4 rounded-xl border border-stone-200/90 bg-white hover:bg-stone-50 text-slate-800 font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                           >
                             {copiedCenterPhone ? (
                               <>
@@ -2040,7 +2040,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                               </>
                             ) : (
                               <>
-                                <Copy className="w-4 h-4 text-indigo-700" />
+                                <Copy className="w-4 h-4 text-slate-600" />
                                 <span>{language === 'taglish' ? 'Kopyahin ang Telepono' : 'Copy Phone Number'}</span>
                               </>
                             )}
@@ -2118,7 +2118,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         <button
                           type="button"
                           onClick={() => onNavigateToTab('malasakit')}
-                          className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                          className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
                         >
                           <span>Find Malasakit Desk</span>
                           <ChevronRight className="w-4 h-4" />
@@ -2207,7 +2207,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                             {title}
                           </span>
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
                               isUploaded
                                 ? 'bg-emerald-100 text-emerald-900'
                                 : 'bg-amber-100 text-amber-900'
@@ -2219,7 +2219,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                           </span>
                         </div>
                         {helper && (
-                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                          <p className="text-xs text-slate-500 leading-relaxed">
                             {helper}
                           </p>
                         )}

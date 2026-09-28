@@ -283,7 +283,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       ? 'Maghanap ng pangalan ng ospital, lungsod, o probinsya...'
                       : 'Search hospital name, city, or province...'
                   }
-                  className="min-h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
+                  className="min-h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
                 />
               </div>
 
@@ -301,7 +301,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     setSelectedRegion(e.target.value);
                     setVisibleCount(PAGE_SIZE);
                   }}
-                  className="min-h-11 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold text-slate-800 bg-white shadow-2xs focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
+                  className="min-h-11 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm font-bold text-slate-800 bg-white shadow-2xs focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
                 >
                   {availableRegions.map((reg) => (
                     <option key={reg} value={reg}>
@@ -329,7 +329,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   className={`min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                     selectedRegion === reg
                       ? 'bg-blue-900 text-white shadow-xs'
-                      : 'bg-[#FAF8F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      : 'bg-[#FAF9F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   {reg === 'All' ? (language === 'taglish' ? 'Lahat ng Rehiyon' : 'All Regions') : reg} ({regionCounts[reg] || 0})
@@ -346,7 +346,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                 : `Showing ${displayedHospitals.length} of ${filteredHospitals.length} hospitals`}
             </span>
             {filteredHospitals.length > PAGE_SIZE && (
-              <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
+              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
                 {PAGE_SIZE} bawat pahina
               </span>
             )}
@@ -368,7 +368,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
                         {hospital.region}
                       </span>
                       <span className="text-xs font-bold text-slate-700">
@@ -395,7 +395,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   {/* High Contrast Emergency Contact & Action Buttons */}
                   <div className="pt-3 border-t border-slate-100 space-y-2.5">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-bold text-blue-950 bg-blue-50 px-2.5 py-1 rounded-md text-xs border border-blue-200">
+                      <span className="font-bold text-blue-950 bg-blue-50 px-2.5 py-1 rounded-lg text-xs border border-blue-200">
                         {hospital.hospitalType}
                       </span>
                       <a
@@ -543,14 +543,14 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   {/* Card Header */}
                   <div
                     onClick={() => toggleExpandAgency(agency.id)}
-                    className="p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none hover:bg-[#FAF8F5]/60 transition-colors"
+                    className="p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none hover:bg-[#FAF9F5]/60 transition-colors"
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
                           {agency.badge}
                         </span>
-                        <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-800">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-800">
                           {agency.assistanceType}
                         </span>
                         <span className="flex items-center gap-1 text-xs text-slate-600 font-medium">
