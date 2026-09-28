@@ -93,7 +93,7 @@ export interface StoredDocument {
 
 export interface ApplicationRecord {
   id: string;
-  agencyId: 'senate_assist' | 'pcso_map' | 'doh_malasakit' | 'dswd_aics';
+  agencyId: 'senate_assist' | 'pcso_map' | 'doh_malasakit' | 'dswd_aics' | 'pace_op';
   referenceNumber: string;
   submissionDate: string;
   status: 'draft' | 'submitted' | 'processing' | 'gl_issued' | 'claimed' | 'rejected';

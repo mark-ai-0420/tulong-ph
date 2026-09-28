@@ -116,18 +116,46 @@ export function calculateAidStacking(
     ],
   });
 
-  // STEP 4: Senate Assist
+  // STEP 4: Presidential Action Center (PACe - Office of the President) for Catastrophic/Large Bills (₱50k+)
+  const isHighBill = medicalCase.totalHospitalBill >= 50000 || medicalCase.netRemainingBalance >= 30000 || isSpecialtyTreatment;
+  if (isHighBill) {
+    docSet.add('social_case_study');
+    steps.push({
+      stepNumber: steps.length + 1,
+      agencyId: 'pace_op',
+      agencyName: 'Presidential Action Center (PACe) - Office of the President',
+      actionTitleEn: 'Apply for High-Deficit Guarantee Letter via PACe (Office of the President)',
+      actionTitleTl: 'Mag-file sa Presidential Action Center (PACe - Malacañang) para sa Malaking Bill',
+      explanationEn:
+        'PACe is the highest executive lifeline for catastrophic bills (₱50,000 to ₱1,000,000+), open-heart surgeries, transplants, and ICU care. Submit a request letter addressed to the President with your Social Case Study to pace@op.gov.ph or Malacañang Complex.',
+      explanationTl:
+        'Pangunahing sandigan para sa napakalaking hospital bill (₱50k pataas), ICU confinement, o major surgery. Mag-email ng liham-kahilingan sa Pangulo at Social Case Study sa pace@op.gov.ph o dalhin sa PACe Malacañang Complex upang mabigyan ng Guarantee Letter.',
+      targetExpense: 'Catastrophic surgical procedures, ICU room deficit, organ transplants, or high medical balances',
+      estimatedTime: '3 to 7 Business Days',
+      priorityScore: 78,
+      requiredDocuments: [
+        'clinical_abstract',
+        'statement_of_account',
+        'barangay_indigency',
+        'social_case_study',
+        'patient_valid_id',
+        'authorization_letter',
+      ],
+    });
+  }
+
+  // STEP 5: Senate Public Assistance Office (Senate Assist)
   steps.push({
     stepNumber: steps.length + 1,
     agencyId: 'senate_assist',
     agencyName: 'Senate Public Assistance Office (Senate Assist)',
-    actionTitleEn: 'File Online via assist.senate.gov.ph',
-    actionTitleTl: 'Mag-file Online sa assist.senate.gov.ph',
+    actionTitleEn: 'File for Hospital Guarantee Letter (GL) via assist.senate.gov.ph',
+    actionTitleTl: 'Mag-apply ng Hospital Guarantee Letter (GL) sa assist.senate.gov.ph',
     explanationEn:
-      'Upload the remaining hospital billing and clinical abstract to receive an electronic Guarantee Letter. Note the strict 90-day cooldown between requests.',
+      'Upload remaining hospital billing and clinical abstract to receive an institutional Guarantee Letter. Note: Senate GL covers hospital billing directly and has a 90-day reapplication cooldown.',
     explanationTl:
-      'I-upload ang tirang billing at abstract para sa electronic Guarantee Letter. Tandaan ang 90-araw na pagitan bago makapag-apply ulit.',
-    targetExpense: 'Final hospital bill deficit or specialty pharmacy supplies',
+      'I-upload ang natitirang billing at abstract para sa electronic Guarantee Letter (GL). Paalala: Ang Senate GL ay direktang ibinabawas sa hospital bill at may 90-araw na pagitan bago makapag-apply muli.',
+    targetExpense: 'Hospital bill deficit or in-hospital specialty medicines (Guarantee Letter only)',
     estimatedTime: '2 to 3 Business Days',
     priorityScore: 75,
     requiredDocuments: [
@@ -139,34 +167,42 @@ export function calculateAidStacking(
     ],
   });
 
-  // STEP 5: DSWD AICS & LGU Mayor's Assistance
+  // STEP 6: DSWD AICS & LGU Social Welfare (Cash Assistance & Out-of-Pocket Support)
   steps.push({
     stepNumber: steps.length + 1,
     agencyId: 'dswd_aics',
-    agencyName: 'DSWD AICS & City/Municipal Mayor Aid',
-    actionTitleEn: 'Avail Cash Aid for Non-Hospital Out-of-Pocket Expenses',
-    actionTitleTl: 'Humingi ng Cash Aid para sa Gamot sa Labas, Pamasahe, o Libing',
+    agencyName: 'DSWD AICS & City/Municipal Social Welfare',
+    actionTitleEn: 'Avail Cash Aid for Outside Medicines, Labs, and Transportation',
+    actionTitleTl: 'Humingi ng Cash Aid para sa Gamot sa Labas, Outside Labs, at Pamasahe',
     explanationEn:
-      'Approach the local DSWD Crisis Intervention Unit or City Social Welfare for cash disbursements covering outside pharmacy medicines, emergency travel fares, or funeral expenses.',
+      'The premier government channel for outright cash grants (₱1,000–₱10,000). Best used for prescription medicines bought from outside pharmacies, outside laboratory/CT scans, transportation, or funeral assistance.',
     explanationTl:
-      'Lumapit sa DSWD CIU o City Hall para sa cash na pambili ng gamot na wala sa ospital, pamasahe pauwi ng probinsya, o tulong pampalibing.',
-    targetExpense: 'Out-of-pocket prescription medicines, food, travel, or burial contract',
-    estimatedTime: '1 to 3 Days',
+      'Pangunahing pinagkukunan ng direct cash aid (₱1,000–₱10,000). Gamitin ito para sa mga gamot na binili sa labas (Mercury/generic), outside laboratory/CT scans, pamasahe pauwi ng probinsya, o tulong pampalibing.',
+    targetExpense: 'Out-of-pocket external pharmacy medicines, outside CT/MRI scans, transport fare, or caregiver food',
+    estimatedTime: '1 to 3 Business Days',
     priorityScore: 70,
-    requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id', 'death_certificate'],
+    requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id'],
   });
+
+  // Anti-Duplication Rule Clarification
+  criticalWarningsEn.push(
+    'Anti-Duplication Note: If your Senate Assist Guarantee Letter is endorsed to DSWD for your hospital bill, do not file a separate DSWD claim for the same hospital statement. Reserve DSWD AICS for outside pharmacy receipts and travel fare.'
+  );
+  criticalWarningsTl.push(
+    'Paalala sa Senate at DSWD: Kung ang iyong Senate Assist GL ay naka-endorso na sa DSWD para sa hospital bill, hindi na maaaring humingi ng hiwalay na DSWD hospital assistance para sa parehong billing. Gamitin ang DSWD AICS para sa mga gamot sa labas o pamasahe.'
+  );
 
   // Calculate estimated coverage
   let estimatedCoverageRange = '60% to 100% of Net Hospital Bill';
   if (medicalCase.hospitalType.startsWith('public') && (patient.is4PsBeneficiary || patient.socioeconomicClass === 'indigent')) {
-    estimatedCoverageRange = 'Up to 100% Zero-Billing via Malasakit & National Funds';
+    estimatedCoverageRange = 'Up to 100% Zero-Billing via Malasakit, PACe & National Funds';
   } else if (medicalCase.hospitalType === 'private') {
     estimatedCoverageRange = '40% to 75% Coverage (Private hospitals have separate co-pay policies)';
     criticalWarningsEn.push(
-      'Private hospitals require advance confirmation that they accept Senate Assist and PCSO Guarantee Letters before discharge.'
+      'Private hospitals require advance confirmation that they accept Senate Assist, PACe, and PCSO Guarantee Letters before discharge.'
     );
     criticalWarningsTl.push(
-      'Sa pribadong ospital, tiyakin muna sa billing kung tumatanggap sila ng Senate Assist at PCSO Guarantee Letter bago ang discharge.'
+      'Sa pribadong ospital, tiyakin muna sa billing kung tumatanggap sila ng Senate Assist, PACe, at PCSO Guarantee Letter bago ang discharge.'
     );
   }
 
@@ -174,9 +210,9 @@ export function calculateAidStacking(
     steps,
     estimatedCoverageRange,
     recommendedOrderSummaryEn:
-      '1. PhilHealth Deduction -> 2. In-Hospital Malasakit Center -> 3. PCSO Morning Queue -> 4. Senate Assist GL -> 5. DSWD Cash for out-of-pocket',
+      '1. PhilHealth Deduction -> 2. In-Hospital Malasakit Center -> 3. PCSO Online Queue -> 4. PACe (Office of the President) / Senate GL -> 5. DSWD Cash for out-of-pocket',
     recommendedOrderSummaryTl:
-      '1. PhilHealth Kaltas -> 2. Malasakit Center ng Ospital -> 3. PCSO Online Queue -> 4. Senate Assist GL -> 5. DSWD para sa gamot sa labas at pamasahe',
+      '1. PhilHealth Kaltas -> 2. Malasakit Center ng Ospital -> 3. PCSO Online Queue -> 4. PACe (Malacañang) / Senate GL -> 5. DSWD Cash para sa gamot sa labas at pamasahe',
     criticalWarningsEn,
     criticalWarningsTl,
     allRequiredDocuments: Array.from(docSet),
