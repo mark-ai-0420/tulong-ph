@@ -28,6 +28,8 @@ import {
   Phone,
   MapPin,
   Share2,
+  Layers,
+  Landmark,
 } from 'lucide-react';
 import {
   PatientProfile,
@@ -43,6 +45,8 @@ import { calculateAidStacking, TriageResult } from '@/lib/triageEngine';
 import { Language, translations } from '@/lib/i18n';
 import { PCSOAssistant } from './PCSOAssistant';
 import { SenateAssistant } from './SenateAssistant';
+import { PACEAssistant } from './PACEAssistant';
+import { StackingInfographic } from './StackingInfographic';
 import { saveApplications, loadApplications } from '@/lib/storage';
 import { MALASAKIT_CENTERS_DIRECTORY, MalasakitCenterLocation } from '@/lib/data/malasakitCenters';
 import { parseDialableNumber } from '@/lib/phoneUtils';
@@ -99,8 +103,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [bannerError, setBannerError] = useState<string | null>(null);
 
-  // Modal State for Embedded Full Assistants (PCSO / Senate)
-  const [activeModal, setActiveModal] = useState<'pcso' | 'senate' | null>(null);
+  // Modal State for Embedded Full Assistants & Infographic (PCSO / Senate / PACe / Infographic)
+  const [activeModal, setActiveModal] = useState<'pcso' | 'senate' | 'pace' | 'infographic' | null>(null);
   const [localApplications, setLocalApplications] = useState<ApplicationRecord[]>(applications || []);
 
   // Synchronize external applications prop
@@ -1592,9 +1596,19 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
           <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 shadow-xs space-y-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-200 mb-2 inline-block">
-                  OPTIMIZED SEQUENCE READY
-                </span>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-200 inline-block">
+                    OPTIMIZED SEQUENCE READY
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('infographic')}
+                    className="h-8 px-3 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-950 font-bold text-xs border border-blue-200 shadow-2xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-blue-900" />
+                    <span>{language === 'taglish' ? 'Tingnan ang Visual Infographic' : 'View Visual Infographic'}</span>
+                  </button>
+                </div>
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                   {language === 'taglish'
                     ? 'Ang Inyong Aid Stacking Roadmap'
@@ -1618,65 +1632,89 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
             {/* Official Assistance Stacking Sequence Architecture Display */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                {language === 'taglish'
-                  ? 'Tamang Pagkasunod-sunod ng Paglapit (Aid Stacking Sequence):'
-                  : 'Assistance Stacking Sequence (Order of Application):'}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  {language === 'taglish'
+                    ? 'Tamang Pagkasunod-sunod ng Paglapit (5-Pillar Aid Stacking):'
+                    : 'Official Assistance Stacking Sequence (5 Pillars):'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('infographic')}
+                  className="text-xs font-bold text-blue-900 hover:text-blue-700 underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>{language === 'taglish' ? 'Buong Gabay' : 'Full Guide'}</span>
+                </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
                       1
                     </span>
-                    <span className="text-xs font-bold text-blue-900">PhilHealth Case Rate</span>
+                    <span className="text-xs font-bold text-blue-900">PhilHealth</span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-normal">
+                  <p className="text-[11px] text-slate-600 leading-normal">
                     {language === 'taglish'
-                      ? 'Unang kaltas sa billing desk bago ang lahat.'
-                      : 'Mandatory first deduction at hospital billing.'}
+                      ? 'Unang bawas sa billing desk bago ang lahat.'
+                      : 'Mandatory first deduction at billing desk.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
                       2
                     </span>
-                    <span className="text-xs font-bold text-emerald-900">PCSO MAP</span>
+                    <span className="text-xs font-bold text-emerald-900">Senior/PWD 20%</span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-normal">
+                  <p className="text-[11px] text-slate-600 leading-normal">
                     {language === 'taglish'
-                      ? 'GL para sa gamot, dialysis, implants, o bill.'
-                      : 'Guarantee Letter for chemo, implants, or bills.'}
+                      ? 'Diskwento sa doctor fee at gamot (RA 9994/10754).'
+                      : '20% off + VAT free on medicines & MD fees.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-blue-900 text-white text-xs font-bold flex items-center justify-center shrink-0">
                       3
                     </span>
                     <span className="text-xs font-bold text-slate-900">Malasakit Center</span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-normal">
+                  <p className="text-[11px] text-slate-600 leading-normal">
                     {language === 'taglish'
-                      ? 'In-hospital desk para sa pondo ng DOH MAIP.'
-                      : 'In-hospital one-stop shop tapping DOH-MAIP.'}
+                      ? 'In-hospital desk (DOH MAIP) para sa ward at gamot.'
+                      : 'In-hospital DOH MAIP desk for ward & meds.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-amber-700 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
                       4
                     </span>
-                    <span className="text-xs font-bold text-amber-950">DSWD AICS</span>
+                    <span className="text-xs font-bold text-amber-900">PCSO / PACe</span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-normal">
+                  <p className="text-[11px] text-slate-600 leading-normal">
+                    {language === 'taglish'
+                      ? 'GL para sa malaking bill (₱50k+), chemo, o implants.'
+                      : 'GL for catastrophic bill (₱50k+), chemo, or implants.'}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                      5
+                    </span>
+                    <span className="text-xs font-bold text-rose-950">DSWD AICS (Cash)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-normal">
                     {language === 'taglish'
                       ? 'Cash aid sa gamot sa labas, pamasahe, o libing.'
-                      : 'Cash aid for exterior pharmacy and emergency travel.'}
+                      : 'Outright cash for outside pharmacy & travel.'}
                   </p>
                 </div>
               </div>
@@ -1931,6 +1969,46 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 </div>
               )}
             </div>
+
+            {/* PACe (Presidential Action Center - Office of the President) Quick Action Panel */}
+            {(medicalCase.totalHospitalBill >= 50000 || medicalCase.netRemainingBalance >= 30000) && (
+              <div className="bg-white rounded-2xl border border-[#E2DFD6] shadow-xs overflow-hidden">
+                <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 border-b border-amber-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 border border-amber-200">
+                      <Landmark className="w-5 h-5 text-amber-800" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          Presidential Action Center (PACe) - Malacañang
+                        </h3>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-amber-100 text-amber-950 border-amber-300">
+                          Bills ₱50,000+ / ICU / Implants
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        {language === 'taglish'
+                          ? 'Tanggapan ng Pangulo para sa malalaking deficit sa operasyon at ICU na lumagpas sa limit ng Malasakit at PCSO.'
+                          : 'Office of the President lifeline for catastrophic surgical deficits and ICU balances exceeding Malasakit/PCSO.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal('pace')}
+                      className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer shrink-0"
+                    >
+                      <Landmark className="w-4 h-4 text-amber-300" />
+                      <span>{language === 'taglish' ? 'Buksan ang PACe Toolkit' : 'Open PACe Toolkit'}</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stacking Steps List */}
@@ -2291,29 +2369,51 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
                       activeModal === 'pcso'
                         ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
-                        : 'bg-blue-100 text-blue-950 border-blue-300'
+                        : activeModal === 'senate'
+                        ? 'bg-blue-100 text-blue-950 border-blue-300'
+                        : activeModal === 'pace'
+                        ? 'bg-amber-100 text-amber-950 border-amber-300'
+                        : 'bg-purple-100 text-purple-950 border-purple-300'
                     }`}
                   >
-                    {activeModal === 'pcso' ? 'PCSO MAP DIRECT ASSISTANT' : 'SENATE SPAO 90-DAY TRACKER'}
+                    {activeModal === 'pcso'
+                      ? 'PCSO MAP DIRECT ASSISTANT'
+                      : activeModal === 'senate'
+                      ? 'SENATE SPAO 90-DAY TRACKER'
+                      : activeModal === 'pace'
+                      ? 'PRESIDENTIAL ACTION CENTER (OP)'
+                      : 'OFFICIAL AID STACKING INFOGRAPHIC'}
                   </span>
                 </div>
                 <h2 id="embedded-assistant-title" className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
                   {activeModal === 'pcso'
+                    ? 'PCSO Medical Assistance Program (MAP) Assistant'
+                    : activeModal === 'senate'
+                    ? 'Senate Public Assistance Office (SPAO) Tracker'
+                    : activeModal === 'pace'
                     ? (language === 'taglish'
-                        ? 'PCSO Medical Assistance Program (MAP) Assistant'
-                        : 'PCSO Medical Assistance Program (MAP) Assistant')
+                        ? 'Presidential Action Center (PACe) - Malacañang'
+                        : 'Presidential Action Center (PACe) - Malacañang')
                     : (language === 'taglish'
-                        ? 'Senate Public Assistance Office (SPAO) Tracker'
-                        : 'Senate Public Assistance Office (SPAO) Tracker')}
+                        ? 'Gabay sa Pag-Stack ng Ayuda ng Gobyerno'
+                        : 'Official Government Aid Stacking Guide')}
                 </h2>
                 <p id="embedded-assistant-desc" className="text-xs sm:text-sm text-slate-600 font-medium">
                   {activeModal === 'pcso'
                     ? (language === 'taglish'
                         ? 'Live Philippine Time tracker para sa 7:00 AM queue, 2.0MB single-PDF compliance, at opisyal na gabay.'
                         : 'Live Philippine Standard Time tracker for the 7:00 AM queue, 2.0MB PDF compliance, and official guidance.')
-                    : (language === 'taglish'
+                    : activeModal === 'senate'
+                    ? (language === 'taglish'
                         ? 'Pre-formatted Guarantee Letter (GL) request letter, 90-day cooldown tracker, at record keeper.'
-                        : 'Pre-formatted Guarantee Letter (GL) request letter, 90-day cooldown policy tracker, and record keeper.')}
+                        : 'Pre-formatted Guarantee Letter (GL) request letter, 90-day cooldown policy tracker, and record keeper.')
+                    : activeModal === 'pace'
+                    ? (language === 'taglish'
+                        ? 'Pre-formatted na liham sa Pangulo ng Pilipinas, opisyal na requirements, at PACe filing channels para sa malalaking bill.'
+                        : 'Pre-formatted request letter to the President, documentary checklist, and direct PACe Malacañang submission channels.')
+                    : (language === 'taglish'
+                        ? '5-Hakbang na opisyal na gabay mula PhilHealth, Malasakit, PACe, PCSO, hanggang DSWD cash assistance.'
+                        : '5-Pillar official statutory stacking architecture from PhilHealth, Malasakit, PACe, to DSWD cash assistance.')}
                 </p>
               </div>
 
@@ -2359,6 +2459,23 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   applications={localApplications}
                   onSaveApplications={handleSaveApplications}
                   language={language}
+                />
+              )}
+              {activeModal === 'pace' && (
+                <PACEAssistant
+                  patient={patient}
+                  representative={representative}
+                  medicalCase={medicalCase}
+                  language={language}
+                />
+              )}
+              {activeModal === 'infographic' && (
+                <StackingInfographic
+                  language={language}
+                  onSelectTab={(tab) => {
+                    setActiveModal(null);
+                    onNavigateToTab(tab);
+                  }}
                 />
               )}
             </div>

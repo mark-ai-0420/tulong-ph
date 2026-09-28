@@ -388,4 +388,63 @@ export const AGENCIES_DATABASE: AgencyInfo[] = [
     tipsTl: ['Ang MedPlus ay nagbibigay ng hanggang ₱50,000 pandagdag sa naibawas ng PhilHealth.'],
     reapplicationPolicy: 'Per incident / once per illness episode.',
   },
+  {
+    id: 'pace_op',
+    name: 'Presidential Action Center (PACe) - Office of the President',
+    shortName: 'PACe (Office of the President)',
+    badge: 'High-Bill Guarantee Letter (OP)',
+    category: 'national_gl',
+    officialUrl: 'https://op-proper.gov.ph',
+    hotline: '(02) 8249-8310 loc. 8174 / 8175 | pace@op.gov.ph',
+    processingTime: '3 to 7 Business Days',
+    assistanceType: 'Guarantee Letter (GL)',
+    descriptionEn:
+      'The primary public assistance division under the Office of the President of the Philippines. Issues high-value Guarantee Letters (GLs) directly to partner hospitals for catastrophic medical bills, organ transplants, open-heart surgeries, intensive care (ICU), and major chemotherapy.',
+    descriptionTl:
+      'Pangunahing tanggapan sa ilalim ng Tanggapan ng Pangulo ng Pilipinas. Nagkakaloob ng Guarantee Letter (GL) para sa mga malalaking gastusin sa ospital, organ transplant, open-heart surgery, ICU confinement, at mamahaling operasyon o gamutan.',
+    eligibilityEn: [
+      'Filipino citizen facing catastrophic illness or extreme hospital balance (₱50,000+)',
+      'Patient must be admitted in a public, DOH specialty center, or accredited partner hospital',
+      'Remaining balance must have exhausted initial PhilHealth and senior/PWD deductions',
+      'Requires a formal letter addressed to the President of the Philippines detailing the medical emergency',
+    ],
+    eligibilityTl: [
+      'Mamamayang Pilipino na may napakalaking gastusin o krisis medikal (₱50,000 pataas)',
+      'Naka-confine sa pampubliko, DOH specialty center (Heart, Kidney, Lung, PCMC, PGH), o partner hospital',
+      'Kailangang naibawas na ang PhilHealth at senior/PWD discount',
+      'Kailangan ng pormal na liham-kahilingan na nakadirekta sa Pangulo ng Pilipinas',
+    ],
+    requiredDocs: [
+      'clinical_abstract',
+      'statement_of_account',
+      'barangay_indigency',
+      'patient_valid_id',
+      'representative_valid_id',
+      'social_case_study',
+      'authorization_letter',
+    ],
+    howToApplyStepsEn: [
+      'Draft a formal request letter addressed to: "His Excellency, The President of the Philippines, Malacañang, Manila" stating the patient condition and financial hardship.',
+      'Gather Clinical Abstract, Certified Statement of Account/Running Bill, Social Case Study Report (SCSR) from MSWDO, and Valid IDs.',
+      'Submit in-person at PACe Building, Malacañang Complex, J.P. Laurel St., San Miguel, Manila, or via email to pace@op.gov.ph.',
+      'Track evaluation via PACe Action Center hotline (02) 8249-8310 local 8174.',
+      'Once approved, the Guarantee Letter (GL) is transmitted to the hospital credit and collection section.',
+    ],
+    howToApplyStepsTl: [
+      'Sumulat ng pormal na liham-kahilingan sa Pangulo ng Pilipinas na nagpapaliwanag ng sitwasyon ng pasyente at kakapusan sa pambayad.',
+      'Ihanda ang Medical Abstract, Certified Statement of Account (Running Bill), Social Case Study mula sa City Hall/MSWDO, at Valid IDs.',
+      'Dalhin nang personal sa PACe Building, Malacañang Complex, J.P. Laurel St., San Miguel, Manila, o i-email sa pace@op.gov.ph.',
+      'I-follow up ang status sa telepono (02) 8249-8310 local 8174.',
+      'Kapag naaprubahan, ipapadala ang Guarantee Letter (GL) sa Billing section ng inyong ospital.',
+    ],
+    tipsEn: [
+      'PACe is the highest executive lifeline for six-figure deficits (₱100k to ₱1M+) when Malasakit and PCSO limits are reached.',
+      'Ensure the Social Case Study Report explicitly indicates "Indigent / Financially Incapacitated".',
+    ],
+    tipsTl: [
+      'Ang PACe ang pinakamataas na takbuhan kapag umabot sa daang-libo (₱100k - ₱1M+) ang bill at naubos na ang limitasyon ng Malasakit at PCSO.',
+      'Tiyaking nakasaad sa Social Case Study na walang sapat na kakayahang pinansyal ang pamilya.',
+    ],
+    reapplicationPolicy: 'Once per medical confinement / major surgical episode.',
+  },
 ];

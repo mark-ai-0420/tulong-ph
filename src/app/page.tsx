@@ -41,12 +41,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   X,
+  Layers,
 } from 'lucide-react';
+import { StackingInfographic } from '@/components/StackingInfographic';
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>('taglish');
   const [currentTab, setCurrentTab] = useState<string>('triage');
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+  const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
   const [triageResetKey, setTriageResetKey] = useState(0);
   const [privacyToast, setPrivacyToast] = useState<string | null>(null);
 
@@ -278,6 +281,18 @@ export default function Home() {
                       : '200 Malasakit Hospital Desks'}
                   </span>
                 </button>
+
+                <button
+                  onClick={() => setIsInfographicModalOpen(true)}
+                  className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-xs sm:text-sm font-bold text-blue-900 border border-blue-200/90 shadow-2xs transition-colors focus-ring cursor-pointer"
+                >
+                  <Layers className="w-4 h-4 text-blue-800" />
+                  <span>
+                    {language === 'taglish'
+                      ? '5-Hakbang Aid Stacking Infographic'
+                      : '5-Step Aid Stacking Infographic'}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -492,6 +507,62 @@ export default function Home() {
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{language === 'taglish' ? 'Oo, Burahin ang Lahat' : 'Yes, Wipe All Data'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5-Step Aid Stacking Infographic Modal */}
+      {isInfographicModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="infographic-modal-title"
+        >
+          <div
+            className="relative w-full max-w-4xl my-auto max-h-[90vh] bg-white border border-[#E2DFD6] rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#E2DFD6] bg-[#FAF9F5]">
+              <div>
+                <h2 id="infographic-modal-title" className="text-base sm:text-lg font-bold text-slate-900">
+                  {language === 'taglish' ? '5-Hakbang Aid Stacking Infographic' : '5-Step Aid Stacking Infographic'}
+                </h2>
+                <p className="text-xs text-slate-600">
+                  {language === 'taglish'
+                    ? 'Tamang pagkakasunod-sunod ng PhilHealth, Malasakit, PCSO, PACe, at DSWD'
+                    : 'Proper sequencing of PhilHealth, Malasakit, PCSO, PACe, and DSWD assistance'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsInfographicModalOpen(false)}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-stone-200 text-slate-600 transition-colors focus-ring"
+                aria-label="Isara"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
+              <StackingInfographic
+                language={language}
+                onSelectTab={(tab) => {
+                  setIsInfographicModalOpen(false);
+                  setCurrentTab(tab);
+                }}
+              />
+            </div>
+
+            <div className="p-3 sm:p-4 border-t border-[#E2DFD6] bg-[#FAF9F5] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsInfographicModalOpen(false)}
+                className="min-h-[44px] px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors focus-ring cursor-pointer"
+              >
+                {language === 'taglish' ? 'Isara' : 'Close'}
               </button>
             </div>
           </div>
