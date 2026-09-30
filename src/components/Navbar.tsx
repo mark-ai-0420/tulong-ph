@@ -97,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => onTabChange(item.id)}
                   className={`relative h-11 min-h-[44px] px-3.5 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-2 focus-ring cursor-pointer ${
                     isActive
-                      ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/80 font-bold'
+                      ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6] font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 border border-transparent'
                   }`}
                 >
@@ -123,7 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenPrivacyModal}
-              className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2.5 rounded-lg border border-stone-200/80 bg-white hover:bg-stone-100 hover:border-stone-300 text-xs font-semibold text-slate-700 hover:text-red-700 shadow-2xs transition-colors focus-ring cursor-pointer group shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2.5 rounded-lg border border-[#E2DFD6] bg-white hover:bg-stone-100 hover:border-[#CDC8BD] text-xs font-semibold text-slate-700 hover:text-red-700 shadow-2xs transition-colors focus-ring cursor-pointer group shrink-0"
               aria-label={
                 language === 'taglish'
                   ? 'Burahin ang Aking Datos (Pisonet / Shop Mode)'
@@ -142,7 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Bilingual Toggle */}
             <button
               onClick={onToggleLanguage}
-              className="h-11 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2.5 rounded-lg border border-stone-200/80 bg-white hover:bg-stone-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 sm:gap-2 focus-ring cursor-pointer shrink-0"
+              className="h-11 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2.5 rounded-lg border border-[#E2DFD6] bg-white hover:bg-stone-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 sm:gap-2 focus-ring cursor-pointer shrink-0"
               aria-label={`Palitan ang wika sa ${language === 'taglish' ? 'English' : 'Taglish'}`}
               title="Palitan ang wika / Switch language"
             >
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => onTabChange(item.id)}
                   className={`h-11 min-h-[44px] px-1 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all flex items-center justify-center gap-1 sm:gap-1.5 focus-ring cursor-pointer ${
                     isActive
-                      ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/80 font-bold'
+                      ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6] font-bold'
                       : 'text-slate-600 hover:text-slate-900 border border-transparent'
                   }`}
                 >

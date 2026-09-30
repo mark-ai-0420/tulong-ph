@@ -130,6 +130,28 @@ All interactive controls strictly enforce the **$\ge 44\times 44\text{px}$ touch
   - ObjectURL memory blobs
 - Resets user session back to Step 1 with a reassuring confirmation toast.
 
+### F. Public vs. Private Hospital Pathway Specifications
+- **Legal Constraints (RA 11463)**:
+  - Republic Act No. 11463 (Malasakit Centers Act) restricts Malasakit Center desks and DOH-MAIP hospital allocations exclusively to DOH-retained and participating public LGU hospitals.
+  - Private hospitals **cannot** host Malasakit desks, and in-hospital DOH Medical Assistance to Indigent Patients (MAIP) funds cannot be drawn at private cashiers.
+- **Private Hospital GL Stacking Protocol**:
+  - Patients confined in private facilities can still stack external financial assistance through PCSO Individual Medical Assistance Program (IMAP/MAP), Office of the President (PACe), and Senate/Congressional Medical Assistance.
+  - **Credit & Collection Department Protocol**: Patients' representatives must formally request a Certified Interim Statement of Account (Running Bill) from the hospital's Credit & Collection office and confirm which government GLs the hospital accepts for billing offset.
+  - **RA 9439 Promissory Note Protection**: Under Republic Act No. 9439 (Anti-Hospital Detention Law), patients in ward accommodations who cannot settle their hospital bill cannot be detained or denied discharge summaries and death certificates. Families are legally entitled to execute a Promissory Note secured by mortgage or personal guarantee.
+- **Private-to-Public Transfer Protocol**:
+  - Recommended for critical deficits (e.g., ICU confinement running ₱50k–₱100k/day, high-cost chemotherapy, or multi-organ failure).
+  - **National Patient Navigation and Referral Center (NPNRC)**: Direct coordination via Hotline `1555` (or `0919-977-3333` / `0915-777-7777`) for inter-facility bed hunting across DOH Level 3 Specialty Centers (PGH, Philippine Heart Center, NKTI, LCP, EMMC, RMC).
+  - **Physician-to-Physician Endorsement**: Confinement transfer requires hemodynamic stability, physician sign-off, receiving hospital bed confirmation, and equipped ambulance transit.
+
+### G. 3-Tier Button Token System
+Standardized interactive tokens ensuring unified tactile hierarchy, instant civic recognition, and strict WCAG AAA / Apple HIG touch target compliance ($\ge 44\text{px}$):
+1. **Tier 1: Institutional Navy** (`bg-blue-900 hover:bg-blue-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
+   - Canonical primary action across all views: advancing triage steps, triggering direct paper print, or submitting official dispatch requests.
+2. **Tier 2: Neutral Paper** (`bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] min-h-[44px] h-11 px-4 rounded-xl font-semibold`)
+   - Secondary utilities, file downloads, drawer toggles, and clipboard copy operations.
+3. **Tier 3: Verified Emerald** (`bg-emerald-700 hover:bg-emerald-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
+   - High-trust outreach, Viber/Messenger family sharing, and government portal external handoffs.
+
 ---
 
 ## 6. Cultural & Linguistic Authenticity

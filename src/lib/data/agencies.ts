@@ -128,16 +128,18 @@ export const AGENCIES_DATABASE: AgencyInfo[] = [
     processingTime: 'Same Day to 24 Hours (In-Hospital)',
     assistanceType: 'Direct Bill Credit',
     descriptionEn:
-      'Established under Republic Act No. 11463, Malasakit Centers are integrated one-stop desks located inside public hospitals consolidating PhilHealth, DOH-MAIP, PCSO, and DSWD to drive zero-balance billing for indigent patients.',
+      'Established under Republic Act No. 11463 (Malasakit Centers Act), Malasakit Centers are integrated one-stop desks located strictly inside government/public hospitals consolidating PhilHealth, DOH-MAIP, PCSO, and DSWD to drive zero-balance billing for indigent patients. (Note: Not available in private hospitals).',
     descriptionTl:
-      'Itinatag sa ilalim ng RA 11463, ang Malasakit Center ay one-stop shop sa loob ng mga pampublikong ospital na pinagsasama ang PhilHealth, DOH-MAIP, PCSO, at DSWD para ma-zero ang bill ng pasyente.',
+      'Itinatag sa ilalim ng Batas Republika Blg. 11463, ang Malasakit Center ay one-stop shop sa loob lamang ng mga pampublikong ospital ng gobyerno na pinagsasama ang PhilHealth, DOH-MAIP, PCSO, at DSWD para ma-zero ang bill ng pasyente. (Paalala: Walang Malasakit Center sa pribadong ospital).',
     eligibilityEn: [
-      'Patients confined or receiving outpatient care at any of the 150+ public hospitals with Malasakit Centers',
+      'Patients confined or receiving outpatient care at any of the 150+ public hospitals with Malasakit Centers (strictly government facilities)',
       'Assessed by the Medical Social Service (MSS) as indigent, low-income, or financially incapacitated',
+      'Cannot be availed in private hospitals as RA 11463 restricts desks to DOH-retained, LGU, and state-run hospitals',
     ],
     eligibilityTl: [
-      'Pasyenteng naka-confine o nagpapagamot sa mga pampublikong ospital na may Malasakit Center',
+      'Pasyenteng naka-confine o nagpapagamot sa mga pampublikong ospital ng gobyerno na may Malasakit Center',
       'Na-assess ng Medical Social Service (MSS) bilang indigent o walang sapat na kakayahan magbayad',
+      'Hindi pwedeng gamitin sa pribadong ospital dahil para lamang ito sa pampublikong pagamutan ayon sa RA 11463',
     ],
     requiredDocs: [
       'clinical_abstract',
@@ -163,10 +165,12 @@ export const AGENCIES_DATABASE: AgencyInfo[] = [
     tipsEn: [
       'Always coordinate with Malasakit on Day 1 or Day 2 of admission rather than waiting for discharge day.',
       'If in a public DOH hospital, Malasakit is always the primary and most comprehensive step.',
+      'Private hospitals do not have Malasakit desks under RA 11463; patients in private hospitals should use GL stacking or request transfer referral.',
     ],
     tipsTl: [
       'Magtungo sa Malasakit Center desk sa unang araw pa lang ng pagkaka-confine.',
       'Kung nasa DOH hospital ka, ito ang pinakaunang dapat lapitan bago ang ibang ahensya.',
+      'Walang Malasakit Center sa pribadong ospital; kung nasa pribado, gamitin ang GL stacking o humiling ng paglipat sa pampubliko.',
     ],
     reapplicationPolicy: 'Per hospital admission / confinement cycle.',
   },
@@ -446,5 +450,59 @@ export const AGENCIES_DATABASE: AgencyInfo[] = [
       'Tiyaking nakasaad sa Social Case Study na walang sapat na kakayahang pinansyal ang pamilya.',
     ],
     reapplicationPolicy: 'Once per medical confinement / major surgical episode.',
+  },
+  {
+    id: 'npnrc_referral',
+    name: 'National Patient Navigation and Referral Center (NPNRC / 1555)',
+    shortName: 'NPNRC / 1555',
+    badge: 'National Referral Command',
+    category: 'specialized',
+    officialUrl: 'https://doh.gov.ph',
+    hotline: 'Hotline 1555 / (02) 886-59850 / 0919-977-3333',
+    processingTime: '24/7 Real-Time Emergency Coordination',
+    assistanceType: 'Mixed',
+    descriptionEn:
+      'National 24/7 DOH emergency coordination command linking private and public hospitals. Facilitates doctor-to-doctor transfer and bed navigation into Level 3 DOH specialty centers (PGH, Heart Center, NKTI, Lung Center, PCMC) to halt runaway private hospital debt.',
+    descriptionTl:
+      'Pambansang 24/7 emergency coordination hub ng DOH na nag-uugnay sa mga ospital para sa paglilipat ng pasyente at paghahanap ng bakanteng charity at ICU beds sa mga pampublikong specialty hospital.',
+    eligibilityEn: [
+      'Emergency or inpatient cases confined in private or lower-level hospitals requiring tertiary specialty care',
+      'Must have "Fit to Transfer" clinical stabilization clearance from attending physician (RA 8344 / RA 10932)',
+      'Requires complete clinical abstract, preliminary SOA, and doctor-to-doctor endorsement',
+    ],
+    eligibilityTl: [
+      'Pasyenteng naka-confine sa pribado o district hospital na nangangailangan ng tertiary specialty care',
+      'May "Fit to Transfer" certification mula sa doktor alinsunod sa Anti-Deposit Law',
+      'May kumpletong medical records at doctor-to-doctor endorsement',
+    ],
+    requiredDocs: [
+      'clinical_abstract',
+      'statement_of_account',
+      'patient_valid_id',
+      'representative_valid_id',
+    ],
+    howToApplyStepsEn: [
+      'Request attending physician to prepare Clinical Abstract, diagnostic test copies, and "Fit to Transfer" certification.',
+      'Dial Hotline 1555 or (02) 886-59850 (One Hospital Command).',
+      'Provide patient medical condition, current hospital details, and target tertiary specialty hospital.',
+      'NPNRC coordinates with receiving government hospital triage officers for an open charity or ICU bed.',
+      'Once accepted, dispatch an accredited emergency transfer ambulance.',
+    ],
+    howToApplyStepsTl: [
+      'Hilingin sa doktor ang Clinical Abstract, kopya ng tests, at "Fit to Transfer" certification.',
+      'Tumawag sa Hotline 1555 o (02) 886-59850 (One Hospital Command).',
+      'Ibigay ang kalagayan ng pasyente, kasalukuyang ospital, at specialty care na kailangan.',
+      'Makikipag-ugnayan ang NPNRC sa tatanggaping pampublikong ospital para sa bakanteng kama.',
+      'Kapag kumpirmado, i-dispatch ang transfer ambulance patungo sa bagong ospital.',
+    ],
+    tipsEn: [
+      'Never dispatch an ambulance until the receiving public hospital formally confirms bed acceptance via NPNRC.',
+      'Coordinate with your local LGU CDRRMO or Red Cross for free emergency ambulance transport.',
+    ],
+    tipsTl: [
+      'Huwag aalis sa kasalukuyang ospital hangga\'t walang kumpirmadong kama sa receiving hospital mula sa NPNRC.',
+      'Makipag-ugnayan sa inyong LGU CDRRMO o Red Cross para sa libreng ambulansya.',
+    ],
+    reapplicationPolicy: 'Per emergency transfer episode.',
   },
 ];

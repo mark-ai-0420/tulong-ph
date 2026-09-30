@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
   Map,
-  Sparkles,
 } from 'lucide-react';
 import { AGENCIES_DATABASE } from '@/lib/data/agencies';
 import { MALASAKIT_CENTERS_DIRECTORY } from '@/lib/data/malasakitCenters';
@@ -194,9 +193,9 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('malasakit')}
-            className={`min-h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            className={`min-h-[44px] h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'malasakit'
-                ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/80'
+                ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50 border border-transparent'
             }`}
           >
@@ -211,9 +210,9 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('agencies')}
-            className={`min-h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            className={`min-h-[44px] h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'agencies'
-                ? 'bg-white text-slate-900 shadow-2xs border border-stone-200/80'
+                ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50 border border-transparent'
             }`}
           >
@@ -283,7 +282,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       ? 'Maghanap ng pangalan ng ospital, lungsod, o probinsya...'
                       : 'Search hospital name, city, or province...'
                   }
-                  className="min-h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
+                  className="min-h-[44px] h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E2DFD6] text-base sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
                 />
               </div>
 
@@ -301,7 +300,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     setSelectedRegion(e.target.value);
                     setVisibleCount(PAGE_SIZE);
                   }}
-                  className="min-h-11 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm font-bold text-slate-800 bg-white shadow-2xs focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
+                  className="min-h-[44px] h-11 w-full px-3.5 py-2.5 rounded-xl border border-[#E2DFD6] text-base sm:text-sm font-bold text-slate-800 bg-white shadow-2xs focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
                 >
                   {availableRegions.map((reg) => (
                     <option key={reg} value={reg}>
@@ -326,7 +325,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     setSelectedRegion(reg);
                     setVisibleCount(PAGE_SIZE);
                   }}
-                  className={`min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                     selectedRegion === reg
                       ? 'bg-blue-900 text-white shadow-xs'
                       : 'bg-[#FAF9F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
@@ -417,7 +416,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopyPhone(hospital.contactNumber, hospital.id)}
-                        className="flex-1 min-h-11 px-3.5 py-2.5 rounded-xl border border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-slate-100 text-slate-900 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors active:scale-95 shadow-2xs cursor-pointer"
+                        className="flex-1 min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl border border-[#E2DFD6] hover:border-blue-500 bg-slate-50 hover:bg-slate-100 text-slate-900 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors active:scale-95 shadow-2xs cursor-pointer"
                       >
                         {copiedId === hospital.id ? (
                           <>
@@ -437,7 +436,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       {/* Direct Call Link */}
                       <a
                         href={`tel:${parseDialableNumber(hospital.contactNumber)}`}
-                        className="min-h-11 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-xs shrink-0"
+                        className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-xs shrink-0"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         <span>{hospital.contactNumber}</span>
@@ -507,7 +506,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     ? 'Maghanap ng ahensya, sakit, uri ng tulong, o hotline...'
                     : 'Search by agency name, illness, hotline, or type of assistance...'
                 }
-                className="min-h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
+                className="min-h-[44px] h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E2DFD6] text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
               />
             </div>
 
@@ -518,7 +517,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`min-h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                  className={`min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
                     selectedCategory === cat.id
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-[#FAF8F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
@@ -568,7 +567,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       <span className="text-xs font-bold text-blue-700 hidden sm:inline">
                         {isExpanded ? 'Itago ang Detalye' : 'Tingnan ang Requirements'}
                       </span>
-                      <div className="min-h-11 min-w-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+                      <div className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (
@@ -594,7 +593,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                           e.stopPropagation();
                           handleCopyPhone(agency.hotline, agency.id);
                         }}
-                        className="min-h-11 px-3.5 py-2.5 rounded-xl border border-slate-300 hover:border-blue-500 bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors active:scale-95 shadow-2xs"
+                        className="min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl border border-[#E2DFD6] hover:border-blue-500 bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors active:scale-95 shadow-2xs"
                       >
                         {copiedId === agency.id ? (
                           <>
@@ -622,7 +621,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                             <a
                               href={`tel:${dialable}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="min-h-11 px-3.5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                              className="min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                             >
                               <Phone className="w-3.5 h-3.5 text-blue-800 shrink-0" />
                               <span>{language === 'taglish' ? 'Tumawag' : 'Call'}</span>
@@ -637,7 +636,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                               key={idx}
                               href={`tel:${dialable}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="min-h-11 px-3.5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                              className="min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                               title={`Call ${dialable}`}
                             >
                               <Phone className="w-3.5 h-3.5 text-blue-800 shrink-0" />
@@ -653,7 +652,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors"
+                        className="min-h-[44px] h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors"
                       >
                         <span>{t.openOfficialPortal}</span>
                         <ExternalLink className="w-3.5 h-3.5" />

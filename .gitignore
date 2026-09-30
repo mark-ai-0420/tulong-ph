@@ -42,4 +42,5 @@ next-env.d.ts
 
 # local tool logs & critique
 .impeccable/
+videos/
 

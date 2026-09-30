@@ -409,7 +409,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <button
               onClick={handleDirectPrint}
               disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-white" />
               <span>{language === 'taglish' ? 'I-print ang Form' : 'Print Form'}</span>
@@ -417,7 +417,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <button
               onClick={handleDownload}
               disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-950 font-bold text-sm border border-stone-200/90 shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-4 h-4 text-slate-600" />
               <span>{isGenerating ? (language === 'taglish' ? 'Ginagawa...' : 'Generating...') : (language === 'taglish' ? 'I-download ang PDF' : 'Download PDF')}</span>
@@ -425,14 +425,14 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <button
               onClick={handleShareToRelatives}
               disabled={isGenerating}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 hover:text-slate-950 font-bold text-sm border border-stone-200/90 shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               title={
                 language === 'taglish'
                   ? 'I-share sa Kamag-anak (Viber / Messenger)'
                   : 'Share to Relatives (Viber / Messenger)'
               }
             >
-              <Share2 className="w-4 h-4 text-slate-600" />
+              <Share2 className="w-4 h-4 text-white" />
               <span>
                 {language === 'taglish'
                   ? 'I-share (Viber/Messenger)'
@@ -558,7 +558,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           <button
             type="button"
             onClick={() => setShowDocDrawer(!showDocDrawer)}
-            className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-4 rounded-xl border border-[#E2DFD6] hover:border-slate-400 bg-[#FAF8F5] hover:bg-slate-100 text-xs font-bold text-slate-800 transition-colors shrink-0"
+            className="min-h-[44px] h-11 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl border border-[#E2DFD6] hover:border-slate-400 bg-[#FAF8F5] hover:bg-slate-100 text-xs font-bold text-slate-800 transition-colors shrink-0"
           >
             <span>
               {showDocDrawer
@@ -723,7 +723,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           {/* Toggle Quick Edit Panel */}
           <button
             onClick={() => setShowQuickEdit(!showQuickEdit)}
-            className="min-h-[44px] inline-flex items-center gap-1.5 px-3 rounded-xl border border-transparent hover:border-slate-200 text-xs font-bold text-blue-700 hover:text-blue-900 transition-colors self-start sm:self-auto"
+            className="min-h-[44px] h-11 inline-flex items-center gap-1.5 px-3 rounded-xl border border-transparent hover:border-slate-200 text-xs font-bold text-blue-700 hover:text-blue-900 transition-colors self-start sm:self-auto cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
             <span>
@@ -873,10 +873,10 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
         </div>
 
         {/* Paper Sheet Preview */}
-        <div className="w-full max-w-3xl bg-white text-slate-900 shadow-2xl rounded-2xl border border-[#D5D0C5] p-5 sm:p-8 font-sans transition-all overflow-x-auto text-[11px]">
+        <div className="w-full max-w-3xl bg-white text-slate-900 shadow-2xl rounded-2xl border border-[#E2DFD6] p-4 sm:p-8 font-sans transition-all overflow-x-auto text-xs">
           {/* Header */}
           <div className="text-center pb-3 border-b-2 border-slate-900 mb-4">
-            <p className="text-[10px] tracking-wider text-slate-700 uppercase">
+            <p className="text-xs font-semibold tracking-wider text-slate-700 uppercase">
               Republika ng Pilipinas • Department of Health / DSWD
             </p>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-900 mt-0.5">
@@ -891,7 +891,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 ? 'Hospital Desk Submission Checklist & Cover Sheet'
                 : 'Unified Intake Sheet / Application Form'}
             </h2>
-            <p className="text-[9px] text-slate-600 italic">
+            <p className="text-xs text-slate-600 italic">
               {selectedForm === 'dswd'
                 ? 'Hospital Satellite Social Service Unit • AO No. 15 Series of 2022'
                 : selectedForm === 'checklist'
@@ -903,55 +903,55 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           {/* Body Content based on active view */}
           {selectedForm === 'checklist' ? (
             <div className="space-y-4">
-              <div className="bg-slate-50 border border-slate-300 p-3 rounded-xl grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-[#FAF9F5] border border-[#E2DFD6] p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div>
-                  <span className="text-slate-500 font-bold block text-[10px]">PASYENTE:</span>
-                  <span className="font-extrabold text-slate-900 uppercase">{fullName}</span>
+                  <span className="text-slate-600 font-semibold block text-xs">PASYENTE:</span>
+                  <span className="font-bold text-slate-900 uppercase text-xs">{fullName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-bold block text-[10px]">OSPITAL:</span>
-                  <span className="font-extrabold text-slate-900">{medicalCase.hospitalName}</span>
+                  <span className="text-slate-600 font-semibold block text-xs">OSPITAL:</span>
+                  <span className="font-bold text-slate-900 text-xs">{medicalCase.hospitalName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-bold block text-[10px]">DIAGNOSIS:</span>
-                  <span className="font-medium text-slate-900">{medicalCase.diagnosis}</span>
+                  <span className="text-slate-600 font-semibold block text-xs">DIAGNOSIS:</span>
+                  <span className="font-bold text-slate-900 text-xs">{medicalCase.diagnosis}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-bold block text-[10px]">NETONG BALANSE:</span>
-                  <span className="font-extrabold text-blue-700">₱{medicalCase.netRemainingBalance.toLocaleString()}</span>
+                  <span className="text-slate-600 font-semibold block text-xs">NETONG BALANSE:</span>
+                  <span className="font-bold text-blue-700 text-xs">₱{medicalCase.netRemainingBalance.toLocaleString()}</span>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-bold text-xs uppercase bg-slate-200 px-2 py-1 border border-slate-400 mb-2">
+                <h4 className="font-bold text-sm uppercase bg-slate-100 px-3 py-1.5 border border-[#E2DFD6] mb-2 rounded-lg text-slate-900">
                   Tamang Pagkakasunod-sunod sa Paglapit sa Ospital
                 </h4>
-                <div className="space-y-1.5 text-[11px]">
-                  <div className="p-2 border border-slate-200 bg-slate-50 rounded-lg">
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 border border-[#E2DFD6] bg-[#FAF9F5] rounded-xl text-xs">
                     <strong>1. Billing Counter (PhilHealth Deduction):</strong> Humingi ng SOA na may bawas na ng PhilHealth Case Rates at Senior/PWD 20% discount.
                   </div>
-                  <div className="p-2 border border-slate-200 bg-slate-50 rounded-lg">
+                  <div className="p-2.5 border border-[#E2DFD6] bg-[#FAF9F5] rounded-xl text-xs">
                     <strong>2. Malasakit Center Window (DOH MAIP):</strong> Isumite ang Malasakit Unified Intake Sheet kasama ang Clinical Abstract at SOA.
                   </div>
-                  <div className="p-2 border border-slate-200 bg-slate-50 rounded-lg">
+                  <div className="p-2.5 border border-[#E2DFD6] bg-[#FAF9F5] rounded-xl text-xs">
                     <strong>3. PCSO & DSWD Satellite Desks:</strong> Para sa natitirang balanse o pambili ng gamot na wala sa pharmacy ng ospital.
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-bold text-xs uppercase bg-slate-200 px-2 py-1 border border-slate-400 mb-2">
+                <h4 className="font-bold text-sm uppercase bg-slate-100 px-3 py-1.5 border border-[#E2DFD6] mb-2 rounded-lg text-slate-900">
                   Talaan ng mga Kalakip na Dokumento (Checklist)
                 </h4>
-                <div className="border border-slate-300 divide-y divide-slate-200 rounded-lg overflow-hidden">
-                  <div className="p-2 flex items-center justify-between">
+                <div className="border border-[#E2DFD6] divide-y divide-[#E2DFD6] rounded-xl overflow-hidden text-xs">
+                  <div className="p-2.5 flex items-center justify-between gap-2">
                     <div>
                       <strong className="block text-xs">
                         {documents.some((d) => d.docType === 'clinical_abstract') ? '[ X ]' : '[   ]'} Original Clinical Abstract / Medical Certificate
                       </strong>
-                      <span className="text-slate-500 text-[10px]">May pirma ng doktor at PRC License Number.</span>
+                      <span className="text-slate-600 text-xs">May pirma ng doktor at PRC License Number.</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       documents.some((d) => d.docType === 'clinical_abstract')
                         ? 'text-emerald-800 bg-emerald-50'
                         : 'text-amber-800 bg-amber-50'
@@ -959,14 +959,14 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                       {documents.some((d) => d.docType === 'clinical_abstract') ? 'ATTACHED' : 'PENDING'}
                     </span>
                   </div>
-                  <div className="p-2 flex items-center justify-between">
+                  <div className="p-2.5 flex items-center justify-between gap-2">
                     <div>
                       <strong className="block text-xs">
                         {documents.some((d) => d.docType === 'statement_of_account') ? '[ X ]' : '[   ]'} Certified True Copy ng Hospital SOA / Final Bill
                       </strong>
-                      <span className="text-slate-500 text-[10px]">May opisyal na pirma ng Billing Officer.</span>
+                      <span className="text-slate-600 text-xs">May opisyal na pirma ng Billing Officer.</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       documents.some((d) => d.docType === 'statement_of_account')
                         ? 'text-emerald-800 bg-emerald-50'
                         : 'text-amber-800 bg-amber-50'
@@ -974,14 +974,14 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                       {documents.some((d) => d.docType === 'statement_of_account') ? 'ATTACHED' : 'PENDING'}
                     </span>
                   </div>
-                  <div className="p-2 flex items-center justify-between">
+                  <div className="p-2.5 flex items-center justify-between gap-2">
                     <div>
                       <strong className="block text-xs">
                         {documents.some((d) => d.docType === 'barangay_indigency') ? '[ X ]' : '[   ]'} Barangay Certificate of Indigency
                       </strong>
-                      <span className="text-slate-500 text-[10px]">Para sa layunin ng Medical Assistance.</span>
+                      <span className="text-slate-600 text-xs">Para sa layunin ng Medical Assistance.</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       documents.some((d) => d.docType === 'barangay_indigency')
                         ? 'text-emerald-800 bg-emerald-50'
                         : 'text-amber-800 bg-amber-50'
@@ -989,14 +989,14 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                       {documents.some((d) => d.docType === 'barangay_indigency') ? 'ATTACHED' : 'PENDING'}
                     </span>
                   </div>
-                  <div className="p-2 flex items-center justify-between">
+                  <div className="p-2.5 flex items-center justify-between gap-2">
                     <div>
                       <strong className="block text-xs">
                         {documents.some((d) => d.docType === 'patient_valid_id' || d.docType === 'representative_valid_id') ? '[ X ]' : '[   ]'} Photocopy ng Valid IDs na may 3 Pirma
                       </strong>
-                      <span className="text-slate-500 text-[10px]">ID ng Pasyente at ID ng Kinatawan / Naglalakad.</span>
+                      <span className="text-slate-600 text-xs">ID ng Pasyente at ID ng Kinatawan / Naglalakad.</span>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       documents.some((d) => d.docType === 'patient_valid_id' || d.docType === 'representative_valid_id')
                         ? 'text-emerald-800 bg-emerald-50'
                         : 'text-amber-800 bg-amber-50'
@@ -1011,33 +1011,33 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             <div className="space-y-4">
               {/* Part 1: Patient Data Grid */}
               <div>
-                <h4 className="font-bold text-xs uppercase bg-slate-200 px-2 py-1 border border-slate-400 mb-1">
+                <h4 className="font-bold text-sm uppercase bg-slate-100 px-3 py-1.5 border border-[#E2DFD6] mb-1 rounded-t-lg text-slate-900">
                   Part I. Impormasyon ng Pasyente (Patient Profile)
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 border border-slate-300 text-[11px]">
-                  <div className="p-2 border-r border-b border-slate-300 col-span-2">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Buong Pangalan</span>
-                    <span className="font-bold uppercase text-slate-900">{fullName}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-4 border border-[#E2DFD6] text-xs">
+                  <div className="p-2.5 border-b sm:border-r border-[#E2DFD6] sm:col-span-2">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Buong Pangalan</span>
+                    <span className="font-bold uppercase text-slate-900 text-xs">{fullName}</span>
                   </div>
-                  <div className="p-2 border-r border-b border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Petsa ng Kapanganakan</span>
-                    <span className="font-medium text-slate-900">{patient.dateOfBirth || 'N/A'}</span>
+                  <div className="p-2.5 border-b sm:border-r border-[#E2DFD6]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Petsa ng Kapanganakan</span>
+                    <span className="font-bold text-slate-900 text-xs">{patient.dateOfBirth || 'N/A'}</span>
                   </div>
-                  <div className="p-2 border-b border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Kasarian / Sibil</span>
-                    <span className="font-medium uppercase text-slate-900">{patient.gender} / {patient.civilStatus}</span>
+                  <div className="p-2.5 border-b border-[#E2DFD6]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Kasarian / Sibil</span>
+                    <span className="font-bold uppercase text-slate-900 text-xs">{patient.gender} / {patient.civilStatus}</span>
                   </div>
-                  <div className="p-2 border-r border-b border-slate-300 col-span-2">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">PhilHealth PIN</span>
-                    <span className="font-bold text-slate-900">{patient.philhealthNumber || 'Unregistered / Indigent'}</span>
+                  <div className="p-2.5 border-b sm:border-r border-[#E2DFD6] sm:col-span-2">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">PhilHealth PIN</span>
+                    <span className="font-bold text-slate-900 text-xs">{patient.philhealthNumber || 'Unregistered / Indigent'}</span>
                   </div>
-                  <div className="p-2 border-b border-slate-300 col-span-2">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Mobile / Telepono</span>
-                    <span className="font-medium text-slate-900">{patient.contactNumber || 'N/A'}</span>
+                  <div className="p-2.5 border-b border-[#E2DFD6] sm:col-span-2">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Mobile / Telepono</span>
+                    <span className="font-bold text-slate-900 text-xs">{patient.contactNumber || 'N/A'}</span>
                   </div>
-                  <div className="p-2 col-span-2 sm:col-span-4 border-b border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Permanenteng Tirahan</span>
-                    <span className="font-medium text-slate-900">
+                  <div className="p-2.5 sm:col-span-4">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Permanenteng Tirahan</span>
+                    <span className="font-bold text-slate-900 text-xs leading-relaxed">
                       {patient.address.street}, Brgy. {patient.address.barangay}, {patient.address.cityMunicipality}, {patient.address.province}
                     </span>
                   </div>
@@ -1046,72 +1046,74 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
 
               {/* Part 2: Medical Case & Billing */}
               <div>
-                <h4 className="font-bold text-xs uppercase bg-slate-200 px-2 py-1 border border-slate-400 mb-1">
+                <h4 className="font-bold text-sm uppercase bg-slate-100 px-3 py-1.5 border border-[#E2DFD6] mb-1 rounded-t-lg text-slate-900">
                   Part II. Ospital at Datos sa Pagsingil (Clinical & Financial Breakdown)
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 border border-slate-300 text-[11px]">
-                  <div className="p-2 border-r border-b border-slate-300 col-span-2">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Pangalan ng Ospital</span>
-                    <span className="font-bold text-slate-900">{medicalCase.hospitalName}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 border border-[#E2DFD6] text-xs">
+                  <div className="p-2.5 border-r border-b border-[#E2DFD6] col-span-2">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Pangalan ng Ospital</span>
+                    <span className="font-bold text-slate-900 text-xs">{medicalCase.hospitalName}</span>
                   </div>
-                  <div className="p-2 border-b border-slate-300 col-span-2">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Attending Doctor</span>
-                    <span className="font-medium text-slate-900">{medicalCase.attendingPhysician || 'Attending Physician'}</span>
+                  <div className="p-2.5 border-b border-[#E2DFD6] col-span-2">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Attending Doctor</span>
+                    <span className="font-bold text-slate-900 text-xs">{medicalCase.attendingPhysician || 'Attending Physician'}</span>
                   </div>
-                  <div className="p-2 border-r border-b border-slate-300 col-span-2 sm:col-span-4">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Medikal na Diagnosis</span>
-                    <span className="font-semibold text-slate-900">{medicalCase.diagnosis}</span>
+                  <div className="p-2.5 border-b border-[#E2DFD6] col-span-2 sm:col-span-4">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Medikal na Diagnosis</span>
+                    <span className="font-bold text-slate-900 text-xs">{medicalCase.diagnosis}</span>
                   </div>
-                  <div className="p-2 border-r border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Kabuuang Bill</span>
-                    <span className="font-bold text-slate-900">₱{medicalCase.totalHospitalBill.toLocaleString()}</span>
+                  <div className="p-2.5 border-r border-b sm:border-b-0 border-[#E2DFD6]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Kabuuang Bill</span>
+                    <span className="font-bold text-slate-900 text-xs">₱{medicalCase.totalHospitalBill.toLocaleString()}</span>
                   </div>
-                  <div className="p-2 border-r border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">PhilHealth Bawas</span>
-                    <span className="font-bold text-slate-900">₱{medicalCase.philhealthDeduction.toLocaleString()}</span>
+                  <div className="p-2.5 border-b sm:border-b-0 sm:border-r border-[#E2DFD6]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">PhilHealth Bawas</span>
+                    <span className="font-bold text-slate-900 text-xs">₱{medicalCase.philhealthDeduction.toLocaleString()}</span>
                   </div>
-                  <div className="p-2 border-r border-slate-300">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Senior/PWD 20%</span>
-                    <span className="font-bold text-slate-900">₱{medicalCase.seniorPwdDiscount.toLocaleString()}</span>
+                  <div className="p-2.5 border-r border-[#E2DFD6]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Senior/PWD 20%</span>
+                    <span className="font-bold text-slate-900 text-xs">₱{medicalCase.seniorPwdDiscount.toLocaleString()}</span>
                   </div>
-                  <div className="p-2 bg-slate-50">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Netong Balanse</span>
-                    <span className="font-extrabold text-blue-700">₱{medicalCase.netRemainingBalance.toLocaleString()}</span>
+                  <div className="p-2.5 bg-[#FAF9F5]">
+                    <span className="text-xs text-slate-600 uppercase block font-semibold">Netong Balanse</span>
+                    <span className="font-extrabold text-blue-700 text-xs">₱{medicalCase.netRemainingBalance.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
               {/* Part 3: Signatures & MSW Certification */}
               <div>
-                <h4 className="font-bold text-xs uppercase bg-slate-200 px-2 py-1 border border-slate-400 mb-1">
+                <h4 className="font-bold text-sm uppercase bg-slate-100 px-3 py-1.5 border border-[#E2DFD6] mb-1 rounded-t-lg text-slate-900">
                   Part III. Pagpapatunay, Lagda at Social Worker Assessment
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border border-slate-300 p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border border-[#E2DFD6] p-3.5 text-xs">
                   {/* Signature Box */}
-                  <div className="border border-slate-300 p-2 flex flex-col justify-between h-28 text-center">
-                    <span className="text-[9px] text-slate-500 font-bold block">LAGDA NG NAG-AAPLAY</span>
+                  <div className="border border-[#E2DFD6] p-3 flex flex-col justify-between h-32 text-center rounded-xl bg-white">
+                    <span className="text-xs text-slate-600 font-semibold block uppercase">Lagda ng Nag-aaplay</span>
                     <div className="border-b border-slate-700 mx-2 mb-1 mt-auto" />
                     <span className="font-bold text-xs text-slate-900">{applicantName}</span>
-                    <span className="text-[8px] text-slate-500">Pasyente / Kinatawan</span>
+                    <span className="text-xs text-slate-500">Pasyente / Kinatawan</span>
                   </div>
 
                   {/* Thumbmark Box */}
-                  <div className="border border-slate-300 p-2 flex flex-col justify-between h-28 text-center">
-                    <span className="text-[9px] text-slate-500 font-bold block">KANANG HINLALAKI</span>
-                    <div className="w-14 h-16 border border-dashed border-slate-400 mx-auto my-auto flex items-center justify-center text-[8px] text-slate-400">
+                  <div className="border border-[#E2DFD6] p-3 flex flex-col justify-between h-32 text-center rounded-xl bg-white">
+                    <span className="text-xs text-slate-600 font-semibold block uppercase">Kanang Hinlalaki</span>
+                    <div className="w-16 h-16 border border-dashed border-slate-400 mx-auto my-auto flex items-center justify-center text-xs text-slate-400 rounded-lg">
                       Right Thumb
                     </div>
                   </div>
 
                   {/* Social Worker Assessment Box */}
-                  <div className="border border-slate-300 p-2 flex flex-col justify-between h-28 text-left bg-slate-50">
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-700 block">FOR SOCIAL WORKER USE:</span>
-                      <span className="text-[8px] text-slate-500 block">[  ] Indigent / In Crisis</span>
-                      <span className="text-[8px] text-slate-500 block">MAIP Grant: PHP ___________</span>
+                  <div className="border border-[#E2DFD6] p-3 flex flex-col justify-between h-32 text-left bg-[#FAF9F5] rounded-xl">
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-slate-900 block">FOR SOCIAL WORKER USE:</span>
+                      <span className="text-xs text-slate-600 block">[  ] Indigent / In Crisis</span>
+                      <span className="text-xs text-slate-600 block">MAIP Grant: PHP ___________</span>
                     </div>
-                    <div className="border-b border-slate-700 mx-1 mb-1 mt-auto" />
-                    <span className="text-[8px] text-center text-slate-600 block">Medical Social Worker Signature</span>
+                    <div>
+                      <div className="border-b border-slate-700 mx-1 mb-1 mt-auto" />
+                      <span className="text-xs text-center text-slate-600 block">Medical Social Worker Signature</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1119,7 +1121,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           )}
 
           {/* Footer note */}
-          <div className="mt-6 pt-3 border-t border-slate-300 text-center text-[9px] text-slate-500 italic">
+          <div className="mt-6 pt-3 border-t border-[#E2DFD6] text-center text-xs text-slate-500 italic">
             TulongPH • RA 11463 & RA 10173 Compliant Document Engine • Libre ang tulong mula sa pamahalaan.
           </div>
         </div>
@@ -1141,7 +1143,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           <button
             onClick={handleDirectPrint}
             disabled={isGenerating}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             <Printer className="w-4 h-4 text-white" />
             <span>{language === 'taglish' ? 'I-print ang Form' : 'Print Form'}</span>
@@ -1149,15 +1151,15 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           <button
             onClick={handleDownload}
             disabled={isGenerating}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-bold text-sm transition-all shadow-md shadow-blue-900/30 active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 text-slate-600" />
             <span>{isGenerating ? (language === 'taglish' ? 'Ginagawa...' : 'Generating...') : (language === 'taglish' ? 'I-download ang PDF' : 'Download PDF')}</span>
           </button>
           <button
             onClick={handleShareToRelatives}
             disabled={isGenerating}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[48px] h-12 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-sm transition-all shadow-md shadow-emerald-950/20 active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             title={
               language === 'taglish'
                 ? 'I-share sa Kamag-anak (Viber / Messenger)'
