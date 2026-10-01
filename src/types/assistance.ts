@@ -50,6 +50,9 @@ export interface RepresentativeProfile {
   validIdNumber: string;
 }
 
+export type PrivateHospitalStrategy = 'gl_stacking' | 'transfer_referral';
+export type PrivateAccommodationType = 'ward_bed' | 'semi_private' | 'private_room' | 'icu';
+
 export interface MedicalCase {
   category: EmergencyCategory;
   diagnosis: string;
@@ -65,6 +68,15 @@ export interface MedicalCase {
   netRemainingBalance: number;
   neededAssistanceType: 'guarantee_letter' | 'cash_medicine' | 'burial_help' | 'transport_fare';
   dateAdmitted?: string;
+  privateStrategy?: PrivateHospitalStrategy;
+  privateAccommodation?: PrivateAccommodationType;
+  isIcuOrHighDeficit?: boolean;
+  hospitalAcceptsGovGL?: boolean | 'unknown';
+  doctorPFChargedSeparately?: boolean;
+  isAutoCalculated?: boolean;
+  philhealthMatchedCondition?: string;
+  seniorPwdVatExempt?: number;
+  seniorPwdDiscountAmount?: number;
 }
 
 export type DocumentType =
@@ -146,4 +158,33 @@ export interface StackingStep {
   estimatedTime: string;
   priorityScore: number;
   requiredDocuments: DocumentType[];
+  pathwayScope: 'all' | 'public_only' | 'private_gl' | 'private_transfer';
+  badgeTagEn?: string;
+  badgeTagTl?: string;
+  warningNoteEn?: string;
+  warningNoteTl?: string;
+}
+
+export interface TriageResult {
+  steps: StackingStep[];
+  estimatedCoverageRange: string;
+  recommendedOrderSummaryEn: string;
+  recommendedOrderSummaryTl: string;
+  criticalWarningsEn: string[];
+  criticalWarningsTl: string[];
+  allRequiredDocuments: DocumentType[];
+  hospitalType: HospitalType;
+  selectedStrategy?: PrivateHospitalStrategy;
+  privateHospitalGuidance?: {
+    nonApplicableServicesEn: string[];
+    nonApplicableServicesTl: string[];
+    applicableServicesEn: string[];
+    applicableServicesTl: string[];
+    transferPlaybook?: {
+      hotlines: Array<{ label: string; number: string; description: string }>;
+      targetHospitals: Array<{ name: string; specialization: string; phone: string; address: string }>;
+      checklistEn: string[];
+      checklistTl: string[];
+    };
+  };
 }

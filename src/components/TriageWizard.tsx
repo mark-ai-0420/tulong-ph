@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   CheckCircle,
   AlertCircle,
-  Sparkles,
   Building,
   HeartPulse,
   User,
@@ -30,6 +29,8 @@ import {
   Share2,
   Layers,
   Landmark,
+  Zap,
+  Calculator,
 } from 'lucide-react';
 import {
   PatientProfile,
@@ -51,6 +52,17 @@ import { saveApplications, loadApplications } from '@/lib/storage';
 import { MALASAKIT_CENTERS_DIRECTORY, MalasakitCenterLocation } from '@/lib/data/malasakitCenters';
 import { parseDialableNumber } from '@/lib/phoneUtils';
 import { DOCUMENT_SLOTS } from './DocumentVault';
+import { computeStatutoryDeductions, DetailedBillBreakdown } from '@/lib/billingCalculator';
+import { matchPhilHealthCaseRate } from '@/lib/data/philhealthRates';
+
+const DIAGNOSIS_PRESETS = [
+  { label: '🩺 Pneumonia (Pulmonya)', condition: 'Pneumonia (Pulmonya)', category: 'hospitalization' as EmergencyCategory },
+  { label: '🦟 Dengue', condition: 'Dengue', category: 'hospitalization' as EmergencyCategory },
+  { label: '🩸 Hemodialysis', condition: 'Hemodialysis', category: 'dialysis' as EmergencyCategory },
+  { label: '🧠 Stroke (CVA)', condition: 'Stroke (CVA)', category: 'hospitalization' as EmergencyCategory },
+  { label: '👶 CS Delivery (Panganak)', condition: 'CS Delivery (Panganak)', category: 'surgery_implants' as EmergencyCategory },
+  { label: '🔪 Appendectomy', condition: 'Appendectomy', category: 'surgery_implants' as EmergencyCategory },
+] as const;
 
 const RELATIONSHIP_OPTIONS = [
   'Asawa / Spouse',
@@ -106,6 +118,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
   // Modal State for Embedded Full Assistants & Infographic (PCSO / Senate / PACe / Infographic)
   const [activeModal, setActiveModal] = useState<'pcso' | 'senate' | 'pace' | 'infographic' | null>(null);
   const [localApplications, setLocalApplications] = useState<ApplicationRecord[]>(applications || []);
+  const [autoCalculationState, setAutoCalculationState] = useState<DetailedBillBreakdown | null>(null);
 
   // Synchronize external applications prop
   useEffect(() => {
@@ -143,9 +156,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
     onSaveApplications?.(apps);
   };
 
-  // Quick Action Panels State in Step 3
-  const [isPcsoOpen, setIsPcsoOpen] = useState<boolean>(false);
-  const [isSenateOpen, setIsSenateOpen] = useState<boolean>(false);
+  // Justification Letter Copy State in Step 3
   const [copiedJustification, setCopiedJustification] = useState<boolean>(false);
 
   // Philippine Standard Time & Queue Window Tracking
@@ -420,6 +431,142 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       netRemainingBalance: net,
     });
   };
+
+  // Helper to compute patient age from dateOfBirth
+  const getPatientAge = (): number | undefined => {
+    if (!patient.dateOfBirth) return undefined;
+    const dob = new Date(patient.dateOfBirth);
+    if (isNaN(dob.getTime())) return undefined;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Diagnosis Quick Preset Selection
+  const handleSelectDiagnosisPreset = (preset: (typeof DIAGNOSIS_PRESETS)[number]) => {
+    clearFieldError('diagnosis');
+    const newCategory = preset.category || medicalCase.category;
+    if (medicalCase.totalHospitalBill > 0) {
+      const breakdown = computeStatutoryDeductions({
+        totalBill: medicalCase.totalHospitalBill,
+        hospitalType: medicalCase.hospitalType,
+        isSeniorCitizen: patient.isSeniorCitizen,
+        isPWD: patient.isPWD,
+        patientAge: getPatientAge(),
+        diagnosis: preset.condition,
+        category: newCategory,
+      });
+
+      setAutoCalculationState(breakdown);
+      onUpdateMedicalCase({
+        ...medicalCase,
+        diagnosis: preset.condition,
+        category: newCategory,
+        philhealthDeduction: Math.round(breakdown.philhealthDeductionAmount),
+        seniorPwdDiscount: Math.round(breakdown.totalSeniorPwdRelief),
+        netRemainingBalance: Math.round(breakdown.netRemainingBalance),
+        isAutoCalculated: true,
+        philhealthMatchedCondition: breakdown.philhealthMatchedCondition,
+        seniorPwdVatExempt: breakdown.vatAmountRemoved,
+        seniorPwdDiscountAmount: breakdown.seniorPwdDiscountAmount,
+      });
+    } else {
+      onUpdateMedicalCase({
+        ...medicalCase,
+        diagnosis: preset.condition,
+        category: newCategory,
+      });
+    }
+  };
+
+  // 1-Click Auto-Compute (PhilHealth & Senior/PWD)
+  const handleAutoCompute = () => {
+    const breakdown = computeStatutoryDeductions({
+      totalBill: medicalCase.totalHospitalBill,
+      hospitalType: medicalCase.hospitalType,
+      isSeniorCitizen: patient.isSeniorCitizen,
+      isPWD: patient.isPWD,
+      patientAge: getPatientAge(),
+      diagnosis: medicalCase.diagnosis,
+      category: medicalCase.category,
+    });
+
+    setAutoCalculationState(breakdown);
+    onUpdateMedicalCase({
+      ...medicalCase,
+      philhealthDeduction: Math.round(breakdown.philhealthDeductionAmount),
+      seniorPwdDiscount: Math.round(breakdown.totalSeniorPwdRelief),
+      netRemainingBalance: Math.round(breakdown.netRemainingBalance),
+      isAutoCalculated: true,
+      philhealthMatchedCondition: breakdown.philhealthMatchedCondition,
+      seniorPwdVatExempt: breakdown.vatAmountRemoved,
+      seniorPwdDiscountAmount: breakdown.seniorPwdDiscountAmount,
+    });
+  };
+
+  // Statutory Breakdown display variables
+  const isSeniorPwdActive =
+    medicalCase.seniorPwdDiscount > 0 ||
+    (autoCalculationState ? autoCalculationState.totalSeniorPwdRelief > 0 : false);
+
+  const isPhilHealthActive =
+    medicalCase.philhealthDeduction > 0 ||
+    (autoCalculationState ? autoCalculationState.philhealthDeductionAmount > 0 : false);
+
+  const calculatedAge = getPatientAge();
+  const isNbbEligible =
+    medicalCase.hospitalType === 'public_doh' &&
+    (patient.isSeniorCitizen ||
+      patient.isPWD ||
+      (typeof calculatedAge === 'number' && calculatedAge >= 60) ||
+      patient.socioeconomicClass === 'indigent' ||
+      patient.is4PsBeneficiary ||
+      Boolean(autoCalculationState?.isNoBalanceBillingEligible));
+
+  const showBreakdownCard = Boolean(
+    autoCalculationState ||
+      medicalCase.isAutoCalculated ||
+      isSeniorPwdActive ||
+      isPhilHealthActive ||
+      isNbbEligible
+  );
+
+  const calcVatExemptSales =
+    medicalCase.totalHospitalBill > 0
+      ? Math.round((medicalCase.totalHospitalBill / 1.12) * 100) / 100
+      : 0;
+  const fallbackVatRemoved =
+    medicalCase.totalHospitalBill > 0
+      ? Math.round((medicalCase.totalHospitalBill - calcVatExemptSales) * 100) / 100
+      : 0;
+  const fallbackDiscountAmount =
+    medicalCase.totalHospitalBill > 0
+      ? Math.round(calcVatExemptSales * 0.2 * 100) / 100
+      : 0;
+
+  const vatRemoved = Math.round(
+    autoCalculationState?.vatAmountRemoved ??
+      medicalCase.seniorPwdVatExempt ??
+      fallbackVatRemoved
+  );
+  const discountAmount = Math.round(
+    autoCalculationState?.seniorPwdDiscountAmount ??
+      medicalCase.seniorPwdDiscountAmount ??
+      fallbackDiscountAmount
+  );
+
+  const matchedCondition =
+    medicalCase.philhealthMatchedCondition ||
+    autoCalculationState?.philhealthMatchedCondition ||
+    matchPhilHealthCaseRate(
+      medicalCase.diagnosis,
+      medicalCase.category,
+      medicalCase.totalHospitalBill
+    ).matchedName;
 
   // Field validation and error clearance helpers
   const isFieldInvalid = (fieldKey: string) => Boolean(touched[fieldKey] && errors[fieldKey]);
@@ -1208,7 +1355,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
           <div className="flex justify-end pt-4 border-t border-slate-200">
             <button
               type="submit"
-              className="h-11 min-h-11 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors cursor-pointer"
+              className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
             >
               <span>{language === 'taglish' ? 'Susunod: Detalye ng Ospital' : 'Next: Hospital & Case'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -1302,150 +1449,456 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   <span>{errors.diagnosis}</span>
                 </p>
               )}
+
+              {/* Diagnosis Quick Presets */}
+              <div className="mt-2.5">
+                <span className="text-xs font-semibold text-slate-500 block mb-1.5">
+                  {language === 'taglish' ? 'Mabilisang Pagpili ng Karaniwang Kondisyon:' : 'Quick Presets (Common Diagnoses):'}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {DIAGNOSIS_PRESETS.map((preset) => {
+                    const isSelected =
+                      medicalCase.diagnosis.toLowerCase().includes(preset.condition.toLowerCase().split(' ')[0]);
+                    return (
+                      <button
+                        key={preset.condition}
+                        type="button"
+                        onClick={() => handleSelectDiagnosisPreset(preset)}
+                        className={`min-h-[36px] sm:min-h-[32px] px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
+                            : 'bg-white hover:bg-stone-50 text-slate-700 border-[#E2DFD6] hover:border-slate-300'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
-            {/* Hospital Classification & Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="hospital-type"
-                  className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5"
-                >
-                  {t.hospitalType}
-                </label>
-                <select
-                  id="hospital-type"
-                  name="hospitalType"
-                  value={medicalCase.hospitalType}
-                  onChange={(e) =>
+            {/* Hospital Classification Selection: 3 clean, high-contrast selection cards */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                {t.hospitalType} *
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* 🏛️ Public - DOH Retained / Specialty */}
+                <button
+                  type="button"
+                  onClick={() =>
                     onUpdateMedicalCase({
                       ...medicalCase,
-                      hospitalType: e.target.value as HospitalType,
-                      hasMalasakitCenter: e.target.value.startsWith('public'),
+                      hospitalType: 'public_doh',
+                      hasMalasakitCenter: true,
+                      privateStrategy: undefined,
                     })
                   }
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className={`min-h-[44px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer focus-ring ${
+                    medicalCase.hospitalType === 'public_doh'
+                      ? 'border-2 border-blue-900 bg-blue-50/70 shadow-xs ring-2 ring-blue-900/10'
+                      : 'border border-[#E2DFD6] bg-white hover:bg-stone-50 text-slate-700'
+                  }`}
                 >
-                  <option value="public_doh">{t.publicDOH} (Malasakit Active)</option>
-                  <option value="public_lgu">{t.publicLGU}</option>
-                  <option value="private">{t.privateHosp}</option>
-                </select>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏛️</span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-900">
+                          Public - DOH Retained / Specialty
+                        </span>
+                      </div>
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          medicalCase.hospitalType === 'public_doh'
+                            ? 'border-blue-900 bg-blue-900'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {medicalCase.hospitalType === 'public_doh' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                      PGH, Heart Center, NKTI, etc. (Active Malasakit Center)
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-semibold">
+                    <span className="text-blue-900">DOH MAIP + PCSO</span>
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-xs font-bold">
+                      Active Malasakit
+                    </span>
+                  </div>
+                </button>
+
+                {/* 🏢 Public - LGU Provincial / City / District */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateMedicalCase({
+                      ...medicalCase,
+                      hospitalType: 'public_lgu',
+                      hasMalasakitCenter: true,
+                      privateStrategy: undefined,
+                    })
+                  }
+                  className={`min-h-[44px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer focus-ring ${
+                    medicalCase.hospitalType === 'public_lgu'
+                      ? 'border-2 border-blue-900 bg-blue-50/70 shadow-xs ring-2 ring-blue-900/10'
+                      : 'border border-[#E2DFD6] bg-white hover:bg-stone-50 text-slate-700'
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏢</span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-900">
+                          Public - LGU Provincial / City / District
+                        </span>
+                      </div>
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          medicalCase.hospitalType === 'public_lgu'
+                            ? 'border-blue-900 bg-blue-900'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {medicalCase.hospitalType === 'public_lgu' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                      Provincial Hospital, Ospital ng Maynila, etc.
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-semibold">
+                    <span className="text-slate-700">LGU Medical Fund</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs font-bold">
+                      LGU Facility
+                    </span>
+                  </div>
+                </button>
+
+                {/* 🏥 Private Hospital / Medical Center */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateMedicalCase({
+                      ...medicalCase,
+                      hospitalType: 'private',
+                      hasMalasakitCenter: false,
+                      privateStrategy: medicalCase.privateStrategy || 'gl_stacking',
+                    })
+                  }
+                  className={`min-h-[44px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer focus-ring ${
+                    medicalCase.hospitalType === 'private'
+                      ? 'border-2 border-blue-900 bg-blue-50/70 shadow-xs ring-2 ring-blue-900/10'
+                      : 'border border-[#E2DFD6] bg-white hover:bg-stone-50 text-slate-700'
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏥</span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-900">
+                          Private Hospital / Medical Center
+                        </span>
+                      </div>
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          medicalCase.hospitalType === 'private'
+                            ? 'border-blue-900 bg-blue-900'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {medicalCase.hospitalType === 'private' && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                      St. Luke&apos;s, Medical City, community private clinics
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-semibold">
+                    <span className="text-amber-800">GL Stacking / Transfer</span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-xs font-bold">
+                      No Malasakit Desk
+                    </span>
+                  </div>
+                </button>
               </div>
-              <div className="relative" ref={hospitalDropdownRef}>
-                <label
-                  htmlFor="hospital-name"
-                  className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5"
-                >
-                  {t.hospitalName} *
-                </label>
-                <div className="relative">
-                  <input
-                    id="hospital-name"
-                    name="hospitalName"
-                    type="text"
-                    autoComplete="off"
-                    required
-                    aria-required="true"
-                    aria-autocomplete="list"
-                    aria-expanded={isHospitalDropdownOpen && hospitalSuggestions.length > 0}
-                    aria-invalid={isFieldInvalid('hospitalName')}
-                    value={medicalCase.hospitalName}
-                    onChange={(e) => {
-                      onUpdateMedicalCase({ ...medicalCase, hospitalName: e.target.value });
-                      clearFieldError('hospitalName');
-                      setIsHospitalDropdownOpen(true);
-                    }}
-                    onFocus={() => {
-                      if (medicalCase.hospitalName && medicalCase.hospitalName.trim().length > 0) {
-                        setIsHospitalDropdownOpen(true);
-                      }
-                    }}
-                    onBlur={() => setTouched((prev) => ({ ...prev, hospitalName: true }))}
-                    placeholder={
-                      language === 'taglish'
-                        ? 'Hal. Philippine General Hospital, Heart Center, EAMC'
-                        : 'e.g. Philippine General Hospital, Heart Center, EAMC'
-                    }
-                    className={`w-full h-11 min-h-11 py-2.5 px-3.5 pr-10 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
-                      isFieldInvalid('hospitalName')
-                        ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
-                        : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
-                    }`}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                    <Building className="w-4 h-4" />
+            </div>
+
+            {/* When Private is selected: Render Civic Advisory Card and Strategy Selector */}
+            {medicalCase.hospitalType === 'private' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                {/* Empathetic Clear Civic Advisory Card */}
+                <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 flex items-start gap-3 shadow-2xs">
+                  <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-900 block">
+                      {language === 'taglish' ? 'Mahalagang Paalala sa Batas (RA 11463)' : 'Statutory Civic Advisory (RA 11463)'}
+                    </span>
+                    <p className="text-xs sm:text-sm font-semibold leading-relaxed">
+                      {language === 'taglish'
+                        ? 'Walang Malasakit Center sa mga pribadong ospital alinsunod sa RA 11463. May 2 opisyal na paraan: (1) GL Stacking sa Billing o (2) Paglipat sa Public Hospital kung lumolobo ang ICU bill.'
+                        : 'Private hospitals do not have Malasakit Centers by law (RA 11463). You have 2 official pathways: (1) GL Stacking at Billing, or (2) Transfer Referral to a Public Hospital for escalating ICU bills.'}
+                    </p>
                   </div>
                 </div>
 
-                {/* Autocomplete Suggestions Dropdown */}
-                {isHospitalDropdownOpen && hospitalSuggestions.length > 0 && (
-                  <div
-                    role="listbox"
-                    aria-label="Malasakit Centers Directory"
-                    className="absolute z-30 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150"
-                  >
-                    <div className="px-3.5 py-1.5 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-                      <span>160+ Malasakit Centers Directory</span>
-                      <span className="text-blue-900 font-semibold">{hospitalSuggestions.length} found</span>
-                    </div>
-                    {hospitalSuggestions.map((center) => (
-                      <button
-                        key={center.id}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSelectHospitalCenter(center);
-                        }}
-                        className="w-full text-left p-3 hover:bg-blue-50/80 transition-colors flex items-start justify-between gap-3 group cursor-pointer"
-                      >
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900 flex items-center gap-1.5">
-                            <Building className="w-3.5 h-3.5 text-blue-900 shrink-0" />
-                            <span className="truncate">{center.hospitalName}</span>
+                {/* Strategy Selector (2 Interactive Radio Cards) */}
+                <div className="space-y-2.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                    {language === 'taglish'
+                      ? 'Piliin ang Inyong Estratehiya sa Pribadong Ospital:'
+                      : 'Select Your Private Hospital Strategy:'} *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Option A: GL Stacking */}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={(medicalCase.privateStrategy || 'gl_stacking') === 'gl_stacking'}
+                      onClick={() =>
+                        onUpdateMedicalCase({
+                          ...medicalCase,
+                          privateStrategy: 'gl_stacking',
+                        })
+                      }
+                      className={`min-h-[44px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer focus-ring ${
+                        (medicalCase.privateStrategy || 'gl_stacking') === 'gl_stacking'
+                          ? 'border-2 border-blue-900 bg-blue-50/70 shadow-xs ring-2 ring-blue-900/10'
+                          : 'border border-[#E2DFD6] bg-white hover:bg-stone-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">💳</span>
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              {language === 'taglish'
+                                ? 'Option A: GL Stacking sa Pribadong Ospital'
+                                : 'Option A: Private Hospital GL Stacking'}
+                            </span>
                           </div>
-                          <p className="text-xs text-slate-500 truncate pl-5">
-                            {center.address} • {center.provinceOrCity}
-                          </p>
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              (medicalCase.privateStrategy || 'gl_stacking') === 'gl_stacking'
+                                ? 'border-blue-900 bg-blue-900'
+                                : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {(medicalCase.privateStrategy || 'gl_stacking') === 'gl_stacking' && (
+                              <div className="w-2 h-2 rounded-full bg-white" />
+                            )}
+                          </div>
                         </div>
-                        <div className="shrink-0 flex flex-col items-end gap-1">
-                          <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
-                            Malasakit Desk
-                          </span>
-                          <span className="text-xs text-slate-600">
-                            {center.hospitalType.includes('LGU') ? 'Public LGU' : 'Public DOH'}
-                          </span>
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                          {language === 'taglish'
+                            ? 'Mananatili sa pribado; gamitin ang PhilHealth, Senior/PWD 20% (batas), PCSO, PACe, at Senate GL sa Billing/Credit & Collection.'
+                            : 'Remain in private hospital; utilize PhilHealth, Senior/PWD 20% (by law), PCSO, PACe, and Senate GL at Billing/Credit & Collection.'}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-semibold">
+                        <span className="text-blue-900">Credit & Collection Stacking</span>
+                        <span className="text-emerald-800 font-bold">35%–70% Bawas</span>
+                      </div>
+                    </button>
+
+                    {/* Option B: Transfer Referral */}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={medicalCase.privateStrategy === 'transfer_referral'}
+                      onClick={() =>
+                        onUpdateMedicalCase({
+                          ...medicalCase,
+                          privateStrategy: 'transfer_referral',
+                        })
+                      }
+                      className={`min-h-[44px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer focus-ring ${
+                        medicalCase.privateStrategy === 'transfer_referral'
+                          ? 'border-2 border-blue-900 bg-blue-50/70 shadow-xs ring-2 ring-blue-900/10'
+                          : 'border border-[#E2DFD6] bg-white hover:bg-stone-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">🔄</span>
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              {language === 'taglish'
+                                ? 'Option B: Paglipat sa Pampublikong Specialty Hospital'
+                                : 'Option B: Transfer to Public Specialty Hospital'}
+                            </span>
+                          </div>
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              medicalCase.privateStrategy === 'transfer_referral'
+                                ? 'border-blue-900 bg-blue-900'
+                                : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {medicalCase.privateStrategy === 'transfer_referral' && (
+                              <div className="w-2 h-2 rounded-full bg-white" />
+                            )}
+                          </div>
                         </div>
-                      </button>
-                    ))}
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                          {language === 'taglish'
+                            ? 'Iwas-baon sa utang; mabilis lumobo ang ICU bill (₱50k-₱150k/araw); kailangan ng emergency-to-public referral sa PGH/Heart Center/NKTI/Lung Center.'
+                            : 'Avoid catastrophic debt; ICU bills escalate rapidly (₱50k-₱150k/day); requires emergency-to-public referral to PGH/Heart Center/NKTI/Lung Center.'}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-semibold">
+                        <span className="text-blue-900">Zero-Bankruptcy Protocol</span>
+                        <span className="text-emerald-800 font-bold">100% Malasakit Target</span>
+                      </div>
+                    </button>
                   </div>
-                )}
-
-                {isFieldInvalid('hospitalName') && (
-                  <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{errors.hospitalName}</span>
-                  </p>
-                )}
-
-                {/* Active Malasakit Facility Indicator */}
-                {medicalCase.hasMalasakitCenter && medicalCase.hospitalName && (
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                    <span>
-                      {language === 'taglish'
-                        ? `Aktibo ang Malasakit Center sa pasilidad na ito${medicalCase.hospitalCity ? ` (${medicalCase.hospitalCity})` : ''}.`
-                        : `Active Malasakit Center at this facility${medicalCase.hospitalCity ? ` (${medicalCase.hospitalCity})` : ''}.`}
-                    </span>
-                  </div>
-                )}
+                </div>
               </div>
+            )}
+
+            {/* Hospital Name & Autocomplete Input */}
+            <div className="relative" ref={hospitalDropdownRef}>
+              <label
+                htmlFor="hospital-name"
+                className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5"
+              >
+                {t.hospitalName} *
+              </label>
+              <div className="relative">
+                <input
+                  id="hospital-name"
+                  name="hospitalName"
+                  type="text"
+                  autoComplete="off"
+                  required
+                  aria-required="true"
+                  aria-autocomplete="list"
+                  aria-expanded={isHospitalDropdownOpen && hospitalSuggestions.length > 0}
+                  aria-invalid={isFieldInvalid('hospitalName')}
+                  value={medicalCase.hospitalName}
+                  onChange={(e) => {
+                    onUpdateMedicalCase({ ...medicalCase, hospitalName: e.target.value });
+                    clearFieldError('hospitalName');
+                    setIsHospitalDropdownOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (medicalCase.hospitalName && medicalCase.hospitalName.trim().length > 0) {
+                      setIsHospitalDropdownOpen(true);
+                    }
+                  }}
+                  onBlur={() => setTouched((prev) => ({ ...prev, hospitalName: true }))}
+                  placeholder={
+                    medicalCase.hospitalType === 'private'
+                      ? (language === 'taglish' ? 'Hal. St. Luke\'s Medical Center, The Medical City, Cardinal Santos' : 'e.g. St. Luke\'s Medical Center, The Medical City, Cardinal Santos')
+                      : (language === 'taglish' ? 'Hal. Philippine General Hospital, Heart Center, NKTI, EAMC' : 'e.g. Philippine General Hospital, Heart Center, NKTI, EAMC')
+                  }
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 pr-10 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
+                    isFieldInvalid('hospitalName')
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
+                      : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <Building className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* Autocomplete Suggestions Dropdown */}
+              {isHospitalDropdownOpen && hospitalSuggestions.length > 0 && (
+                <div
+                  role="listbox"
+                  aria-label="Malasakit Centers Directory"
+                  className="absolute z-30 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150"
+                >
+                  <div className="px-3.5 py-1.5 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                    <span>160+ Malasakit Centers Directory</span>
+                    <span className="text-blue-900 font-semibold">{hospitalSuggestions.length} found</span>
+                  </div>
+                  {hospitalSuggestions.map((center) => (
+                    <button
+                      key={center.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectHospitalCenter(center);
+                      }}
+                      className="w-full text-left p-3 hover:bg-blue-50/80 transition-colors flex items-start justify-between gap-3 group cursor-pointer"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900 flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                          <span className="truncate">{center.hospitalName}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 truncate pl-5">
+                          {center.address} • {center.provinceOrCity}
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                          Malasakit Desk
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          {center.hospitalType.includes('LGU') ? 'Public LGU' : 'Public DOH'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {isFieldInvalid('hospitalName') && (
+                <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{errors.hospitalName}</span>
+                </p>
+              )}
+
+              {/* Active Malasakit Facility Indicator (Public Only) */}
+              {medicalCase.hospitalType !== 'private' && medicalCase.hasMalasakitCenter && medicalCase.hospitalName && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>
+                    {language === 'taglish'
+                      ? `Aktibo ang Malasakit Center sa pasilidad na ito${medicalCase.hospitalCity ? ` (${medicalCase.hospitalCity})` : ''}.`
+                      : `Active Malasakit Center at this facility${medicalCase.hospitalCity ? ` (${medicalCase.hospitalCity})` : ''}.`}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Financials & Deduction Calculator */}
             <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                {language === 'taglish' ? 'Kalkulador ng Balanse ng Bill' : 'Hospital Bill Breakdown (₱)'}
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    {language === 'taglish' ? 'Kalkulador ng Balanse ng Bill' : 'Hospital Bill Breakdown (₱)'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                    {language === 'taglish'
+                      ? 'Opisyal na bawas batay sa PhilHealth ACR at RA 9994 / RA 10754'
+                      : 'Statutory deductions per PhilHealth ACR and RA 9994 / RA 10754'}
+                  </p>
+                </div>
+                <button
+                  id="btn-auto-compute"
+                  type="button"
+                  onClick={handleAutoCompute}
+                  className="min-h-[44px] h-11 px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs inline-flex items-center gap-2 cursor-pointer shadow-xs transition-colors shrink-0"
+                >
+                  <Zap className="w-4 h-4 fill-amber-300 text-amber-300 shrink-0" />
+                  <span>⚡ Auto-Kalkulahin (PhilHealth & Senior/PWD)</span>
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label
@@ -1544,12 +1997,74 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               </div>
 
               {/* Net Result Bar */}
-              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white mt-2 shadow-xs">
+              <div id="net-remaining-balance" className="flex items-center justify-between p-4 rounded-xl bg-slate-900 text-white mt-2 shadow-xs">
                 <span className="text-sm font-bold text-slate-200">{t.netRemaining}:</span>
-                <span className="text-xl font-bold text-amber-300">
-                  ₱ {medicalCase.netRemainingBalance.toLocaleString()}
+                <span id="net-remaining-amount" className="text-xl font-bold text-amber-300">
+                  ₱ {Math.round(medicalCase.netRemainingBalance).toLocaleString()}
                 </span>
               </div>
+
+              {/* Transparent Statutory Breakdown Card */}
+              {showBreakdownCard && (
+                <div className="p-4 sm:p-5 rounded-xl bg-stone-50 border border-[#E2DFD6] space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <Calculator className="w-3.5 h-3.5 text-blue-900" />
+                      <span>
+                        {language === 'taglish'
+                          ? 'Opisyal na Buod ng Statutory Relief at Deductions'
+                          : 'Official Statutory Relief & Deduction Summary'}
+                      </span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-xs font-bold">
+                      RA 9994 / RA 10754 / PhilHealth ACR
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {/* If Senior/PWD applied */}
+                    {isSeniorPwdActive && (
+                      <div className="p-3 rounded-lg bg-white border border-[#E2DFD6] space-y-1">
+                        <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
+                          <span>🪪 RA 9994 / RA 10754 Mandated Relief:</span>
+                          <span className="text-emerald-700 font-bold shrink-0">
+                            -₱{medicalCase.seniorPwdDiscount.toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                          {medicalCase.hospitalType === 'private'
+                            ? `12% VAT Exemption (₱${vatRemoved.toLocaleString()}) + 20% Senior/PWD Discount (₱${discountAmount.toLocaleString()})`
+                            : '20% Statutory Discount sa Hospital Bill'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* If PhilHealth applied */}
+                    {isPhilHealthActive && (
+                      <div className="p-3 rounded-lg bg-white border border-[#E2DFD6] flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
+                        <span className="truncate pr-2">
+                          🩺 PhilHealth Case Rate ({matchedCondition}):
+                        </span>
+                        <span className="text-emerald-700 font-bold shrink-0">
+                          -₱{medicalCase.philhealthDeduction.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* If in DOH hospital (public_doh) and patient is Senior/PWD or indigent */}
+                    {isNbbEligible && (
+                      <div className="p-3 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-950 text-xs font-semibold leading-relaxed">
+                        🛡️ No Balance Billing (NBB) Entitlement: Ang nalalabing balanse ay sakop ng DOH MAIP at Malasakit Center sa basic ward.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reassurance note */}
+                  <p className="text-xs text-slate-500 font-normal pt-1 border-t border-slate-200">
+                    Maaari ring baguhin nang manu-mano ang mga numero sa itaas kung may hawak nang opisyal na hospital Statement of Account (SOA).
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1572,16 +2087,15 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 setCurrentStep(1);
                 setBannerError(null);
               }}
-              className="h-11 min-h-11 inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+              className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>{language === 'taglish' ? 'Bumalik' : 'Back'}</span>
             </button>
             <button
               type="submit"
-              className="h-11 min-h-11 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors cursor-pointer"
+              className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
             >
-              <Sparkles className="w-4 h-4 text-amber-300" />
               <span>{t.calculateRoadmap}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -1610,9 +2124,15 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   </button>
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                  {language === 'taglish'
-                    ? 'Ang Inyong Aid Stacking Roadmap'
-                    : 'Your Personalized Aid Stacking Roadmap'}
+                  {medicalCase.hospitalType === 'private'
+                    ? medicalCase.privateStrategy === 'transfer_referral'
+                      ? 'Emergency-to-Public Transfer Protocol (Zero-Bankruptcy Route)'
+                      : (language === 'taglish'
+                          ? 'Private Hospital Credit & Collection Roadmap (35%–70% Bawas)'
+                          : 'Private Hospital Credit & Collection Roadmap (35%–70% Reduction)')
+                    : (language === 'taglish'
+                        ? 'Ang Inyong Public Hospital Zero-Billing Roadmap'
+                        : 'Your Public Hospital Zero-Billing Roadmap')}
                 </h2>
                 <p className="text-sm text-slate-600 max-w-2xl mt-1 leading-relaxed">
                   {language === 'taglish'
@@ -1650,12 +2170,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       1
                     </span>
-                    <span className="text-xs font-bold text-blue-900">PhilHealth</span>
+                    <span className="text-xs font-bold text-slate-900">PhilHealth</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-normal">
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
                     {language === 'taglish'
                       ? 'Unang bawas sa billing desk bago ang lahat.'
                       : 'Mandatory first deduction at billing desk.'}
@@ -1664,12 +2184,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       2
                     </span>
-                    <span className="text-xs font-bold text-emerald-900">Senior/PWD 20%</span>
+                    <span className="text-xs font-bold text-slate-900">Senior/PWD 20%</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-normal">
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
                     {language === 'taglish'
                       ? 'Diskwento sa doctor fee at gamot (RA 9994/10754).'
                       : '20% off + VAT free on medicines & MD fees.'}
@@ -1678,12 +2198,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-blue-900 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       3
                     </span>
                     <span className="text-xs font-bold text-slate-900">Malasakit Center</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-normal">
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
                     {language === 'taglish'
                       ? 'In-hospital desk (DOH MAIP) para sa ward at gamot.'
                       : 'In-hospital DOH MAIP desk for ward & meds.'}
@@ -1692,12 +2212,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       4
                     </span>
-                    <span className="text-xs font-bold text-amber-900">PCSO / PACe</span>
+                    <span className="text-xs font-bold text-slate-900">PCSO / PACe</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-normal">
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
                     {language === 'taglish'
                       ? 'GL para sa malaking bill (₱50k+), chemo, o implants.'
                       : 'GL for catastrophic bill (₱50k+), chemo, or implants.'}
@@ -1706,12 +2226,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                 <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       5
                     </span>
-                    <span className="text-xs font-bold text-rose-950">DSWD AICS (Cash)</span>
+                    <span className="text-xs font-bold text-slate-900">DSWD AICS (Cash)</span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-normal">
+                  <p className="text-xs text-slate-600 leading-relaxed font-normal">
                     {language === 'taglish'
                       ? 'Cash aid sa gamot sa labas, pamasahe, o libing.'
                       : 'Outright cash for outside pharmacy & travel.'}
@@ -1739,18 +2259,375 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
             )}
           </div>
 
+          {/* Public vs. Private Hospital Customization Card */}
+          {medicalCase.hospitalType !== 'private' ? (
+            /* PUBLIC HOSPITALS (DOH / LGU): In-Situ Malasakit Center Desk Card */
+            matchedMalasakitCenter ? (
+              <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Building className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          {language === 'taglish' ? 'In-Situ Malasakit Center Desk' : 'In-Situ Malasakit Center Desk'}
+                        </h3>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300">
+                          Matched Facility
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">
+                        {matchedMalasakitCenter.hospitalType}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <span className="font-bold text-slate-900 block text-xs">
+                      {matchedMalasakitCenter.hospitalName}
+                    </span>
+                    <div className="flex items-start gap-1.5 text-slate-600">
+                      <MapPin className="w-3.5 h-3.5 text-blue-900 shrink-0 mt-0.5" />
+                      <span>{matchedMalasakitCenter.address} ({matchedMalasakitCenter.provinceOrCity})</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <span className="font-bold text-slate-900 block text-xs">
+                      {language === 'taglish' ? 'Oras ng Operasyon:' : 'Operating Hours:'}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-slate-600">
+                      <Clock className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                      <span>{matchedMalasakitCenter.operatingHours}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <a
+                    href={`tel:${parseDialableNumber(matchedMalasakitCenter.contactNumber)}`}
+                    className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>
+                      {language === 'taglish'
+                        ? `Tawagan ang Desk: ${matchedMalasakitCenter.contactNumber}`
+                        : `Call Desk: ${matchedMalasakitCenter.contactNumber}`}
+                    </span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCenterPhone(matchedMalasakitCenter.contactNumber)}
+                    className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                  >
+                    {copiedCenterPhone ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span>{language === 'taglish' ? 'Na-kopya na!' : 'Copied!'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-slate-600" />
+                        <span>{language === 'taglish' ? 'Kopyahin ang Telepono' : 'Copy Phone Number'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Building className="w-4 h-4 text-slate-500 shrink-0" />
+                  <span>
+                    {language === 'taglish'
+                      ? `Magtungo sa Medical Social Services ng ${medicalCase.hospitalName || 'ospital'} para sa DOH-MAIP zero-billing evaluation.`
+                      : `Visit the Medical Social Services of ${medicalCase.hospitalName || 'the hospital'} for DOH-MAIP zero-billing evaluation.`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToTab('malasakit')}
+                  className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring shrink-0 self-start sm:self-auto"
+                >
+                  <span>{language === 'taglish' ? 'Direktoryo ng Malasakit' : 'Malasakit Directory'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )
+          ) : medicalCase.privateStrategy === 'transfer_referral' ? (
+            /* PRIVATE HOSPITALS (transfer_referral): 5-Stage Inter-Hospital Transfer Playbook */
+            <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 shadow-xs space-y-5">
+              <div className="border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {language === 'taglish'
+                      ? '5-Stage Inter-Hospital Transfer Playbook (Zero-Bankruptcy Route)'
+                      : '5-Stage Inter-Hospital Transfer Playbook (Zero-Bankruptcy Route)'}
+                  </h3>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300">
+                    Protocol Playbook
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  {language === 'taglish'
+                    ? 'Hakbang-hakbang na gabay para sa ligtas at legal na paglipat mula pribado patungo sa pampublikong specialty hospital upang maiwasan ang nakalulubog na utang sa ICU.'
+                    : 'Step-by-step clinical and administrative roadmap for emergency inter-hospital transfer to public tertiary centers to halt runaway private debt.'}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Stage 1 */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      1
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Stage 1: Clinical Stabilization Clearance (RA 8344 / RA 10932)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed pl-8">
+                    {language === 'taglish'
+                      ? 'Ayon sa batas (RA 8344 na inamyendahan ng RA 10932), bawal tanggihan o harangin ang pasyente para sa emergency stabilization kahit walang paunang deposito. Humingi sa attending physician ng "Fit to Transfer" certification bago mag-arrange ng biyahe.'
+                      : 'Under RA 8344 (amended by RA 10932), medical facilities cannot refuse emergency stabilization or demand deposits. Ensure the attending physician formally issues a "Fit to Transfer" certification prior to transit.'}
+                  </p>
+                </div>
+
+                {/* Stage 2 */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      2
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Stage 2: Complete Clinical Records & Itemized SOA
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed pl-8">
+                    {language === 'taglish'
+                      ? 'Kunin agad sa billing at medical records ang certified preliminary Statement of Account (SOA), Medical/Clinical Abstract na pirmado ng doktor (may PRC License No.), at kumpletong kopya ng lab/imaging results.'
+                      : 'Secure certified preliminary Statement of Account (SOA), doctor-signed Clinical Abstract with PRC license, and complete diagnostic/imaging results from medical records.'}
+                  </p>
+                </div>
+
+                {/* Stage 3 */}
+                <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      3
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Stage 3: Doctor-to-Doctor Bed Hunting (Interactive Call Directory)
+                      </h4>
+                      <p className="text-xs text-slate-600">
+                        {language === 'taglish'
+                          ? 'Tawagan ang National Referral Hub o mga DOH Specialty Center upang kumpirmahin ang bakanteng kama o ICU bed bago lumipat:'
+                          : 'Contact the National Referral Hub or DOH Specialty Centers for doctor-to-doctor bed confirmation prior to departure:'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1 pl-8">
+                    {[
+                      { name: 'NPNRC (One Hospital Command)', phone: '1555', altPhone: '0919-977-3333', desc: '24/7 National Hub' },
+                      { name: 'Philippine General Hospital (PGH)', phone: '(02) 8554-8400', desc: 'Apex Tertiary / Indigent Ward' },
+                      { name: 'Philippine Heart Center (PHC)', phone: '(02) 8925-2401', desc: 'Cardiovascular Surgery & ICU' },
+                      { name: 'National Kidney & Transplant Inst. (NKTI)', phone: '(02) 8981-0300', desc: 'Dialysis & Renal Emergency' },
+                      { name: 'Lung Center of the Philippines (LCP)', phone: '(02) 8924-6101', desc: 'Critical Respiratory Care' },
+                      { name: 'Philippine Children’s Medical Center (PCMC)', phone: '(02) 8588-9900', desc: 'Pediatric ICU & Surgery' },
+                    ].map((target, idx) => (
+                      <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5 flex flex-col justify-between">
+                        <div>
+                          <div className="font-bold text-xs text-slate-900 leading-tight">{target.name}</div>
+                          <div className="text-xs text-slate-500 font-normal">{target.desc}</div>
+                          <div className="text-xs font-mono font-bold text-blue-900 mt-1">{target.phone}{target.altPhone ? ` / ${target.altPhone}` : ''}</div>
+                        </div>
+                        <div className="pt-1 flex items-center gap-1.5">
+                          <a
+                            href={`tel:${parseDialableNumber(target.phone)}`}
+                            className="min-h-[44px] h-11 px-3 py-2 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer focus-ring flex-1"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-blue-900" />
+                            <span>Tumawag</span>
+                          </a>
+                          {target.altPhone && (
+                            <a
+                              href={`tel:${parseDialableNumber(target.altPhone)}`}
+                              className="min-h-[44px] h-11 px-3 py-2 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer focus-ring flex-1"
+                            >
+                              <Phone className="w-3.5 h-3.5 text-blue-900" />
+                              <span>Alt Mobile</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Stage 4 */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      4
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Stage 4: Settle Private Hospital via RA 9439 Promissory Note + Dispatch Ambulance
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed pl-8">
+                    {language === 'taglish'
+                      ? 'Kung may natitirang utang sa pribado bago lumabas, mag-execute ng Promissory Note alinsunod sa RA 9439 upang payagang makaalis. Makipag-ugnayan sa City/Municipal DRRMO o Philippine Red Cross para sa libreng transfer ambulance na may paramedic support.'
+                      : 'Execute an RA 9439 Promissory Note for any unsettled private bill to authorize release. Coordinate with your City/Municipal DRRMO or Philippine Red Cross for a paramedic-equipped transfer ambulance.'}
+                  </p>
+                </div>
+
+                {/* Stage 5 */}
+                <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      5
+                    </span>
+                    <h4 className="text-sm font-bold text-emerald-950">
+                      Stage 5: Immediate Registration at Public DOH Malasakit Desk for 100% Zero-Billing
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed pl-8">
+                    {language === 'taglish'
+                      ? 'Pagdating sa pampublikong pasilidad, mag-admit sa charity ward at mag-report agad sa in-hospital Malasakit Center desk dala ang Barangay Indigency. Dito gagamitin ang DOH-MAIP at PCSO allocations para maging 100% Zero-Billing ang lahat ng susunod na gamutan.'
+                      : 'Upon admission to the public facility, present your Barangay Indigency at the in-hospital Malasakit Center desk to activate DOH-MAIP and PCSO allocations for 100% Zero-Billing.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* PRIVATE HOSPITALS (gl_stacking): Gabay sa Pribadong Ospital (What's In & What's Out) Card */
+            <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-900">
+                      {language === 'taglish'
+                        ? "Gabay sa Pribadong Ospital (What's In & What's Out)"
+                        : "Private Hospital Guide (What's In & What's Out)"}
+                    </h3>
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-950 border border-blue-200">
+                      RA 11463 & RA 9439
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {language === 'taglish'
+                      ? 'Alamin ang inyong mga legal na karapatan at mga limitasyon sa pagsingil sa pribadong ospital.'
+                      : 'Understand your statutory entitlements and billing limitations inside private healthcare facilities.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ❌ Hindi Saklaw */}
+                <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-200 space-y-2.5">
+                  <div className="flex items-center gap-2 text-rose-900 font-bold text-xs uppercase tracking-wider">
+                    <span className="w-5 h-5 rounded-full bg-rose-200 text-rose-800 flex items-center justify-center text-xs">✕</span>
+                    <span>{language === 'taglish' ? 'Hindi Saklaw sa Pribado' : "What's NOT Covered"}</span>
+                  </div>
+                  <ul className="text-xs text-slate-700 space-y-2 leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-600 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>Walang Malasakit Center desk sa pribado:</strong> Ayon sa RA 11463, eksklusibo lamang ang mga Malasakit Center desks sa mga pampublikong ospital ng DOH at LGU.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-600 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>Walang No-Balance-Billing (NBB):</strong> Hindi mandatory ang zero balance sa private rooms (semi-private, private, suite) o private accommodations.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-600 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>Hiwalay ang singil ng doktor (PF):</strong> Ang Professional Fees ng mga private attending physician ay hiwalay sa hospital bill at madalas hindi sakop ng government GLs maliban kung may espesyal na waiver.
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* ✅ May Karapatan */}
+                <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider">
+                    <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center text-xs">✓</span>
+                    <span>{language === 'taglish' ? 'May Karapatan Ka sa Batas' : "Your Statutory Rights (What's In)"}</span>
+                  </div>
+                  <ul className="text-xs text-slate-700 space-y-2 leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-700 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>PhilHealth Case Rates:</strong> Awtomatikong statutory deduction sa bill bago kwentahin ang anumang diskwento o bayarin.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-700 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>Senior/PWD 20% + 12% VAT Exemption:</strong> MANDATORY BY LAW (RA 9994 / RA 10754) sa room, laboratory, diagnostic tests, gamot, at doktor Professional Fees (PF).
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-700 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>PCSO Guarantee Letter:</strong> Tanggap sa mga pribadong ospital na may aktibong MOA para sa chemo, dialysis, at operasyon.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-700 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>PACe Malacañang & Senate GL:</strong> Maaring mag-isyu ng Guarantee Letter para sa malalaking deficit (₱50k+) kung accredited ang pribadong pasilidad.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-700 font-bold shrink-0">•</span>
+                      <span>
+                        <strong>DSWD AICS Direct Cash:</strong> Outright cash para sa mga mamahaling gamot na kailangang bilhin sa labas na generic pharmacies.
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* 🛡️ Proteksyon: Promissory Note Literacy under RA 9439 */}
+              <div className="p-4 rounded-xl bg-blue-50/80 border border-blue-200 text-xs text-blue-950 flex items-start gap-3 shadow-2xs">
+                <ShieldCheck className="w-5 h-5 text-blue-900 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold uppercase tracking-wider text-blue-900 block text-xs">
+                    🛡️ Proteksyon sa ilalim ng RA 9439 (Anti-Hospital Detention Act)
+                  </span>
+                  <p className="leading-relaxed">
+                    {language === 'taglish'
+                      ? 'Ipinagbabawal ng batas ang pagharang o pag-detain sa pasyente, o pagtangging maglabas ng medical certificate at discharge slip dahil sa hindi pa nababayarang bill. May legal na karapatan ang pasyente (lalo na sa non-private ward/bed) na makalabas sa pamamagitan ng paglagda sa isang Promissory Note na may kaukulang guarantor o mortgage/collateral.'
+                      : 'Under RA 9439 (Anti-Hospital Detention Act), it is strictly illegal for hospitals to detain patients or withhold medical/discharge clearances due to unpaid balances. Patients admitted in non-private accommodations are legally entitled to execute a Promissory Note secured by a co-maker/guarantor or collateral.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Prominent Printable Forms Callout Card */}
           <div className="bg-white border-2 border-blue-600 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-blue-900">
-                <Printer className="w-5 h-5 text-blue-600 shrink-0" />
+                <Printer className="w-5 h-5 text-blue-900 shrink-0" />
                 <h3 className="text-base font-bold">
                   {language === 'taglish'
                     ? 'Kailangan ng Pisikal na Papel sa Social Worker Desk?'
                     : 'Physical Forms Needed at the Hospital Desk?'}
                 </h3>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+              <p className="text-xs text-slate-600 leading-relaxed max-w-2xl font-normal">
                 {language === 'taglish'
                   ? 'I-print ang pre-filled na Malasakit Unified Intake Sheet at DSWD AICS Certificate of Eligibility para may dalang kumpletong papel sa social worker.'
                   : 'Download and print pre-filled Malasakit Unified Intake Sheets and DSWD AICS Certificates ready for social worker desks.'}
@@ -1759,7 +2636,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('print_forms')}
-              className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors shrink-0 cursor-pointer"
+              className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring shrink-0"
             >
               <Printer className="w-4 h-4" />
               <span>
@@ -1771,247 +2648,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
             </button>
           </div>
 
-          {/* Quick Action Panels: Direct Launch/Collapse for PCSO and Senate */}
-          <div className="space-y-4">
-            {/* PCSO 7:00 AM Queue Tracker Quick Action Panel */}
-            <div className="bg-white rounded-2xl border border-[#E2DFD6] shadow-xs overflow-hidden">
-              <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 border-b border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">
-                        PCSO 7:00 AM Queue Tracker
-                      </h3>
-                      <span
-                        className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                          isMorningQueueWindow
-                            ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
-                            : 'bg-amber-100 text-amber-950 border-amber-300'
-                        }`}
-                      >
-                        {isMorningQueueWindow ? 'Queue Active' : 'Standby'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {language === 'taglish'
-                        ? 'Lunes hanggang Biyernes, 7:00 AM - 12:00 PM ang filing window. Mahigpit ang 2MB PDF per file limit.'
-                        : 'Weekdays 7:00 AM - 12:00 PM submission window with strict 2.0MB PDF maximum limits.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal('pcso')}
-                    className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-                  >
-                    <span>Buksan ang PCSO Assistant</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsPcsoOpen(!isPcsoOpen)}
-                    aria-expanded={isPcsoOpen}
-                    className="h-11 min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                    title={isPcsoOpen ? 'Collapse panel' : 'Expand panel'}
-                  >
-                    {isPcsoOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {isPcsoOpen && (
-                <div className="p-6 space-y-4 bg-white">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Philippine Standard Time (GMT+8)
-                      </div>
-                      <div className="text-xl font-bold text-slate-900 mt-1">{phTime || 'Loading...'}</div>
-                      <p className="text-xs text-slate-600 mt-1">
-                        {isMorningQueueWindow
-                          ? 'Bukas ang submission portal ngayon hanggang 12:00 PM.'
-                          : 'Magbubukas ang portal sa susunod na weekday ganap na 7:00 AM.'}
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                      <div className="text-xs font-bold uppercase tracking-wider text-emerald-950">
-                        2.0MB Single-PDF Checklist
-                      </div>
-                      <ul className="text-xs text-slate-700 space-y-1 mt-1.5 list-disc list-inside">
-                        <li>Original Medical Abstract (Signed with License No.)</li>
-                        <li>Statement of Account (Net of PhilHealth)</li>
-                        <li>Valid ID ng Pasyente at Kinatawan</li>
-                        <li>Signed Authorization Letter & Katunayan ng Relasyon</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveModal('pcso')}
-                      className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                    >
-                      <HeartHandshake className="w-4 h-4" />
-                      <span>Pumunta sa Buong PCSO Assistant</span>
-                    </button>
-                    <a
-                      href="https://www.pcso.gov.ph"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-xs transition-colors"
-                    >
-                      <span>Buksan ang pcso.gov.ph E-Services</span>
-                      <ExternalLink className="w-4 h-4 text-slate-600" />
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Senate Assistance 90-Day Tracker Quick Action Panel */}
-            <div className="bg-white rounded-2xl border border-[#E2DFD6] shadow-xs overflow-hidden">
-              <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 border-b border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">
-                        Senate Assistance 90-Day Tracker
-                      </h3>
-                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-950 border border-blue-200">
-                        90-Day Cooldown Policy
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {language === 'taglish'
-                        ? 'Ang tulong medikal sa pamamagitan ng Guarantee Letter ay maaari lamang ma-avail kada 90 araw.'
-                        : 'Senate medical assistance Guarantee Letters require a 90-day cooldown between requests.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal('senate')}
-                    className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-                  >
-                    <span>Buksan ang Senate Helper</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsSenateOpen(!isSenateOpen)}
-                    aria-expanded={isSenateOpen}
-                    className="h-11 min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                    title={isSenateOpen ? 'Collapse panel' : 'Expand panel'}
-                  >
-                    {isSenateOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {isSenateOpen && (
-                <div className="p-6 space-y-4 bg-white">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                        {language === 'taglish'
-                          ? 'Pre-Formatted na Sulat ng Kahilingan:'
-                          : 'Pre-Formatted Justification Letter:'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={copyJustification}
-                        className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-800 transition-colors shadow-xs cursor-pointer"
-                      >
-                        {copiedJustification ? (
-                          <Check className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-slate-600" />
-                        )}
-                        <span>{copiedJustification ? 'Copied' : 'Kopyahin ang Sulat'}</span>
-                      </button>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-700 italic bg-white p-3.5 rounded-lg border border-slate-200 leading-relaxed">
-                      &ldquo;{justification}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveModal('senate')}
-                      className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Pumunta sa Buong Senate Assistant & Tracker</span>
-                    </button>
-                    <a
-                      href="https://assist.senate.gov.ph"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-xs transition-colors"
-                    >
-                      <span>Buksan ang assist.senate.gov.ph</span>
-                      <ExternalLink className="w-4 h-4 text-slate-600" />
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* PACe (Presidential Action Center - Office of the President) Quick Action Panel */}
-            {(medicalCase.totalHospitalBill >= 50000 || medicalCase.netRemainingBalance >= 30000) && (
-              <div className="bg-white rounded-2xl border border-[#E2DFD6] shadow-xs overflow-hidden">
-                <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 border-b border-amber-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 border border-amber-200">
-                      <Landmark className="w-5 h-5 text-amber-800" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-bold text-slate-900">
-                          Presidential Action Center (PACe) - Malacañang
-                        </h3>
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-amber-100 text-amber-950 border-amber-300">
-                          Bills ₱50,000+ / ICU / Implants
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        {language === 'taglish'
-                          ? 'Tanggapan ng Pangulo para sa malalaking deficit sa operasyon at ICU na lumagpas sa limit ng Malasakit at PCSO.'
-                          : 'Office of the President lifeline for catastrophic surgical deficits and ICU balances exceeding Malasakit/PCSO.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => setActiveModal('pace')}
-                      className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer shrink-0"
-                    >
-                      <Landmark className="w-4 h-4 text-amber-300" />
-                      <span>{language === 'taglish' ? 'Buksan ang PACe Toolkit' : 'Open PACe Toolkit'}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Stacking Steps List */}
+          {/* Stacking Steps List with Consolidated Agency Trackers */}
           <div className="space-y-4">
             {triageResult.steps.map((step) => (
               <div
@@ -2020,11 +2657,11 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3 mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                       #{step.stepNumber}
                     </div>
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded">
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md">
                         {step.agencyName}
                       </span>
                       <h3 className="text-base font-bold text-slate-900 mt-1">
@@ -2032,176 +2669,239 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       </h3>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-600 pl-12 sm:pl-0">
+                  <div className="flex items-center gap-3 text-xs text-slate-600 pl-11 sm:pl-0">
                     <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                      <Clock className="w-4 h-4 text-blue-600" />
+                      <Clock className="w-4 h-4 text-blue-900" />
                       {step.estimatedTime}
                     </span>
                   </div>
                 </div>
 
-                <p className="text-sm text-slate-600 leading-relaxed pl-12">
+                <p className="text-sm text-slate-600 leading-relaxed pl-11 font-normal">
                   {language === 'taglish' ? step.explanationTl : step.explanationEn}
                 </p>
 
-                {/* In-Situ Hospital Desk Matching inside Malasakit Section */}
-                {step.agencyId === 'doh_malasakit' && (
-                  <div className="pl-12 mt-4">
-                    {matchedMalasakitCenter ? (
-                      <div className="p-5 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-3.5 shadow-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/80 pb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                              <Building className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-bold text-slate-900">
-                                  {language === 'taglish' ? 'Inyong Malasakit Center Desk' : 'Your In-Hospital Malasakit Center Desk'}
-                                </h4>
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300">
-                                  Matched Facility
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-600 font-medium">
-                                {matchedMalasakitCenter.hospitalType}
-                              </p>
-                            </div>
+                {/* Consolidated Tracker: PCSO 7:00 AM Queue Window & 2.0MB Single-PDF Checklist */}
+                {step.agencyId === 'pcso_map' && (
+                  <div className="pl-11 mt-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                            Philippine Standard Time (GMT+8)
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          <div className="p-3 bg-white/90 rounded-xl border border-slate-200 space-y-1">
-                            <span className="font-bold text-slate-800 block text-xs">
-                              {matchedMalasakitCenter.hospitalName}
-                            </span>
-                            <div className="flex items-start gap-1.5 text-slate-600">
-                              <MapPin className="w-3.5 h-3.5 text-blue-900 shrink-0 mt-0.5" />
-                              <span>{matchedMalasakitCenter.address} ({matchedMalasakitCenter.provinceOrCity})</span>
-                            </div>
-                          </div>
-
-                          <div className="p-3 bg-white/90 rounded-xl border border-slate-200 space-y-1">
-                            <span className="font-bold text-slate-800 block text-xs">
-                              {language === 'taglish' ? 'Oras ng Operasyon:' : 'Operating Hours:'}
-                            </span>
-                            <div className="flex items-center gap-1.5 text-slate-600">
-                              <Clock className="w-3.5 h-3.5 text-blue-900 shrink-0" />
-                              <span>{matchedMalasakitCenter.operatingHours}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Direct Call & Copy Phone */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <a
-                            href={`tel:${parseDialableNumber(matchedMalasakitCenter.contactNumber)}`}
-                            className="h-11 px-4 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                          <span
+                            className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                              isMorningQueueWindow
+                                ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                                : 'bg-amber-100 text-amber-950 border-amber-300'
+                            }`}
                           >
-                            <Phone className="w-4 h-4" />
-                            <span>
-                              {language === 'taglish'
-                                ? `Tawagan: ${matchedMalasakitCenter.contactNumber}`
-                                : `Call: ${matchedMalasakitCenter.contactNumber}`}
-                            </span>
-                          </a>
-
-                          <button
-                            type="button"
-                            onClick={() => handleCopyCenterPhone(matchedMalasakitCenter.contactNumber)}
-                            className="h-11 px-4 rounded-xl border border-stone-200/90 bg-white hover:bg-stone-50 text-slate-800 font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-                          >
-                            {copiedCenterPhone ? (
-                              <>
-                                <Check className="w-4 h-4 text-emerald-600" />
-                                <span>{language === 'taglish' ? 'Na-kopya!' : 'Copied!'}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4 text-slate-600" />
-                                <span>{language === 'taglish' ? 'Kopyahin ang Telepono' : 'Copy Phone Number'}</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Helpful Reminder */}
-                        <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
-                          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                          <span className="font-semibold leading-relaxed">
-                            &ldquo;Pumunta sa Social Service o Malasakit Desk bago lumabas ng ospital upang ma-apply ang MAIP at PCSO assistance.&rdquo;
+                            {isMorningQueueWindow ? 'Queue Active' : 'Standby'}
                           </span>
                         </div>
+                        <div className="text-xl font-bold text-slate-900 mt-1">{phTime || 'Loading...'}</div>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed font-normal">
+                          {isMorningQueueWindow
+                            ? (language === 'taglish'
+                                ? 'Bukas ang online submission portal ngayon hanggang 12:00 PM.'
+                                : 'Online submission portal is open today until 12:00 PM.')
+                            : (language === 'taglish'
+                                ? 'Lunes hanggang Biyernes, 7:00 AM - 12:00 PM ang filing window.'
+                                : 'Weekdays 7:00 AM - 12:00 PM online submission window.')}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+
+                      <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1.5">
+                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-950">
+                          2.0MB Single-PDF Checklist
+                        </div>
+                        <ul className="text-xs text-slate-700 space-y-1 list-disc list-inside font-normal">
+                          <li>Original Medical Abstract (Signed with PRC License No.)</li>
+                          <li>Statement of Account (Net of PhilHealth & Discounts)</li>
+                          <li>Valid Government ID ng Pasyente at Kinatawan</li>
+                          <li>Signed Authorization Letter & Katunayan ng Relasyon</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Consolidated Tracker: Senate Assist 90-Day Policy & 1-Click Justification */}
+                {step.agencyId === 'senate_assist' && (
+                  <div className="pl-11 mt-4 space-y-3">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span>
-                            {language === 'taglish'
-                              ? `Pumunta sa Medical Social Services ng ${medicalCase.hospitalName || 'ospital'} para sa DOH-MAIP evaluation.`
-                              : `Visit the Medical Social Services of ${medicalCase.hospitalName || 'the hospital'} for DOH-MAIP evaluation.`}
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                            {language === 'taglish' ? 'Pre-Formatted na Sulat ng Kahilingan:' : 'Pre-Formatted Justification Letter:'}
+                          </span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-950 border border-blue-200">
+                            90-Day Cooldown Policy
                           </span>
                         </div>
                         <button
                           type="button"
-                          onClick={() => onNavigateToTab('malasakit')}
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs shrink-0 cursor-pointer self-start sm:self-auto"
+                          onClick={copyJustification}
+                          className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring self-start sm:self-auto"
                         >
-                          {language === 'taglish' ? 'Tingnan Lahat ng Malasakit Desks' : 'Browse All Malasakit Desks'}
+                          {copiedJustification ? (
+                            <>
+                              <Check className="w-4 h-4 text-emerald-600" />
+                              <span>{language === 'taglish' ? 'Na-kopya na!' : 'Copied!'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 text-slate-600" />
+                              <span>{language === 'taglish' ? 'Kopyahin ang Sulat' : 'Copy Letter'}</span>
+                            </>
+                          )}
                         </button>
                       </div>
-                    )}
+                      <p className="text-xs text-slate-700 italic bg-white p-3.5 rounded-lg border border-slate-200 leading-relaxed font-normal">
+                        &ldquo;{justification}&rdquo;
+                      </p>
+                      <p className="text-xs text-slate-600 font-normal">
+                        {language === 'taglish'
+                          ? 'Tandaan: Ang tulong medikal sa pamamagitan ng Guarantee Letter ay maaari lamang ma-avail kada 90 araw para sa parehong pasyente.'
+                          : 'Note: Senate medical assistance Guarantee Letters require a 90-day cooldown between requests for the same patient.'}
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                {/* Target Expense & Action Launchers */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-200 pl-12">
+                {/* Consolidated Tracker: PACe Malacañang Transmittal Guide */}
+                {step.agencyId === 'pace_op' && (
+                  <div className="pl-11 mt-4 space-y-3">
+                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Landmark className="w-4 h-4 text-amber-800" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-950">
+                          Malacañang Transmittal Guide
+                        </span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300">
+                          Bills ₱50,000+ / ICU / Implants
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed font-normal">
+                        {language === 'taglish'
+                          ? 'Tanggapan ng Pangulo (Malacañang) para sa malalaking deficit sa operasyon at ICU na lumagpas sa limit ng Malasakit at PCSO. Ipadala ang requirements sa pace@op.gov.ph o dalhin sa Malacañang PACe Desk.'
+                          : 'Office of the President (Malacañang) lifeline for catastrophic surgical deficits and ICU balances exceeding Malasakit and PCSO limits. Submit to pace@op.gov.ph or at the Malacañang PACe Desk.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Expense & Standardized Action Launchers */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-200 pl-11">
                   <div className="text-xs text-slate-600">
                     <span className="font-bold text-slate-800">Target Expense:</span>{' '}
                     {step.targetExpense}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {step.agencyId === 'senate_assist' && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveModal('senate')}
-                        className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-                      >
-                        <span>Open Senate Helper</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* PCSO Actions */}
                     {step.agencyId === 'pcso_map' && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveModal('pcso')}
-                        className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-                      >
-                        <span>Prepare PCSO Queue</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setActiveModal('pcso')}
+                          className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <HeartHandshake className="w-4 h-4" />
+                          <span>{language === 'taglish' ? 'Buksan ang PCSO Assistant' : 'Open PCSO Assistant'}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                        <a
+                          href="https://www.pcso.gov.ph"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <span>{language === 'taglish' ? 'Buksan ang external portal (pcso.gov.ph)' : 'Open external portal (pcso.gov.ph)'}</span>
+                          <ExternalLink className="w-4 h-4 text-slate-600" />
+                        </a>
+                      </>
                     )}
+
+                    {/* Senate Actions */}
+                    {step.agencyId === 'senate_assist' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setActiveModal('senate')}
+                          className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>{language === 'taglish' ? 'Buksan ang Senate Helper' : 'Open Senate Helper'}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                        <a
+                          href="https://assist.senate.gov.ph"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <span>{language === 'taglish' ? 'Buksan ang external portal (assist.senate.gov.ph)' : 'Open external portal (assist.senate.gov.ph)'}</span>
+                          <ExternalLink className="w-4 h-4 text-slate-600" />
+                        </a>
+                      </>
+                    )}
+
+                    {/* PACe Actions */}
+                    {step.agencyId === 'pace_op' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setActiveModal('pace')}
+                          className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <Landmark className="w-4 h-4 text-amber-300" />
+                          <span>{language === 'taglish' ? 'Buksan ang PACe Toolkit' : 'Open PACe Toolkit'}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                        <a
+                          href="mailto:pace@op.gov.ph"
+                          className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                        >
+                          <span>{language === 'taglish' ? 'Email sa pace@op.gov.ph' : 'Email pace@op.gov.ph'}</span>
+                          <ExternalLink className="w-4 h-4 text-slate-600" />
+                        </a>
+                      </>
+                    )}
+
+                    {/* Malasakit Actions */}
                     {step.agencyId === 'doh_malasakit' && (
-                      <div className="flex items-center gap-2">
+                      <>
                         <button
                           type="button"
                           onClick={() => onNavigateToTab('print_forms')}
-                          className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                          className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
                         >
                           <Printer className="w-4 h-4" />
-                          <span>{language === 'taglish' ? 'I-print ang Form' : 'Print Form'}</span>
+                          <span>{language === 'taglish' ? 'Mag-print ng Forms' : 'Print Forms'}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => onNavigateToTab('malasakit')}
-                          className="h-11 min-h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                          className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
                         >
-                          <span>Find Malasakit Desk</span>
+                          <span>{language === 'taglish' ? 'Tingnan ang Direktoryo ng Malasakit' : 'Browse Malasakit Desks'}</span>
                           <ChevronRight className="w-4 h-4" />
                         </button>
-                      </div>
+                      </>
+                    )}
+
+                    {/* DSWD Actions */}
+                    {step.agencyId === 'dswd_aics' && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab('print_forms')}
+                        className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>{language === 'taglish' ? 'Mag-print ng DSWD Forms' : 'Print DSWD Forms'}</span>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -2233,7 +2933,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 <button
                   type="button"
                   onClick={handleShareChecklist}
-                  className="h-11 min-h-11 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center justify-center gap-2 shadow-xs transition-colors shrink-0 cursor-pointer"
+                  className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring shrink-0"
                 >
                   {copiedChecklist ? (
                     <>
@@ -2297,7 +2997,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                           </span>
                         </div>
                         {helper && (
-                          <p className="text-xs text-slate-500 leading-relaxed">
+                          <p className="text-xs text-slate-500 leading-relaxed font-normal">
                             {helper}
                           </p>
                         )}
@@ -2317,7 +3017,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 setCurrentStep(2);
                 setBannerError(null);
               }}
-              className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors w-full sm:w-auto cursor-pointer"
+              className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring w-full sm:w-auto"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>{language === 'taglish' ? 'Baguhin ang Datos' : 'Edit Details'}</span>
@@ -2327,7 +3027,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigateToTab('print_forms')}
-                className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-xs transition-colors w-full sm:w-auto cursor-pointer"
+                className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring w-full sm:w-auto"
               >
                 <Printer className="w-4 h-4" />
                 <span>{language === 'taglish' ? 'I-print ang mga Form (PDF)' : 'Print Forms (PDF)'}</span>
@@ -2336,9 +3036,9 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigateToTab('vault')}
-                className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-xs transition-colors w-full sm:w-auto cursor-pointer"
+                className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring w-full sm:w-auto"
               >
-                <span>{language === 'taglish' ? 'Document Vault (<2MB)' : 'Document Vault (<2MB)'}</span>
+                <span>Document Vault (&lt;2MB)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -2373,7 +3073,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         ? 'bg-blue-100 text-blue-950 border-blue-300'
                         : activeModal === 'pace'
                         ? 'bg-amber-100 text-amber-950 border-amber-300'
-                        : 'bg-purple-100 text-purple-950 border-purple-300'
+                        : 'bg-blue-50 text-blue-900 border-blue-200'
                     }`}
                   >
                     {activeModal === 'pcso'
@@ -2422,7 +3122,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="h-11 min-h-11 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-xs transition-colors cursor-pointer shrink-0"
+                  className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring shrink-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>{language === 'taglish' ? 'Bumalik sa Roadmap' : 'Back to Roadmap'}</span>

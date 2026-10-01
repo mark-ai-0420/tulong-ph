@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ExternalLink,
   ShieldCheck,
-  Sparkles,
   Send,
 } from 'lucide-react';
 import {
@@ -276,14 +275,14 @@ Email: ${representative.email || patient.email || 'N/A'}`;
             <button
               type="button"
               onClick={handleCopyLetter}
-              className="h-11 min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="bg-white hover:bg-stone-50 border border-[#E2DFD6] text-slate-800 min-h-[44px] h-11 px-4 py-2.5 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-600" />}
               <span>{copied ? (isTl ? 'Nakopya na!' : 'Copied!') : (isTl ? 'Kopyahin ang Liham' : 'Copy Letter')}</span>
             </button>
             <a
               href={mailtoUrl}
-              className="h-11 min-h-[44px] px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="bg-blue-900 hover:bg-blue-800 text-white min-h-[44px] h-11 px-4 py-2.5 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>{isTl ? 'I-email sa PACe' : 'Send via Email'}</span>
