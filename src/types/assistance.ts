@@ -53,6 +53,8 @@ export interface RepresentativeProfile {
 export type PrivateHospitalStrategy = 'gl_stacking' | 'transfer_referral';
 export type PrivateAccommodationType = 'ward_bed' | 'semi_private' | 'private_room' | 'icu';
 
+export type AdmissionStatus = 'confined_running_bill' | 'discharge_final_soa' | 'outpatient';
+
 export interface MedicalCase {
   category: EmergencyCategory;
   diagnosis: string;
@@ -68,6 +70,7 @@ export interface MedicalCase {
   netRemainingBalance: number;
   neededAssistanceType: 'guarantee_letter' | 'cash_medicine' | 'burial_help' | 'transport_fare';
   dateAdmitted?: string;
+  admissionStatus?: AdmissionStatus;
   privateStrategy?: PrivateHospitalStrategy;
   privateAccommodation?: PrivateAccommodationType;
   isIcuOrHighDeficit?: boolean;
@@ -186,5 +189,11 @@ export interface TriageResult {
       checklistEn: string[];
       checklistTl: string[];
     };
+  };
+  admissionStatusGuidance?: {
+    titleEn: string;
+    titleTl: string;
+    adviceEn: string;
+    adviceTl: string;
   };
 }
