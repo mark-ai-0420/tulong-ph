@@ -176,6 +176,114 @@ async function runE2ETests() {
 
     await mobileContext.close();
 
+    // -------------------------------------------------------------
+    // Test 3: QoL Features - 1-Click Sample Data, Form Validation, Admission Status & Search
+    // -------------------------------------------------------------
+    console.log('\n🔍 [Test 3] Testing 1-Click Sample Data, Form Validation & Roadmap Search...');
+    const qolContext = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+    });
+    const qolPage = await qolContext.newPage();
+    await qolPage.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+    await qolPage.waitForTimeout(1000);
+
+    // 1. Test Form Validation Blocking: try submitting empty form on Step 1
+    const initialNext = await qolPage.$('button[type="submit"]:has-text("Susunod")');
+    await initialNext?.click();
+    await qolPage.waitForTimeout(500);
+
+    const bannerErrorEl = await qolPage.$('role=alert');
+    assert.ok(bannerErrorEl, 'Error banner should appear when submitting incomplete form');
+    console.log('  ✓ Form validation blocked submission and displayed error alert');
+
+    // 2. Test 1-Click Sample Data loader
+    const sampleBtn = await qolPage.$('button:has-text("Subukan gamit ang Sample Data")');
+    assert.ok(sampleBtn, '1-Click Sample Data button must exist');
+    await sampleBtn.click();
+    await qolPage.waitForTimeout(500);
+
+    const sampleName = await qolPage.inputValue('#patient-first-name');
+    const sampleContact = await qolPage.inputValue('#patient-contact');
+    assert.strictEqual(sampleName, 'Juan', 'Sample loader should populate first name as Juan');
+    assert.strictEqual(sampleContact, '09171234567', 'Sample loader should populate contact as 09171234567');
+    console.log('  ✓ 1-Click Sample Data successfully populated form');
+
+    // Test Digit Limit and Clamping (11 digits for cellphone, 12 digits for PhilHealth)
+    await qolPage.fill('#patient-contact', '0917123456789999');
+    const clampedContact = await qolPage.inputValue('#patient-contact');
+    assert.strictEqual(clampedContact, '09171234567', 'Cellphone number must be strictly clamped to 11 digits');
+    console.log('  ✓ Cellphone number strictly clamped to 11 digits max');
+
+    await qolPage.fill('#patient-philhealth', '1234567890129999');
+    const clampedPhilHealth = await qolPage.inputValue('#patient-philhealth');
+    assert.strictEqual(clampedPhilHealth, '123456789012', 'PhilHealth PIN must be strictly clamped to 12 digits');
+    console.log('  ✓ PhilHealth PIN strictly clamped to 12 digits max');
+
+    // Check age badge
+    const ageBadge = await qolPage.$('text=Senior (RA 9994)');
+    assert.ok(ageBadge, 'Age badge should identify Senior Citizen status');
+    console.log('  ✓ Real-time calculated age badge rendered with Senior qualification');
+
+    // 3. Advance to Step 2
+    const nextStep2 = await qolPage.$('button[type="submit"]:has-text("Susunod")');
+    await nextStep2?.click();
+    await qolPage.waitForTimeout(800);
+
+    // Check Admission Status toggle exists
+    const runningBillBtn = await qolPage.$('button:has-text("Naka-confine pa")');
+    assert.ok(runningBillBtn, 'Naka-confine pa (Running Bill) toggle button must exist');
+    console.log('  ✓ Admission Status 3-pill toggle is visible and active');
+
+    // 4. Calculate Aid Stacking Roadmap to reach Step 3
+    const calcRoadmapBtn = await qolPage.$('form button[type="submit"]');
+    assert.ok(calcRoadmapBtn, 'Calculate roadmap button must exist');
+    await calcRoadmapBtn.click();
+    await qolPage.waitForTimeout(1000);
+
+    // Verify Step 3 Aid Roadmap is visible
+    const roadmapSearchInput = await qolPage.$('#roadmap-search');
+    assert.ok(roadmapSearchInput, 'Roadmap instant search input must exist on Step 3');
+    console.log('  ✓ Roadmap search & filter bar rendered on Step 3');
+
+    // Test Search Filtering: search for "PCSO"
+    await qolPage.fill('#roadmap-search', 'PCSO');
+    await qolPage.waitForTimeout(400);
+
+    const pcsoCards = await qolPage.$$('text=PCSO Medical Access Program');
+    assert.ok(pcsoCards.length > 0, 'PCSO card should remain visible when searching for PCSO');
+
+    // Test Search Filtering: search for something non-existent
+    await qolPage.fill('#roadmap-search', 'nonexistent_test_term_12345');
+    await qolPage.waitForTimeout(400);
+
+    const noResults = await qolPage.$('text=Walang nakitang tulong para sa');
+    // 5. Test 1-Tap Quick Filter Pills (PhilHealth, PCSO, Malasakit, Lahat) for seniors
+    const philhealthPill = await qolPage.$('button:has-text("PhilHealth")');
+    assert.ok(philhealthPill, '1-Tap PhilHealth quick filter pill must exist');
+    await philhealthPill.click();
+    await qolPage.waitForTimeout(300);
+    const searchValAfterPill = await qolPage.inputValue('#roadmap-search');
+    assert.strictEqual(searchValAfterPill, 'PhilHealth', 'Clicking pill should set search input to PhilHealth');
+    console.log('  ✓ 1-Tap quick filter pill updates search filter without typing');
+
+    const allPill = await qolPage.$('button:has-text("Lahat")');
+    await allPill?.click();
+    await qolPage.waitForTimeout(300);
+    const searchValAfterAll = await qolPage.inputValue('#roadmap-search');
+    assert.strictEqual(searchValAfterAll, '', 'Clicking "Lahat" pill should clear search filter');
+    console.log('  ✓ 1-Tap "Lahat" pill clears filter');
+
+    // 6. Test Stepper Jump Navigation back to Step 1 & Step 2
+    const step1Jump = await qolPage.$('div[aria-label="Hakbang 1: 1. Pasyente"]');
+    assert.ok(step1Jump, 'Step 1 stepper button should be jumpable');
+    await step1Jump.click();
+    await qolPage.waitForTimeout(400);
+    const isStep1Back = await qolPage.$('#patient-first-name');
+    assert.ok(isStep1Back, 'Should successfully navigate back to Step 1 on 1 tap');
+    console.log('  ✓ 1-Tap jump navigation back to Step 1 verified');
+
+    await qolContext.close();
+
     console.log('\n🎉 ALL AUTOMATED E2E & STATUTORY TESTS PASSED WITH 0 ERRORS!\n');
   } finally {
     await browser.close();

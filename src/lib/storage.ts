@@ -60,6 +60,7 @@ export const defaultMedicalCase: MedicalCase = {
   netRemainingBalance: 0,
   neededAssistanceType: 'guarantee_letter',
   dateAdmitted: new Date().toISOString().split('T')[0],
+  admissionStatus: 'confined_running_bill',
 };
 
 // Storage Helpers

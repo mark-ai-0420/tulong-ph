@@ -1,12 +1,13 @@
-import {
+import type {
   PatientProfile,
   MedicalCase,
   StackingStep,
   DocumentType,
   HospitalType,
   PrivateHospitalStrategy,
+  AdmissionStatus,
   TriageResult,
-} from '@/types/assistance';
+} from '../types/assistance.ts';
 
 export type { TriageResult };
 
@@ -987,15 +988,61 @@ export function calculateAidStacking(
   patient: PatientProfile,
   medicalCase: MedicalCase
 ): TriageResult {
+  let result: TriageResult;
+
   if (medicalCase.hospitalType === 'public_doh') {
-    return buildPublicDOHTriage(patient, medicalCase);
+    result = buildPublicDOHTriage(patient, medicalCase);
   } else if (medicalCase.hospitalType === 'public_lgu') {
-    return buildPublicLGUTriage(patient, medicalCase);
+    result = buildPublicLGUTriage(patient, medicalCase);
   } else {
     // Private Hospital
     if (medicalCase.privateStrategy === 'transfer_referral') {
-      return buildPrivateTransferTriage(patient, medicalCase);
+      result = buildPrivateTransferTriage(patient, medicalCase);
+    } else {
+      result = buildPrivateGLStackingTriage(patient, medicalCase);
     }
-    return buildPrivateGLStackingTriage(patient, medicalCase);
   }
+
+  // Inspect admissionStatus (defaults to 'confined_running_bill')
+  const status: AdmissionStatus = medicalCase.admissionStatus || 'confined_running_bill';
+
+  if (status === 'confined_running_bill') {
+    result.admissionStatusGuidance = {
+      titleTl: 'Naka-confine pa sa Ospital (Running Bill)',
+      titleEn: 'Currently Confined (Running Bill)',
+      adviceTl:
+        'Naka-confine pa sa Ospital (Running Bill): Huwag hintayin ang araw ng discharge. Maaari nang gamitin ang pinakahuling Running Bill / Interim SOA na may pirma ng Billing Section upang mag-file agad sa PCSO, Senado, PACe, at DSWD para ma-credit bilang Guarantee Letter habang patuloy ang gamutan.',
+      adviceEn:
+        'Currently Confined (Running Bill): Do not wait for discharge day. You can use your latest signed Interim Statement of Account (Running Bill) to immediately secure Guarantee Letters from PCSO, Senate Assist, PACe, and DSWD while the patient is still admitted.',
+    };
+
+    if (medicalCase.hospitalType === 'private') {
+      result.criticalWarningsEn.push(
+        'Private Hospital Running Bill: Credit & Collection sections accept valid Guarantee Letters to increase patient credit cut-off limits and prevent medicine or laboratory holding orders during ongoing treatment.'
+      );
+      result.criticalWarningsTl.push(
+        'Running Bill sa Pribadong Ospital: Tumatanggap ang Credit & Collection ng Guarantee Letters upang maitaas ang inyong credit limit at maiwasan ang pagka-hold ng mga bagong gamot o laboratory procedures habang naka-confine pa.'
+      );
+    }
+  } else if (status === 'discharge_final_soa') {
+    result.admissionStatusGuidance = {
+      titleTl: 'Araw ng Discharge (Final SOA)',
+      titleEn: 'Discharge Day (Final SOA)',
+      adviceTl:
+        'Araw ng Discharge (Final SOA): Tiyaking na-apply na ng Billing ang Senior/PWD 20% + 12% VAT exemption at PhilHealth Case Rates. Dalhin ang Final SOA sa Malasakit Center o Credit & Collection kasama ang mga naipong Guarantee Letters.',
+      adviceEn:
+        'Discharge Day (Final SOA): Ensure Billing has deducted Senior/PWD relief and PhilHealth benefits. Present the Final SOA to the Malasakit Center or Credit & Collection alongside your accumulated Guarantee Letters.',
+    };
+  } else if (status === 'outpatient') {
+    result.admissionStatusGuidance = {
+      titleTl: 'Outpatient / Regular na Gamutan (Dialysis / Chemo / Lab)',
+      titleEn: 'Outpatient Care (Dialysis / Chemo / Lab)',
+      adviceTl:
+        'Outpatient / Regular na Gamutan (Dialysis / Chemo / Lab): Gamitin ang PhilHealth Outpatient Benefit Packages at DSWD AICS o PCSO para sa regular na Guarantee Letter o gamot.',
+      adviceEn:
+        'Outpatient Care (Dialysis / Chemo / Lab): Leverage PhilHealth Outpatient Benefit Packages and recurring Guarantee Letters from DSWD AICS or PCSO.',
+    };
+  }
+
+  return result;
 }

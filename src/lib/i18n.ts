@@ -75,6 +75,21 @@ export const translations = {
     docMissing: 'Missing / Required',
     docTooLarge: 'Exceeds 2MB (Requires Compression)',
     compliantBadge: 'Compliant (<2MB PDF)',
+
+    // Admission Status & UI Extensions
+    admissionStatus: 'Current Patient Admission Status',
+    statusConfined: 'Currently Confined (Running Bill)',
+    statusDischarge: 'Discharge Day (Final SOA)',
+    statusOutpatient: 'Outpatient (Dialysis / Chemo / Lab)',
+    sampleDataBtn: 'Try with Sample Data (Pneumonia Case)',
+    roadmapSearchPlaceholder: 'Search aid roadmap (e.g. ICU, medicines, dialysis, transfer, GL, promissory note)...',
+
+    // Validation Errors
+    errContactDigits: 'Must be 11 digits starting with 09 (e.g. 09171234567)',
+    errPhilhealthDigits: 'PhilHealth PIN must be exactly 12 digits (e.g. 12-345678901-2)',
+    errDobRequired: 'Date of birth is required',
+    errRepNameRequired: 'Representative full name is required',
+    errRepRelRequired: 'Please specify relationship to patient',
   },
   taglish: {
     appName: 'TulongPH',
@@ -150,5 +165,20 @@ export const translations = {
     docMissing: 'Kulang / Kailangan Ihanda',
     docTooLarge: 'Lampas 2MB (Kailangang I-compress)',
     compliantBadge: 'Pasok sa 2MB Limit ng PCSO at Senado',
+
+    // Admission Status & UI Extensions
+    admissionStatus: 'Kasalukuyang Estado ng Pasyente',
+    statusConfined: 'Naka-confine pa sa Ospital (Running Bill)',
+    statusDischarge: 'Palabas na / Discharge Day (Final SOA)',
+    statusOutpatient: 'Outpatient (Dialysis / Chemo / Lab)',
+    sampleDataBtn: 'Subukan gamit ang Sample Data (Pneumonia Case)',
+    roadmapSearchPlaceholder: 'Mag-search ng tulong (e.g. ICU, gamot sa labas, dialysis, transfer, GL, promissory note)...',
+
+    // Validation Errors
+    errContactDigits: 'Dapat 11 digits at nagsisimula sa 09 (Hal. 09171234567)',
+    errPhilhealthDigits: 'Dapat eksaktong 12 digits ang PhilHealth PIN (Hal. 12-345678901-2)',
+    errDobRequired: 'Pakilagay ang petsa ng kapanganakan',
+    errRepNameRequired: 'Pakisulat ang buong pangalan ng kinatawan',
+    errRepRelRequired: 'Pakitukoy ang inyong relasyon sa pasyente',
   },
 };
