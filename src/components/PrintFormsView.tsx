@@ -775,10 +775,15 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                 name="philhealthPIN"
                 type="text"
                 autoComplete="off"
+                inputMode="numeric"
+                maxLength={12}
                 value={patient.philhealthNumber || ''}
-                onChange={(e) => onUpdatePatient({ ...patient, philhealthNumber: e.target.value })}
-                className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                placeholder="12-345678901-2"
+                onChange={(e) => {
+                  const onlyNums = e.target.value.replace(/\D/g, '').slice(0, 12);
+                  onUpdatePatient({ ...patient, philhealthNumber: onlyNums });
+                }}
+                className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-blue-500"
+                placeholder="123456789012"
               />
             </div>
             <div>

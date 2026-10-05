@@ -86,6 +86,7 @@ export const translations = {
 
     // Validation Errors
     errContactDigits: 'Must be 11 digits starting with 09 (e.g. 09171234567)',
+    errPhilhealthDigits: 'PhilHealth PIN must be exactly 12 digits (e.g. 12-345678901-2)',
     errDobRequired: 'Date of birth is required',
     errRepNameRequired: 'Representative full name is required',
     errRepRelRequired: 'Please specify relationship to patient',
@@ -175,6 +176,7 @@ export const translations = {
 
     // Validation Errors
     errContactDigits: 'Dapat 11 digits at nagsisimula sa 09 (Hal. 09171234567)',
+    errPhilhealthDigits: 'Dapat eksaktong 12 digits ang PhilHealth PIN (Hal. 12-345678901-2)',
     errDobRequired: 'Pakilagay ang petsa ng kapanganakan',
     errRepNameRequired: 'Pakisulat ang buong pangalan ng kinatawan',
     errRepRelRequired: 'Pakitukoy ang inyong relasyon sa pasyente',

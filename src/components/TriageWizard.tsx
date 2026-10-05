@@ -8,6 +8,7 @@ import {
   CheckCircle,
   AlertCircle,
   Building,
+  Building2,
   HeartPulse,
   User,
   Clock,
@@ -59,12 +60,12 @@ import { computeStatutoryDeductions, DetailedBillBreakdown } from '@/lib/billing
 import { matchPhilHealthCaseRate } from '@/lib/data/philhealthRates';
 
 const DIAGNOSIS_PRESETS = [
-  { label: '🩺 Pneumonia (Pulmonya)', condition: 'Pneumonia (Pulmonya)', category: 'hospitalization' as EmergencyCategory },
-  { label: '🦟 Dengue', condition: 'Dengue', category: 'hospitalization' as EmergencyCategory },
-  { label: '🩸 Hemodialysis', condition: 'Hemodialysis', category: 'dialysis' as EmergencyCategory },
-  { label: '🧠 Stroke (CVA)', condition: 'Stroke (CVA)', category: 'hospitalization' as EmergencyCategory },
-  { label: '👶 CS Delivery (Panganak)', condition: 'CS Delivery (Panganak)', category: 'surgery_implants' as EmergencyCategory },
-  { label: '🔪 Appendectomy', condition: 'Appendectomy', category: 'surgery_implants' as EmergencyCategory },
+  { label: 'Pneumonia (Pulmonya)', condition: 'Pneumonia (Pulmonya)', category: 'hospitalization' as EmergencyCategory },
+  { label: 'Dengue Fever', condition: 'Dengue', category: 'hospitalization' as EmergencyCategory },
+  { label: 'Hemodialysis', condition: 'Hemodialysis', category: 'dialysis' as EmergencyCategory },
+  { label: 'Stroke (CVA)', condition: 'Stroke (CVA)', category: 'hospitalization' as EmergencyCategory },
+  { label: 'CS Delivery (Panganak)', condition: 'CS Delivery (Panganak)', category: 'surgery_implants' as EmergencyCategory },
+  { label: 'Appendectomy', condition: 'Appendectomy', category: 'surgery_implants' as EmergencyCategory },
 ] as const;
 
 const RELATIONSHIP_OPTIONS = [
@@ -619,6 +620,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       newErrors.contactNumber = t.errContactDigits;
     }
 
+    // Optional PhilHealth validation: If provided, must be exactly 12 digits
+    const philhealthDigits = (patient.philhealthNumber || '').replace(/\D/g, '');
+    if (patient.philhealthNumber && patient.philhealthNumber.trim() && philhealthDigits.length !== 12) {
+      newErrors.philhealthNumber = t.errPhilhealthDigits;
+    }
+
     if (!representative.isPatientHimself) {
       if (!representative.fullName || !representative.fullName.trim()) {
         newErrors.representativeFullName = t.errRepNameRequired;
@@ -640,6 +647,9 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
         lastName: true,
         contactNumber: true,
       };
+      if (newErrors.philhealthNumber) {
+        newTouched.philhealthNumber = true;
+      }
       if (!representative.isPatientHimself) {
         newTouched.representativeFullName = true;
         newTouched.representativeRelationship = true;
@@ -648,8 +658,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
       setBannerError(
         language === 'taglish'
-          ? 'Pakisulat ang pangalan at contact number ng pasyente bago magpatuloy.'
-          : 'Please provide the patient name and contact number before continuing.'
+          ? 'Pakisuri ang mga pulang field bago magpatuloy.'
+          : 'Please review the highlighted fields before continuing.'
       );
 
       const firstErrorId =
@@ -663,6 +673,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
           ? 'patient-last-name'
           : newErrors.contactNumber
           ? 'patient-contact'
+          : newErrors.philhealthNumber
+          ? 'patient-philhealth'
           : null;
 
       if (firstErrorId) {
@@ -776,36 +788,75 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       <div className="bg-white rounded-2xl border border-[#E2DFD6] p-5 shadow-xs">
         <div className="flex items-center justify-between max-w-xl mx-auto">
           {[
-            { num: 1, label: language === 'taglish' ? 'Pasyente & Claimant' : 'Patient & Claimant' },
-            { num: 2, label: language === 'taglish' ? 'Ospital & Sakit' : 'Hospital & Bills' },
-            { num: 3, label: language === 'taglish' ? 'Aid Roadmap' : 'Aid Roadmap' },
-          ].map((s, idx) => (
-            <React.Fragment key={s.num}>
-              <div className="flex flex-col items-center">
+            {
+              num: 1,
+              label: language === 'taglish' ? '1. Pasyente' : '1. Patient',
+              sub: language === 'taglish' ? 'Sino ang may sakit?' : 'Who is the patient?',
+            },
+            {
+              num: 2,
+              label: language === 'taglish' ? '2. Ospital at Bill' : '2. Hospital & Bill',
+              sub: language === 'taglish' ? 'Magkano ang babayaran?' : 'How much is the bill?',
+            },
+            {
+              num: 3,
+              label: language === 'taglish' ? '3. Gabay sa Tulong' : '3. Aid Roadmap',
+              sub: language === 'taglish' ? 'Paano mababawasan?' : 'Step-by-step aid',
+            },
+          ].map((s, idx) => {
+            const isClickable = s.num < currentStep;
+            return (
+              <React.Fragment key={s.num}>
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
-                    currentStep === s.num
-                      ? 'bg-blue-600 text-white shadow-xs ring-4 ring-blue-100'
-                      : currentStep > s.num
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-100 text-slate-500'
+                  onClick={() => {
+                    if (isClickable) {
+                      setCurrentStep(s.num);
+                      setBannerError(null);
+                    }
+                  }}
+                  className={`flex flex-col items-center select-none ${
+                    isClickable ? 'cursor-pointer group' : ''
                   }`}
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  aria-label={`Hakbang ${s.num}: ${s.label}`}
                 >
-                  {currentStep > s.num ? '✓' : s.num}
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
+                      currentStep === s.num
+                        ? 'bg-blue-900 text-white shadow-xs ring-4 ring-blue-100'
+                        : currentStep > s.num
+                        ? 'bg-emerald-700 text-white group-hover:bg-emerald-800'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {currentStep > s.num ? '✓' : s.num}
+                  </div>
+                  <span
+                    className={`text-xs font-bold mt-2 text-center ${
+                      currentStep === s.num
+                        ? 'text-blue-900'
+                        : currentStep > s.num
+                        ? 'text-emerald-800'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                  <span className="text-xs text-slate-500 hidden sm:block text-center font-medium">
+                    {s.sub}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold text-slate-700 mt-2 text-center">
-                  {s.label}
-                </span>
-              </div>
-              {idx < 2 && (
-                <div
-                  className={`flex-1 h-0.5 mx-3 transition-colors ${
-                    currentStep > idx + 1 ? 'bg-emerald-500' : 'bg-slate-200'
-                  }`}
-                />
-              )}
-            </React.Fragment>
-          ))}
+                {idx < 2 && (
+                  <div
+                    className={`flex-1 h-0.5 mx-2 sm:mx-4 transition-colors ${
+                      currentStep > idx + 1 ? 'bg-emerald-600' : 'bg-slate-200'
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -1196,34 +1247,40 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   name="contactNumber"
                   type="tel"
                   autoComplete="off"
-                  inputMode="tel"
-                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  maxLength={11}
                   required
                   aria-required="true"
                   aria-invalid={isFieldInvalid('contactNumber')}
                   value={patient.contactNumber}
                   onChange={(e) => {
-                    onUpdatePatient({ ...patient, contactNumber: e.target.value });
+                    const onlyNums = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    onUpdatePatient({ ...patient, contactNumber: onlyNums });
                     clearFieldError('contactNumber');
                   }}
                   onBlur={() => setTouched((prev) => ({ ...prev, contactNumber: true }))}
                   placeholder="09171234567"
-                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm transition-colors focus:outline-hidden ${
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm font-mono tracking-wide transition-colors focus:outline-hidden ${
                     isFieldInvalid('contactNumber')
                       ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
                       : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
                   }`}
                 />
-                {isFieldInvalid('contactNumber') ? (
-                  <p className="text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{errors.contactNumber}</span>
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-500 mt-1">
-                    {language === 'taglish' ? 'Halimbawa: 09171234567 (11 digits)' : 'Format: 09171234567 (11 digits)'}
-                  </p>
-                )}
+                <div className="flex items-center justify-between gap-1 mt-1">
+                  {isFieldInvalid('contactNumber') ? (
+                    <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{errors.contactNumber}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      {language === 'taglish' ? 'Dapat magsimula sa 09' : 'Must start with 09'}
+                    </p>
+                  )}
+                  <span className={`text-xs font-mono shrink-0 ${patient.contactNumber?.length === 11 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                    {(patient.contactNumber || '').length}/11
+                  </span>
+                </div>
               </div>
               <div>
                 <label
@@ -1238,17 +1295,39 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   type="text"
                   autoComplete="off"
                   inputMode="numeric"
-                  pattern="[0-9]*"
+                  maxLength={12}
+                  aria-invalid={isFieldInvalid('philhealthNumber')}
                   value={patient.philhealthNumber || ''}
-                  onChange={(e) =>
-                    onUpdatePatient({ ...patient, philhealthNumber: e.target.value })
-                  }
-                  placeholder="12-digit PhilHealth PIN"
-                  className="w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  onChange={(e) => {
+                    const onlyNums = e.target.value.replace(/\D/g, '').slice(0, 12);
+                    onUpdatePatient({ ...patient, philhealthNumber: onlyNums });
+                    clearFieldError('philhealthNumber');
+                  }}
+                  onBlur={() => setTouched((prev) => ({ ...prev, philhealthNumber: true }))}
+                  placeholder="123456789012"
+                  className={`w-full h-11 min-h-11 py-2.5 px-3.5 rounded-lg border text-base sm:text-sm font-mono tracking-wide transition-colors focus:outline-hidden ${
+                    isFieldInvalid('philhealthNumber')
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-400 bg-red-50/20 text-red-950 placeholder-red-300'
+                      : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 bg-white'
+                  }`}
                 />
-                <p className="text-xs text-slate-500 mt-1">
-                  {language === 'taglish' ? '12 digits (opsyonal kung wala pa)' : '12 digits (optional if pending)'}
-                </p>
+                <div className="flex items-center justify-between gap-1 mt-1">
+                  {isFieldInvalid('philhealthNumber') ? (
+                    <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{errors.philhealthNumber}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      {language === 'taglish' ? '12 digits (opsyonal kung wala pa)' : '12 digits (optional)'}
+                    </p>
+                  )}
+                  {(patient.philhealthNumber || '').length > 0 && (
+                    <span className={`text-xs font-mono shrink-0 ${patient.philhealthNumber?.length === 12 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                      {(patient.philhealthNumber || '').length}/12
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1335,76 +1414,112 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <label
                   htmlFor="patient-is-senior"
-                  className="min-h-11 flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    patient.isSeniorCitizen
+                      ? 'bg-blue-50/80 border-blue-900 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
                 >
-                  <span className="min-h-11 min-w-11 flex items-center justify-center p-2 cursor-pointer">
-                    <input
-                      id="patient-is-senior"
-                      name="isSeniorCitizen"
-                      type="checkbox"
-                      checked={patient.isSeniorCitizen}
-                      onChange={(e) =>
-                        onUpdatePatient({ ...patient, isSeniorCitizen: e.target.checked })
-                      }
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700 select-none">{t.isSenior}</span>
+                  <input
+                    id="patient-is-senior"
+                    name="isSeniorCitizen"
+                    type="checkbox"
+                    checked={patient.isSeniorCitizen}
+                    onChange={(e) =>
+                      onUpdatePatient({ ...patient, isSeniorCitizen: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded text-blue-900 focus:ring-blue-500 shrink-0"
+                  />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block leading-tight">
+                      {t.isSenior}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {language === 'taglish' ? '20% diskwento + 12% VAT exemption' : '20% discount + VAT exempt'}
+                    </span>
+                  </div>
                 </label>
 
                 <label
                   htmlFor="patient-is-pwd"
-                  className="min-h-11 flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    patient.isPWD
+                      ? 'bg-blue-50/80 border-blue-900 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
                 >
-                  <span className="min-h-11 min-w-11 flex items-center justify-center p-2 cursor-pointer">
-                    <input
-                      id="patient-is-pwd"
-                      name="isPWD"
-                      type="checkbox"
-                      checked={patient.isPWD}
-                      onChange={(e) => onUpdatePatient({ ...patient, isPWD: e.target.checked })}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700 select-none">{t.isPWD}</span>
+                  <input
+                    id="patient-is-pwd"
+                    name="isPWD"
+                    type="checkbox"
+                    checked={patient.isPWD}
+                    onChange={(e) => onUpdatePatient({ ...patient, isPWD: e.target.checked })}
+                    className="w-5 h-5 rounded text-blue-900 focus:ring-blue-500 shrink-0"
+                  />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block leading-tight">
+                      {t.isPWD}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {language === 'taglish' ? 'May ID mula sa PDAO / LGU' : 'With valid PDAO ID'}
+                    </span>
+                  </div>
                 </label>
 
                 <label
                   htmlFor="patient-is-4ps"
-                  className="min-h-11 flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    patient.is4PsBeneficiary
+                      ? 'bg-blue-50/80 border-blue-900 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
                 >
-                  <span className="min-h-11 min-w-11 flex items-center justify-center p-2 cursor-pointer">
-                    <input
-                      id="patient-is-4ps"
-                      name="is4PsBeneficiary"
-                      type="checkbox"
-                      checked={patient.is4PsBeneficiary}
-                      onChange={(e) =>
-                        onUpdatePatient({ ...patient, is4PsBeneficiary: e.target.checked })
-                      }
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700 select-none">{t.is4Ps}</span>
+                  <input
+                    id="patient-is-4ps"
+                    name="is4PsBeneficiary"
+                    type="checkbox"
+                    checked={patient.is4PsBeneficiary}
+                    onChange={(e) =>
+                      onUpdatePatient({ ...patient, is4PsBeneficiary: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded text-blue-900 focus:ring-blue-500 shrink-0"
+                  />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block leading-tight">
+                      {t.is4Ps}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {language === 'taglish' ? 'Kasapi sa Pantawid Pamilya' : 'Pantawid Pamilya member'}
+                    </span>
+                  </div>
                 </label>
 
                 <label
                   htmlFor="patient-is-ofw"
-                  className="min-h-11 flex items-center gap-2 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    patient.isOFWOrDependent
+                      ? 'bg-blue-50/80 border-blue-900 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
                 >
-                  <span className="min-h-11 min-w-11 flex items-center justify-center p-2 cursor-pointer">
-                    <input
-                      id="patient-is-ofw"
-                      name="isOFWOrDependent"
-                      type="checkbox"
-                      checked={patient.isOFWOrDependent}
-                      onChange={(e) =>
-                        onUpdatePatient({ ...patient, isOFWOrDependent: e.target.checked })
-                      }
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700 select-none">{t.isOFW}</span>
+                  <input
+                    id="patient-is-ofw"
+                    name="isOFWOrDependent"
+                    type="checkbox"
+                    checked={patient.isOFWOrDependent}
+                    onChange={(e) =>
+                      onUpdatePatient({ ...patient, isOFWOrDependent: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded text-blue-900 focus:ring-blue-500 shrink-0"
+                  />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block leading-tight">
+                      {t.isOFW}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {language === 'taglish' ? 'May DMW/OWWA medical aid' : 'Eligible for DMW/OWWA aid'}
+                    </span>
+                  </div>
                 </label>
               </div>
             </div>
@@ -1493,22 +1608,22 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 {[
                   {
                     id: 'confined_running_bill' as AdmissionStatus,
-                    labelTl: '🏥 Naka-confine pa (Running Bill)',
-                    labelEn: '🏥 Confined (Running Bill)',
+                    labelTl: 'Naka-confine pa (Running Bill)',
+                    labelEn: 'Confined (Running Bill)',
                     descTl: 'May interim SOA habang nagpapagaling',
                     descEn: 'Interim SOA during ongoing stay',
                   },
                   {
                     id: 'discharge_final_soa' as AdmissionStatus,
-                    labelTl: '📋 Araw ng Discharge (Final SOA)',
-                    labelEn: '📋 Discharge Day (Final SOA)',
+                    labelTl: 'Araw ng Discharge (Final SOA)',
+                    labelEn: 'Discharge Day (Final SOA)',
                     descTl: 'May official final bill para sa clearing',
                     descEn: 'Final official billing for clearing',
                   },
                   {
                     id: 'outpatient' as AdmissionStatus,
-                    labelTl: '🩺 Outpatient (Dialysis / Chemo / Lab)',
-                    labelEn: '🩺 Outpatient (Dialysis / Chemo / Lab)',
+                    labelTl: 'Outpatient (Dialysis / Chemo / Lab)',
+                    labelEn: 'Outpatient (Dialysis / Chemo / Lab)',
                     descTl: 'Pabalik-balik na sesyon o diagnostic',
                     descEn: 'Recurring session or diagnostics',
                   },
@@ -1638,7 +1753,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 {t.hospitalType} *
               </label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* 🏛️ Public - DOH Retained / Specialty */}
+                {/* Public - DOH Retained / Specialty */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1658,7 +1773,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">🏛️</span>
+                        <Landmark className="w-5 h-5 text-blue-900 shrink-0" />
                         <span className="text-xs sm:text-sm font-bold text-slate-900">
                           Public - DOH Retained / Specialty
                         </span>
@@ -1690,7 +1805,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   </div>
                 </button>
 
-                {/* 🏢 Public - LGU Provincial / City / District */}
+                {/* Public - LGU Provincial / City / District */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1710,7 +1825,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">🏢</span>
+                        <Building2 className="w-5 h-5 text-slate-700 shrink-0" />
                         <span className="text-xs sm:text-sm font-bold text-slate-900">
                           Public LGU Provincial
                         </span>
@@ -1742,7 +1857,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   </div>
                 </button>
 
-                {/* 🏥 Private Hospital / Medical Center */}
+                {/* Private Hospital / Medical Center */}
                 <button
                   type="button"
                   onClick={() =>
@@ -1762,7 +1877,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">🏥</span>
+                        <Building className="w-5 h-5 text-amber-800 shrink-0" />
                         <span className="text-xs sm:text-sm font-bold text-slate-900">
                           Private Hospital / Medical Center
                         </span>
@@ -2201,12 +2316,15 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     {isSeniorPwdActive && (
                       <div className="p-3 rounded-lg bg-white border border-[#E2DFD6] space-y-1">
                         <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
-                          <span>🪪 RA 9994 / RA 10754 Mandated Relief:</span>
+                          <span className="flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                            <span>RA 9994 / RA 10754 Mandated Relief:</span>
+                          </span>
                           <span className="text-emerald-700 font-bold shrink-0">
                             -₱{medicalCase.seniorPwdDiscount.toLocaleString()}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal pl-5">
                           {medicalCase.hospitalType === 'private'
                             ? `12% VAT Exemption (₱${vatRemoved.toLocaleString()}) + 20% Senior/PWD Discount (₱${discountAmount.toLocaleString()})`
                             : '20% Statutory Discount sa Hospital Bill'}
@@ -2217,8 +2335,9 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     {/* If PhilHealth applied */}
                     {isPhilHealthActive && (
                       <div className="p-3 rounded-lg bg-white border border-[#E2DFD6] flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
-                        <span className="truncate pr-2">
-                          🩺 PhilHealth Case Rate ({matchedCondition}):
+                        <span className="truncate pr-2 flex items-center gap-1.5">
+                          <HeartPulse className="w-4 h-4 text-blue-900 shrink-0" />
+                          <span>PhilHealth Case Rate ({matchedCondition}):</span>
                         </span>
                         <span className="text-emerald-700 font-bold shrink-0">
                           -₱{medicalCase.philhealthDeduction.toLocaleString()}
@@ -2228,8 +2347,9 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
 
                     {/* If in DOH hospital (public_doh) and patient is Senior/PWD or indigent */}
                     {isNbbEligible && (
-                      <div className="p-3 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-950 text-xs font-semibold leading-relaxed">
-                        🛡️ No Balance Billing (NBB) Entitlement: Ang nalalabing balanse ay sakop ng DOH MAIP at Malasakit Center sa basic ward.
+                      <div className="p-3 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-950 text-xs font-semibold leading-relaxed flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>No Balance Billing (NBB) Entitlement: Ang nalalabing balanse ay sakop ng DOH MAIP at Malasakit Center sa basic ward.</span>
                       </div>
                     )}
                   </div>
@@ -2435,31 +2555,66 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
             )}
 
             {/* Instant Roadmap Search & Filter Bar */}
-            <div className="relative">
-              <label htmlFor="roadmap-search" className="sr-only">
-                {t.roadmapSearchPlaceholder}
-              </label>
+            <div className="space-y-2">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  id="roadmap-search"
-                  type="text"
-                  autoComplete="off"
-                  value={roadmapSearchQuery}
-                  onChange={(e) => setRoadmapSearchQuery(e.target.value)}
-                  placeholder={t.roadmapSearchPlaceholder}
-                  className="w-full h-11 min-h-11 pl-10 pr-10 py-2.5 rounded-xl border border-[#E2DFD6] text-xs sm:text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                />
-                {roadmapSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setRoadmapSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md"
-                    aria-label="Clear search"
-                  >
-                    ✕
-                  </button>
-                )}
+                <label htmlFor="roadmap-search" className="sr-only">
+                  {t.roadmapSearchPlaceholder}
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="roadmap-search"
+                    type="text"
+                    autoComplete="off"
+                    value={roadmapSearchQuery}
+                    onChange={(e) => setRoadmapSearchQuery(e.target.value)}
+                    placeholder={t.roadmapSearchPlaceholder}
+                    className="w-full h-11 min-h-11 pl-10 pr-10 py-2.5 rounded-xl border border-[#E2DFD6] text-xs sm:text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                  />
+                  {roadmapSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setRoadmapSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md"
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 1-Tap Quick Filter Chips for Non-Tech & Senior Users */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {language === 'taglish' ? 'Mabilisang Salain:' : 'Quick Filters:'}
+                </span>
+                {[
+                  { label: 'Lahat', query: '' },
+                  { label: 'PhilHealth', query: 'PhilHealth' },
+                  { label: 'Malasakit', query: 'Malasakit' },
+                  { label: 'PCSO', query: 'PCSO' },
+                  { label: 'Senado', query: 'Senado' },
+                  { label: 'DSWD (Gamot)', query: 'DSWD' },
+                  { label: 'PACe', query: 'PACe' },
+                ].map((chip) => {
+                  const isActive =
+                    chip.query === '' ? !roadmapSearchQuery : roadmapSearchQuery.toLowerCase() === chip.query.toLowerCase();
+                  return (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => setRoadmapSearchQuery(chip.query)}
+                      className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-900 text-white border-blue-900 shadow-2xs'
+                          : 'bg-white hover:bg-stone-50 text-slate-700 border-[#E2DFD6]'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -2827,7 +2982,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 <ShieldCheck className="w-5 h-5 text-blue-900 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <span className="font-bold uppercase tracking-wider text-blue-900 block text-xs">
-                    🛡️ Proteksyon sa ilalim ng RA 9439 (Anti-Hospital Detention Act)
+                    Proteksyon sa ilalim ng RA 9439 (Anti-Hospital Detention Act)
                   </span>
                   <p className="leading-relaxed">
                     {language === 'taglish'

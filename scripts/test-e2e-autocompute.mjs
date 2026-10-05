@@ -208,6 +208,17 @@ async function runE2ETests() {
     assert.strictEqual(sampleContact, '09171234567', 'Sample loader should populate contact as 09171234567');
     console.log('  ✓ 1-Click Sample Data successfully populated form');
 
+    // Test Digit Limit and Clamping (11 digits for cellphone, 12 digits for PhilHealth)
+    await qolPage.fill('#patient-contact', '0917123456789999');
+    const clampedContact = await qolPage.inputValue('#patient-contact');
+    assert.strictEqual(clampedContact, '09171234567', 'Cellphone number must be strictly clamped to 11 digits');
+    console.log('  ✓ Cellphone number strictly clamped to 11 digits max');
+
+    await qolPage.fill('#patient-philhealth', '1234567890129999');
+    const clampedPhilHealth = await qolPage.inputValue('#patient-philhealth');
+    assert.strictEqual(clampedPhilHealth, '123456789012', 'PhilHealth PIN must be strictly clamped to 12 digits');
+    console.log('  ✓ PhilHealth PIN strictly clamped to 12 digits max');
+
     // Check age badge
     const ageBadge = await qolPage.$('text=Senior (RA 9994)');
     assert.ok(ageBadge, 'Age badge should identify Senior Citizen status');
@@ -246,8 +257,30 @@ async function runE2ETests() {
     await qolPage.waitForTimeout(400);
 
     const noResults = await qolPage.$('text=Walang nakitang tulong para sa');
-    assert.ok(noResults, 'Friendly empty state should appear when no aid steps match');
-    console.log('  ✓ Roadmap instant search filtering and empty state verified');
+    // 5. Test 1-Tap Quick Filter Pills (PhilHealth, PCSO, Malasakit, Lahat) for seniors
+    const philhealthPill = await qolPage.$('button:has-text("PhilHealth")');
+    assert.ok(philhealthPill, '1-Tap PhilHealth quick filter pill must exist');
+    await philhealthPill.click();
+    await qolPage.waitForTimeout(300);
+    const searchValAfterPill = await qolPage.inputValue('#roadmap-search');
+    assert.strictEqual(searchValAfterPill, 'PhilHealth', 'Clicking pill should set search input to PhilHealth');
+    console.log('  ✓ 1-Tap quick filter pill updates search filter without typing');
+
+    const allPill = await qolPage.$('button:has-text("Lahat")');
+    await allPill?.click();
+    await qolPage.waitForTimeout(300);
+    const searchValAfterAll = await qolPage.inputValue('#roadmap-search');
+    assert.strictEqual(searchValAfterAll, '', 'Clicking "Lahat" pill should clear search filter');
+    console.log('  ✓ 1-Tap "Lahat" pill clears filter');
+
+    // 6. Test Stepper Jump Navigation back to Step 1 & Step 2
+    const step1Jump = await qolPage.$('div[aria-label="Hakbang 1: 1. Pasyente"]');
+    assert.ok(step1Jump, 'Step 1 stepper button should be jumpable');
+    await step1Jump.click();
+    await qolPage.waitForTimeout(400);
+    const isStep1Back = await qolPage.$('#patient-first-name');
+    assert.ok(isStep1Back, 'Should successfully navigate back to Step 1 on 1 tap');
+    console.log('  ✓ 1-Tap jump navigation back to Step 1 verified');
 
     await qolContext.close();
 

@@ -1,4 +1,4 @@
-import {
+import type {
   PatientProfile,
   MedicalCase,
   StackingStep,
@@ -7,7 +7,7 @@ import {
   PrivateHospitalStrategy,
   AdmissionStatus,
   TriageResult,
-} from '@/types/assistance';
+} from '../types/assistance.ts';
 
 export type { TriageResult };
 
