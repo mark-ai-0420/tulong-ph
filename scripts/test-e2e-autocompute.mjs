@@ -1,8 +1,30 @@
+import http from 'node:http';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert';
 
+async function probePort(p) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${p}`, { timeout: 1000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        resolve(data.includes('TulongPH') || data.includes('tulong-ph') || res.statusCode === 200);
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+}
+
 async function runE2ETests() {
-  console.log('🚀 Starting Automated E2E Browser & DOM Test Suite on http://localhost:3000...');
+  let port = process.env.PORT;
+  if (!port) {
+    if (await probePort(3003)) port = '3003';
+    else if (await probePort(3000)) port = '3000';
+    else port = '3000';
+  }
+  const baseUrl = `http://localhost:${port}`;
+  console.log(`🚀 Starting Automated E2E Browser & DOM Test Suite on ${baseUrl}...`);
 
   const browser = await chromium.launch({
     executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -18,7 +40,7 @@ async function runE2ETests() {
       viewport: { width: 1280, height: 800 },
     });
     const page = await desktopContext.newPage();
-    await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
 
     // Verify Triage tab is active
@@ -132,7 +154,7 @@ async function runE2ETests() {
       hasTouch: true,
     });
     const mobilePage = await mobileContext.newPage();
-    await mobilePage.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+    await mobilePage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     await mobilePage.waitForTimeout(1000);
 
     // Check Step 1 mobile scrollWidth
@@ -184,7 +206,7 @@ async function runE2ETests() {
       viewport: { width: 1280, height: 800 },
     });
     const qolPage = await qolContext.newPage();
-    await qolPage.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+    await qolPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     await qolPage.waitForTimeout(1000);
 
     // 1. Test Form Validation Blocking: try submitting empty form on Step 1
