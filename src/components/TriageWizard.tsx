@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Compass,
   ArrowRight,
   ArrowLeft,
-  CheckCircle,
   AlertCircle,
   Building,
   Building2,
@@ -23,6 +21,7 @@ import {
   HeartHandshake,
   CheckCircle2,
   AlertTriangle,
+  Ambulance,
   FileText,
   X,
   Phone,
@@ -42,7 +41,6 @@ import {
   EmergencyCategory,
   HospitalType,
   AdmissionStatus,
-  SocioeconomicClass,
   StoredDocument,
   ApplicationRecord,
 } from '@/types/assistance';
@@ -128,12 +126,13 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
   const [showRa11463Details, setShowRa11463Details] = useState<boolean>(false);
   const [roadmapSearchQuery, setRoadmapSearchQuery] = useState<string>('');
 
-  // Synchronize external applications prop
-  useEffect(() => {
+  const [prevApplications, setPrevApplications] = useState<ApplicationRecord[] | undefined>(applications);
+  if (applications !== prevApplications) {
+    setPrevApplications(applications);
     if (applications && applications.length > 0) {
       setLocalApplications(applications);
     }
-  }, [applications]);
+  }
 
   // Load applications from IndexedDB if not passed in props
   useEffect(() => {
@@ -208,7 +207,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
     if (
       !representative.isPatientHimself &&
       representative.relationshipToPatient &&
-      !RELATIONSHIP_OPTIONS.slice(0, 11).includes(representative.relationshipToPatient as any)
+      !(RELATIONSHIP_OPTIONS.slice(0, 11) as readonly string[]).includes(representative.relationshipToPatient)
     ) {
       return representative.relationshipToPatient === 'Iba pa / Other'
         ? ''
@@ -217,8 +216,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
     return '';
   });
 
-  const isKnownCanonicalRelation = RELATIONSHIP_OPTIONS.slice(0, 11).includes(
-    representative.relationshipToPatient as any
+  const isKnownCanonicalRelation = (RELATIONSHIP_OPTIONS.slice(0, 11) as readonly string[]).includes(
+    representative.relationshipToPatient
   );
   const relationSelectValue = representative.isPatientHimself
     ? 'Self'
@@ -369,8 +368,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       try {
         await navigator.share(shareData);
         return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
       }
@@ -2068,10 +2067,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="hospital-name"
                   name="hospitalName"
                   type="text"
+                  role="combobox"
                   autoComplete="off"
                   required
                   aria-required="true"
                   aria-autocomplete="list"
+                  aria-controls="hospital-suggestions-list"
                   aria-expanded={isHospitalDropdownOpen && hospitalSuggestions.length > 0}
                   aria-invalid={isFieldInvalid('hospitalName')}
                   value={medicalCase.hospitalName}
@@ -2105,6 +2106,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               {/* Autocomplete Suggestions Dropdown */}
               {isHospitalDropdownOpen && hospitalSuggestions.length > 0 && (
                 <div
+                  id="hospital-suggestions-list"
                   role="listbox"
                   aria-label="Malasakit Centers Directory"
                   className="absolute z-30 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150"
@@ -2715,6 +2717,15 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       </>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab('print_forms')}
+                    className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-blue-900 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                  >
+                    <Printer className="w-4 h-4 text-blue-900" />
+                    <span>{language === 'taglish' ? 'I-print ang Malasakit Form' : 'Print Malasakit Form'}</span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -2887,7 +2898,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
           ) : (
             /* PRIVATE HOSPITALS (gl_stacking): Gabay sa Pribadong Ospital (What's In & What's Out) Card */
             <div className="bg-white rounded-2xl border border-[#E2DFD6] p-6 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-slate-900">
@@ -2904,6 +2915,24 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       ? 'Alamin ang inyong mga legal na karapatan at mga limitasyon sa pagsingil sa pribadong ospital.'
                       : 'Understand your statutory entitlements and billing limitations inside private healthcare facilities.'}
                   </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('transfer_rights')}
+                    className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                  >
+                    <Ambulance className="w-4 h-4 text-emerald-700" />
+                    <span>{language === 'taglish' ? 'Transfer Playbook' : 'Transfer Playbook'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTab('print_forms')}
+                    className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-blue-900 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                  >
+                    <Printer className="w-4 h-4 text-blue-900" />
+                    <span>{language === 'taglish' ? 'I-print ang Forms' : 'Print Forms'}</span>
+                  </button>
                 </div>
               </div>
 
@@ -3490,6 +3519,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         ? 'bg-blue-100 text-blue-950 border-blue-300'
                         : activeModal === 'pace'
                         ? 'bg-amber-100 text-amber-950 border-amber-300'
+                        : activeModal === 'transfer_rights'
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
                         : 'bg-blue-50 text-blue-900 border-blue-200'
                     }`}
                   >
@@ -3499,6 +3530,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       ? 'SENATE SPAO 90-DAY TRACKER'
                       : activeModal === 'pace'
                       ? 'PRESIDENTIAL ACTION CENTER (OP)'
+                      : activeModal === 'transfer_rights'
+                      ? 'EMERGENCY TRANSFER PROTOCOL (RA 8344 / RA 10932)'
                       : 'OFFICIAL AID STACKING INFOGRAPHIC'}
                   </span>
                 </div>
@@ -3511,6 +3544,10 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     ? (language === 'taglish'
                         ? 'Presidential Action Center (PACe) - Malacañang'
                         : 'Presidential Action Center (PACe) - Malacañang')
+                    : activeModal === 'transfer_rights'
+                    ? (language === 'taglish'
+                        ? '5-Stage Inter-Hospital Transfer Playbook (Zero-Bankruptcy Route)'
+                        : '5-Stage Inter-Hospital Transfer Playbook (Zero-Bankruptcy Route)')
                     : (language === 'taglish'
                         ? 'Gabay sa Pag-Stack ng Ayuda ng Gobyerno'
                         : 'Official Government Aid Stacking Guide')}
@@ -3528,6 +3565,10 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     ? (language === 'taglish'
                         ? 'Pre-formatted na liham sa Pangulo ng Pilipinas, opisyal na requirements, at PACe filing channels para sa malalaking bill.'
                         : 'Pre-formatted request letter to the President, documentary checklist, and direct PACe Malacañang submission channels.')
+                    : activeModal === 'transfer_rights'
+                    ? (language === 'taglish'
+                        ? 'Hakbang-hakbang na gabay para sa ligtas at legal na paglipat mula pribado patungo sa pampublikong specialty hospital upang maiwasan ang nakalulubog na utang sa ICU.'
+                        : 'Step-by-step clinical and administrative roadmap for emergency inter-hospital transfer to public tertiary centers to halt runaway private debt.')
                     : (language === 'taglish'
                         ? '5-Hakbang na opisyal na gabay mula PhilHealth, Malasakit, PACe, PCSO, hanggang DSWD cash assistance.'
                         : '5-Pillar official statutory stacking architecture from PhilHealth, Malasakit, PACe, to DSWD cash assistance.')}
@@ -3594,6 +3635,182 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     onNavigateToTab(tab);
                   }}
                 />
+              )}
+              {activeModal === 'transfer_rights' && (
+                <div className="space-y-6">
+                  {/* Top Civic Advisory Banner */}
+                  <div className="p-4.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 shadow-2xs space-y-2">
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>{language === 'taglish' ? 'Mahalagang Paalala sa Paglipat' : 'Critical Transfer Advisory'}</span>
+                    </div>
+                    <p className="text-xs text-amber-950 leading-relaxed">
+                      {language === 'taglish'
+                        ? 'Ang layunin ng transfer playbook na ito ay mailipat nang ligtas at legal ang pasyente mula sa pribadong ospital patungo sa pampublikong tertiary center bago tuluyang mabaon sa utang (lalo na sa ICU at ventilators). Basahin at sundin ang 5 sunod-sunod na yugto sa ibaba.'
+                        : 'This transfer playbook guides safe and lawful inter-hospital transfer from a private hospital to a public tertiary specialty center to stop catastrophic debt accumulation (especially in ICU care). Follow the 5 stages sequentially below.'}
+                    </p>
+                  </div>
+
+                  {/* 5 Stages Sequence */}
+                  <div className="space-y-4">
+                    {/* Stage 1 */}
+                    <div className="p-4.5 rounded-2xl bg-white border border-[#E2DFD6] shadow-2xs space-y-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          1
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {language === 'taglish'
+                            ? 'Stage 1: Clinical Stabilization Clearance (RA 8344 / RA 10932)'
+                            : 'Stage 1: Clinical Stabilization Clearance (RA 8344 / RA 10932)'}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed pl-8.5">
+                        {language === 'taglish'
+                          ? 'Ayon sa batas (RA 8344 na inamyendahan ng RA 10932), bawal tanggihan o harangin ang pasyente para sa emergency stabilization kahit walang paunang deposito. Humingi sa attending physician ng "Fit to Transfer" certification bago mag-arrange ng biyahe.'
+                          : 'Under RA 8344 (amended by RA 10932), medical facilities cannot refuse emergency stabilization or demand deposits. Ensure the attending physician formally issues a "Fit to Transfer" certification prior to transit.'}
+                      </p>
+                    </div>
+
+                    {/* Stage 2 */}
+                    <div className="p-4.5 rounded-2xl bg-white border border-[#E2DFD6] shadow-2xs space-y-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          2
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {language === 'taglish'
+                            ? 'Stage 2: Complete Clinical Records & Itemized SOA'
+                            : 'Stage 2: Complete Clinical Records & Itemized SOA'}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed pl-8.5">
+                        {language === 'taglish'
+                          ? 'Kunin agad sa billing at medical records ang certified preliminary Statement of Account (SOA), Medical/Clinical Abstract na pirmado ng doktor (may PRC License No.), at kumpletong kopya ng lab/imaging results.'
+                          : 'Secure certified preliminary Statement of Account (SOA), doctor-signed Clinical Abstract with PRC license, and complete diagnostic/imaging results from medical records.'}
+                      </p>
+                    </div>
+
+                    {/* Stage 3 */}
+                    <div className="p-4.5 rounded-2xl bg-blue-50/60 border border-blue-200/90 shadow-2xs space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          3
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">
+                            {language === 'taglish'
+                              ? 'Stage 3: Doctor-to-Doctor Bed Hunting (Interactive Call Directory)'
+                              : 'Stage 3: Doctor-to-Doctor Bed Hunting (Interactive Call Directory)'}
+                          </h4>
+                          <p className="text-xs text-slate-600">
+                            {language === 'taglish'
+                              ? 'Tawagan ang National Referral Hub o mga DOH Specialty Center upang kumpirmahin ang bakanteng kama o ICU bed bago lumipat:'
+                              : 'Contact the National Referral Hub or DOH Specialty Centers for doctor-to-doctor bed confirmation prior to departure:'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1 pl-8.5">
+                        {[
+                          { name: 'NPNRC (One Hospital Command)', phone: '1555', altPhone: '0919-977-3333', desc: '24/7 National Hub' },
+                          { name: 'Philippine General Hospital (PGH)', phone: '(02) 8554-8400', desc: 'Apex Tertiary / Indigent Ward' },
+                          { name: 'Philippine Heart Center (PHC)', phone: '(02) 8925-2401', desc: 'Cardiovascular Surgery & ICU' },
+                          { name: 'National Kidney & Transplant Inst. (NKTI)', phone: '(02) 8981-0300', desc: 'Dialysis & Renal Emergency' },
+                          { name: 'Lung Center of the Philippines (LCP)', phone: '(02) 8924-6101', desc: 'Critical Respiratory Care' },
+                          { name: 'Philippine Children’s Medical Center (PCMC)', phone: '(02) 8588-9900', desc: 'Pediatric ICU & Surgery' },
+                        ].map((target, idx) => (
+                          <div key={idx} className="p-3 bg-white rounded-xl border border-[#E2DFD6] space-y-2 flex flex-col justify-between shadow-2xs">
+                            <div>
+                              <div className="font-bold text-xs text-slate-900 leading-tight">{target.name}</div>
+                              <div className="text-xs text-slate-500 font-normal">{target.desc}</div>
+                              <div className="text-xs font-mono font-bold text-blue-900 mt-1">{target.phone}{target.altPhone ? ` / ${target.altPhone}` : ''}</div>
+                            </div>
+                            <div className="pt-1 flex items-center gap-1.5">
+                              <a
+                                href={`tel:${parseDialableNumber(target.phone)}`}
+                                className="min-h-[44px] h-11 px-3 py-2 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer focus-ring flex-1"
+                              >
+                                <Phone className="w-3.5 h-3.5 text-blue-900" />
+                                <span>{language === 'taglish' ? 'Tumawag' : 'Call'}</span>
+                              </a>
+                              {target.altPhone && (
+                                <a
+                                  href={`tel:${parseDialableNumber(target.altPhone)}`}
+                                  className="min-h-[44px] h-11 px-3 py-2 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer focus-ring flex-1"
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-blue-900" />
+                                  <span>{language === 'taglish' ? 'Alt Mobile' : 'Alt Mobile'}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Stage 4 */}
+                    <div className="p-4.5 rounded-2xl bg-white border border-[#E2DFD6] shadow-2xs space-y-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          4
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {language === 'taglish'
+                            ? 'Stage 4: Settle Private Hospital via RA 9439 Promissory Note + Dispatch Ambulance'
+                            : 'Stage 4: Settle Private Hospital via RA 9439 Promissory Note + Dispatch Ambulance'}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed pl-8.5">
+                        {language === 'taglish'
+                          ? 'Kung may natitirang utang sa pribado bago lumabas, mag-execute ng Promissory Note alinsunod sa RA 9439 upang payagang makaalis. Makipag-ugnayan sa City/Municipal DRRMO o Philippine Red Cross para sa libreng transfer ambulance na may paramedic support.'
+                          : 'Execute an RA 9439 Promissory Note for any unsettled private bill to authorize release. Coordinate with your City/Municipal DRRMO or Philippine Red Cross for a paramedic-equipped transfer ambulance.'}
+                      </p>
+                    </div>
+
+                    {/* Stage 5 */}
+                    <div className="p-4.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 shadow-2xs space-y-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                          5
+                        </span>
+                        <h4 className="text-sm font-bold text-emerald-950">
+                          {language === 'taglish'
+                            ? 'Stage 5: Immediate Registration at Public DOH Malasakit Desk for 100% Zero-Billing'
+                            : 'Stage 5: Immediate Registration at Public DOH Malasakit Desk for 100% Zero-Billing'}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed pl-8.5">
+                        {language === 'taglish'
+                          ? 'Pagdating sa pampublikong pasilidad, mag-admit sa charity ward at mag-report agad sa in-hospital Malasakit Center desk dala ang Barangay Indigency. Dito gagamitin ang DOH-MAIP at PCSO allocations para maging 100% Zero-Billing ang lahat ng susunod na gamutan.'
+                          : 'Upon admission to the public facility, present your Barangay Indigency at the in-hospital Malasakit Center desk to activate DOH-MAIP and PCSO allocations for 100% Zero-Billing.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Row */}
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveModal(null);
+                        onNavigateToTab('print_forms');
+                      }}
+                      className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                    >
+                      <Printer className="w-4 h-4 text-white" />
+                      <span>{language === 'taglish' ? 'I-print ang Pre-Filled Forms' : 'Print Pre-Filled Forms'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal(null)}
+                      className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring"
+                    >
+                      <ArrowLeft className="w-4 h-4 text-slate-600" />
+                      <span>{language === 'taglish' ? 'Isara at Bumalik' : 'Close and Return'}</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

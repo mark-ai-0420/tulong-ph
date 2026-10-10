@@ -9,9 +9,6 @@ import {
   Phone,
   MapPin,
   FileText,
-  AlertCircle,
-  ExternalLink,
-  ShieldCheck,
   Send,
 } from 'lucide-react';
 import {
@@ -19,7 +16,7 @@ import {
   RepresentativeProfile,
   MedicalCase,
 } from '@/types/assistance';
-import { Language, translations } from '@/lib/i18n';
+import { Language } from '@/lib/i18n';
 
 interface PACEAssistantProps {
   patient: PatientProfile;

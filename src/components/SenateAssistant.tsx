@@ -2,16 +2,11 @@
 
 import React, { useState } from 'react';
 import {
-  ShieldCheck,
   Copy,
   Check,
   ExternalLink,
   Calendar,
-  Clock,
-  PlusCircle,
-  FileText,
   AlertCircle,
-  ArrowRight,
 } from 'lucide-react';
 import {
   PatientProfile,

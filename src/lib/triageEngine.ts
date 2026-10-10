@@ -3,8 +3,6 @@ import type {
   MedicalCase,
   StackingStep,
   DocumentType,
-  HospitalType,
-  PrivateHospitalStrategy,
   AdmissionStatus,
   TriageResult,
 } from '../types/assistance.ts';
@@ -375,7 +373,7 @@ function buildPublicDOHTriage(patient: PatientProfile, medicalCase: MedicalCase)
 /**
  * PATHWAY B: Public LGU Provincial / City Hospital Pathway
  */
-function buildPublicLGUTriage(patient: PatientProfile, medicalCase: MedicalCase): TriageResult {
+function buildPublicLGUTriage(patient: PatientProfile, _medicalCase: MedicalCase): TriageResult {
   const steps: StackingStep[] = [];
   const criticalWarningsEn: string[] = [];
   const criticalWarningsTl: string[] = [];
@@ -834,7 +832,7 @@ function buildPrivateGLStackingTriage(patient: PatientProfile, medicalCase: Medi
 /**
  * PATHWAY D: Private Hospital Pathway - Public Tertiary Transfer (`transfer_referral`)
  */
-function buildPrivateTransferTriage(patient: PatientProfile, medicalCase: MedicalCase): TriageResult {
+function buildPrivateTransferTriage(patient: PatientProfile, _medicalCase: MedicalCase): TriageResult {
   const steps: StackingStep[] = [];
   const criticalWarningsEn: string[] = [];
   const criticalWarningsTl: string[] = [];

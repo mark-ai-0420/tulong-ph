@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Search,
   ExternalLink,
@@ -42,11 +42,15 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
   // Pagination / Batching state for budget mobile devices
   const PAGE_SIZE = 20;
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
+  const [prevSearch, setPrevSearch] = useState<string>(searchTerm);
+  const [prevRegion, setPrevRegion] = useState<string>(selectedRegion);
 
-  // Reset pagination when search or region filter changes
-  useEffect(() => {
+  // Reset pagination during render when search or region filter changes
+  if (searchTerm !== prevSearch || selectedRegion !== prevRegion) {
+    setPrevSearch(searchTerm);
+    setPrevRegion(selectedRegion);
     setVisibleCount(PAGE_SIZE);
-  }, [searchTerm, selectedRegion]);
+  }
 
   // Dynamically derive region hospital counts from MALASAKIT_CENTERS_DIRECTORY
   const regionCounts = useMemo(() => {
