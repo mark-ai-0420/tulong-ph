@@ -4,9 +4,7 @@ import React from 'react';
 import {
   Layers,
   ShieldCheck,
-  CheckCircle2,
   AlertTriangle,
-  FileCheck2,
   Building2,
   HeartPulse,
   Banknote,
@@ -140,7 +138,6 @@ export const StackingInfographic: React.FC<StackingInfographicProps> = ({
       {/* The 5-Layer Connected Civic Timeline Ladder */}
       <div className="relative pl-0 sm:pl-3 space-y-4 before:hidden sm:before:block before:absolute before:left-7.5 before:top-8 before:bottom-8 before:w-0.5 before:bg-[#E2DFD6]">
         {stackLayers.map((layer) => {
-          const Icon = layer.icon;
           return (
             <div key={layer.step} className="relative flex flex-col sm:flex-row items-start gap-4">
               {/* Step Sequence Badge (Desktop: Timeline Node; Mobile: Header Tag) */}

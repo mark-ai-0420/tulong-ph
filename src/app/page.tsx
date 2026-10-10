@@ -34,7 +34,6 @@ import {
   ShieldCheck,
   Printer,
   FileCheck2,
-  Compass,
   Building2,
   Trash2,
   ShieldAlert,

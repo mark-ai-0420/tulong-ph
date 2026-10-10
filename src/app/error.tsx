@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Link from 'next/link';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface ErrorProps {
@@ -42,18 +43,13 @@ export default function GlobalError({ error, reset }: ErrorProps) {
             <span>Subukang Muli / Retry</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.location.href = '/';
-              }
-            }}
+          <Link
+            href="/"
             className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 h-11 min-h-[44px] px-4 rounded-xl bg-white border border-[#E2DFD6] hover:bg-stone-50 text-slate-700 font-bold text-xs sm:text-sm shadow-2xs transition-colors cursor-pointer"
           >
             <Home className="w-4 h-4" />
             <span>Bumalik sa Home</span>
-          </button>
+          </Link>
         </div>
       </div>
     </div>

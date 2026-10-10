@@ -3,3 +3,8 @@ allowBuilds:
   ffmpeg-static: true
   sharp: false
   unrs-resolver: false
+
+overrides:
+  source-map-js: '>=1.2.2'
+  sharp: '>=0.35.5'
+

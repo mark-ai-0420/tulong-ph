@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Compass,
   ArrowRight,
   ArrowLeft,
-  CheckCircle,
   AlertCircle,
   Building,
   Building2,
@@ -43,7 +41,6 @@ import {
   EmergencyCategory,
   HospitalType,
   AdmissionStatus,
-  SocioeconomicClass,
   StoredDocument,
   ApplicationRecord,
 } from '@/types/assistance';
@@ -129,12 +126,13 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
   const [showRa11463Details, setShowRa11463Details] = useState<boolean>(false);
   const [roadmapSearchQuery, setRoadmapSearchQuery] = useState<string>('');
 
-  // Synchronize external applications prop
-  useEffect(() => {
+  const [prevApplications, setPrevApplications] = useState<ApplicationRecord[] | undefined>(applications);
+  if (applications !== prevApplications) {
+    setPrevApplications(applications);
     if (applications && applications.length > 0) {
       setLocalApplications(applications);
     }
-  }, [applications]);
+  }
 
   // Load applications from IndexedDB if not passed in props
   useEffect(() => {
@@ -209,7 +207,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
     if (
       !representative.isPatientHimself &&
       representative.relationshipToPatient &&
-      !RELATIONSHIP_OPTIONS.slice(0, 11).includes(representative.relationshipToPatient as any)
+      !(RELATIONSHIP_OPTIONS.slice(0, 11) as readonly string[]).includes(representative.relationshipToPatient)
     ) {
       return representative.relationshipToPatient === 'Iba pa / Other'
         ? ''
@@ -218,8 +216,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
     return '';
   });
 
-  const isKnownCanonicalRelation = RELATIONSHIP_OPTIONS.slice(0, 11).includes(
-    representative.relationshipToPatient as any
+  const isKnownCanonicalRelation = (RELATIONSHIP_OPTIONS.slice(0, 11) as readonly string[]).includes(
+    representative.relationshipToPatient
   );
   const relationSelectValue = representative.isPatientHimself
     ? 'Self'
@@ -370,8 +368,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       try {
         await navigator.share(shareData);
         return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
       }
@@ -2069,10 +2067,12 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   id="hospital-name"
                   name="hospitalName"
                   type="text"
+                  role="combobox"
                   autoComplete="off"
                   required
                   aria-required="true"
                   aria-autocomplete="list"
+                  aria-controls="hospital-suggestions-list"
                   aria-expanded={isHospitalDropdownOpen && hospitalSuggestions.length > 0}
                   aria-invalid={isFieldInvalid('hospitalName')}
                   value={medicalCase.hospitalName}
@@ -2106,6 +2106,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               {/* Autocomplete Suggestions Dropdown */}
               {isHospitalDropdownOpen && hospitalSuggestions.length > 0 && (
                 <div
+                  id="hospital-suggestions-list"
                   role="listbox"
                   aria-label="Malasakit Centers Directory"
                   className="absolute z-30 left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150"

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   PatientProfile,
   RepresentativeProfile,
@@ -25,7 +25,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Building,
-  User,
   BadgeAlert,
   ChevronDown,
   ChevronUp,
@@ -112,6 +111,11 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
+  const triggerToast = useCallback((msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 4000);
+  }, []);
+
   // Document Requirement Preparation State
   const [showDocDrawer, setShowDocDrawer] = useState(true);
   const [processingDocType, setProcessingDocType] = useState<DocumentType | null>(null);
@@ -119,47 +123,50 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
 
   const getDoc = (type: DocumentType) => documents.find((d) => d.docType === type);
 
-  const handleFileUpload = async (type: DocumentType, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = useCallback(
+    async (type: DocumentType, e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    setProcessingDocType(type);
-    setCompressionError(null);
+      setProcessingDocType(type);
+      setCompressionError(null);
 
-    try {
-      const standardizedName = getStandardizedDocFileName(patient.lastName || 'Applicant', type);
-      const result = await convertAndCompressImageToPdf(file, standardizedName);
+      try {
+        const standardizedName = getStandardizedDocFileName(patient.lastName || 'Applicant', type);
+        const result = await convertAndCompressImageToPdf(file, standardizedName);
 
-      const newDoc: StoredDocument = {
-        id: `${type}_${Date.now()}`,
-        docType: type,
-        fileName: result.fileName,
-        originalSize: result.originalSize,
-        compressedSize: result.compressedSize,
-        mimeType: result.mimeType,
-        dataUrl: result.dataUrl,
-        uploadedAt: new Date().toISOString(),
-        isCompliantUnder2MB: result.isCompliantUnder2MB,
-      };
+        const newDoc: StoredDocument = {
+          id: `${type}_${Date.now()}`,
+          docType: type,
+          fileName: result.fileName,
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          mimeType: result.mimeType,
+          dataUrl: result.dataUrl,
+          uploadedAt: new Date().toISOString(),
+          isCompliantUnder2MB: result.isCompliantUnder2MB,
+        };
 
-      const updated = documents.filter((d) => d.docType !== type).concat(newDoc);
-      if (onUpdateDocuments) {
-        onUpdateDocuments(updated);
+        const updated = documents.filter((d) => d.docType !== type).concat(newDoc);
+        if (onUpdateDocuments) {
+          onUpdateDocuments(updated);
+        }
+        await saveDocuments(updated);
+        triggerToast(
+          language === 'taglish'
+            ? `Na-compress at naidagdag ang ${result.fileName} (${formatBytes(result.compressedSize)})!`
+            : `Compressed & saved ${result.fileName} (${formatBytes(result.compressedSize)})!`
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Nabigong i-compress ang file';
+        setCompressionError(msg);
+      } finally {
+        setProcessingDocType(null);
+        e.target.value = '';
       }
-      await saveDocuments(updated);
-      triggerToast(
-        language === 'taglish'
-          ? `Na-compress at naidagdag ang ${result.fileName} (${formatBytes(result.compressedSize)})!`
-          : `Compressed & saved ${result.fileName} (${formatBytes(result.compressedSize)})!`
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Nabigong i-compress ang file';
-      setCompressionError(msg);
-    } finally {
-      setProcessingDocType(null);
-      e.target.value = '';
-    }
-  };
+    },
+    [patient.lastName, documents, onUpdateDocuments, language, triggerToast]
+  );
 
   const handleRemoveDoc = async (type: DocumentType) => {
     const updated = documents.filter((d) => d.docType !== type);
@@ -181,11 +188,6 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
     : representative.fullName || 'Juan Dela Cruz (Kinatawan)';
 
   const availableVaultDocs = documents.filter((d) => d.dataUrl && d.mimeType.startsWith('image/'));
-
-  const triggerToast = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 4000);
-  };
 
   const handleDownload = async () => {
     setIsGenerating(true);

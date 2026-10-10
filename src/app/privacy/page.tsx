@@ -38,7 +38,9 @@ export default function PrivacyPage() {
     try {
       const savedLang = localStorage.getItem('tulong_lang') as Language;
       if (savedLang === 'en' || savedLang === 'taglish') {
-        setLanguage(savedLang);
+        queueMicrotask(() => {
+          setLanguage(savedLang);
+        });
       }
     } catch {
       // LocalStorage access fallback

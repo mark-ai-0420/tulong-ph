@@ -2,20 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  HeartHandshake,
   Clock,
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
-  FileCheck,
   Download,
-  Calendar,
-  AlertCircle,
   HelpCircle,
 } from 'lucide-react';
 import { StoredDocument, DocumentType, PatientProfile } from '@/types/assistance';
 import { formatBytes } from '@/lib/compressor';
-import { Language, translations } from '@/lib/i18n';
+import { Language } from '@/lib/i18n';
 
 interface PCSOAssistantProps {
   documents: StoredDocument[];
@@ -26,11 +22,9 @@ interface PCSOAssistantProps {
 
 export const PCSOAssistant: React.FC<PCSOAssistantProps> = ({
   documents,
-  patient,
   language,
   onNavigateToVault,
 }) => {
-  const t = translations[language];
   const [phTime, setPhTime] = useState<string>('');
   const [isMorningQueueWindow, setIsMorningQueueWindow] = useState<boolean>(false);
 
