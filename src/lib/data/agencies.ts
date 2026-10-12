@@ -52,7 +52,7 @@ export const AGENCIES_DATABASE: AgencyInfo[] = [
       'Kapag na-approve (karaniwan 2-3 araw), i-download ang Guarantee Letter at dalhin sa Billing ng ospital.',
     ],
     tipsEn: [
-      'Apply early in the hospital stay once a provisional running bill is issued—do not wait until the actual discharge day.',
+      'Apply early in the hospital stay once a provisional running bill is issued - do not wait until the actual discharge day.',
       'Check if your hospital is listed in the dropdown of partner institutions.',
     ],
     tipsTl: [

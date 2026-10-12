@@ -9,9 +9,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "TulongPH - Philippine Government Medical & Crisis Assistance Navigator",
+  title: "TulongPH - Kalusugan, Edukasyon at Manggagawa",
   description:
-    "100% offline-ready, free civic tool helping Filipino families prepare, organize, and file for Malasakit Centers (RA 11463), PCSO MAP, DSWD AICS, and Senate Medical Assistance.",
+    "Free civic guide for health assistance, education scholarships, worker benefits and loans. Calculations and records stay on your device.",
   keywords: [
     "Malasakit Center",
     "DSWD AICS",
@@ -20,13 +20,15 @@ export const metadata: Metadata = {
     "Hospital Bill Assistance",
     "Tulong Medikal",
     "Ayuda Pilipinas",
+    "Education Scholarships",
+    "SSS GSIS Pag-IBIG Worker Benefits",
   ],
   authors: [{ name: "TulongPH Community" }],
   metadataBase: new URL("https://tulongph.vercel.app"),
   openGraph: {
-    title: "TulongPH - Philippine Government Medical & Crisis Assistance Navigator",
+    title: "TulongPH - Kalusugan, Edukasyon at Manggagawa",
     description:
-      "Gabay sa Ayuda ng Gobyerno: I-triage ang hospital bill, i-print ang opisyal na Malasakit at DSWD forms, at hanapin ang 200+ hospital desks sa buong bansa. 100% libre at pribado.",
+      "Gabay sa kalusugan, scholarship, benepisyo at karapatan sa trabaho. Kompyutasyon, checklist at direktoryo sa buong bansa. 100% libre at pribado.",
     url: "https://tulongph.vercel.app",
     siteName: "TulongPH",
     locale: "fil_PH",
@@ -34,9 +36,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "TulongPH - Philippine Government Medical & Crisis Assistance Navigator",
+    title: "TulongPH - Kalusugan, Edukasyon at Manggagawa",
     description:
-      "Gabay sa Ayuda ng Gobyerno: I-triage ang hospital bill, i-print ang opisyal na Malasakit at DSWD forms, at hanapin ang 200+ hospital desks.",
+      "Gabay sa kalusugan, scholarship, benepisyo at karapatan sa trabaho. Kompyutasyon, checklist at direktoryo.",
   },
   robots: {
     index: true,
@@ -46,8 +48,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="fil-PH" className="h-full antialiased">
+      <body className="min-h-full flex flex-col tabular-nums">{children}</body>
     </html>
   );
 }

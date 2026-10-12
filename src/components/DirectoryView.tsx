@@ -1,5 +1,8 @@
 'use client';
 
+import { CivicViewHeader } from '@/components/shared/CivicViewHeader';
+import { civicInput } from '@/components/shared/civicStyles';
+
 import React, { useState, useMemo } from 'react';
 import {
   Search,
@@ -14,7 +17,6 @@ import {
   Check,
   BadgeAlert,
   ChevronDown,
-  ChevronUp,
   Map,
 } from 'lucide-react';
 import { AGENCIES_DATABASE } from '@/lib/data/agencies';
@@ -38,6 +40,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [expandedAgencyId, setExpandedAgencyId] = useState<string | null>('senate_assist');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState('');
 
   // Pagination / Batching state for budget mobile devices
   const PAGE_SIZE = 20;
@@ -159,45 +162,28 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
 
   const handleCopyPhone = async (phone: string, id: string) => {
     try {
+      setCopyError('');
       await navigator.clipboard.writeText(phone);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2500);
     } catch {
-      // Fallback
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2500);
+      setCopiedId(null);
+      setCopyError(language === 'taglish' ? 'Hindi nakopya. Piliin at kopyahin ang contact o gamitin ang Tawag.' : 'Could not copy. Select the contact to copy it, or use Call.');
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header Banner: Authoritative Civic Editorial Announcement Card */}
-      <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs">
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-950 border border-blue-200 shadow-2xs">
-            <Building2 className="w-3.5 h-3.5 text-blue-900" />
-            <span>{language === 'taglish' ? '200+ Pampublikong Ospital sa Buong Bansa' : '200+ Public Hospitals Nationwide'}</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-            {language === 'taglish'
-              ? 'Direktoryo ng Malasakit Desks at Hotline ng Pamahalaan'
-              : 'Malasakit Desks & National Crisis Directory'}
-          </h1>
-          <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-            {language === 'taglish'
-              ? 'Mabilisang hanapin ang mga social worker desk sa loob ng 200 pampublikong ospital sa lahat ng 17 rehiyon, o tumawag nang direkta sa mga opisyal na hotline ng Senado, PCSO, DSWD, at PhilHealth.'
-              : 'Quickly locate in-hospital social service desks across 200 public hospitals in all 17 regions, or call verified emergency hotlines for Senate, PCSO, DSWD, and PhilHealth.'}
-          </p>
-        </div>
-      </div>
+      <CivicViewHeader icon={Building2} badge={language === 'taglish' ? '200+ Pampublikong Ospital sa Buong Bansa' : '200+ Public Hospitals Nationwide'} title={language === 'taglish' ? 'Direktoryo ng Malasakit Desks at Hotline ng Pamahalaan' : 'Malasakit Desks & National Crisis Directory'} description={language === 'taglish' ? 'Mabilisang hanapin ang mga social worker desk sa loob ng 200 pampublikong ospital sa lahat ng 17 rehiyon, o tumawag nang direkta sa mga opisyal na hotline ng Senado, PCSO, DSWD, at PhilHealth.' : 'Quickly locate in-hospital social service desks across 200 public hospitals in all 17 regions, or call verified emergency hotlines for Senate, PCSO, DSWD, and PhilHealth.'} />
 
+      {copyError && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{copyError}</p>}
       {/* Main Unified View Toggle Rail */}
       <div className="bg-[#F3F2EC] p-1 rounded-2xl border border-[#E2DFD6] shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => setActiveTab('malasakit')}
-            className={`min-h-[44px] h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            className={`min-h-[44px] flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'malasakit'
                 ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50 border border-transparent'
@@ -206,15 +192,15 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
             <Building2 className="w-4 h-4 shrink-0 text-blue-900" />
             <span>
               {language === 'taglish'
-                ? 'Tab A: Malasakit Center Desks (200 Ospital)'
-                : 'Tab A: Malasakit Center Desks (200 Hospitals)'}
+                ? 'Malasakit Center Desks (200 Ospital)'
+                : 'Malasakit Center Desks (200 Hospitals)'}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('agencies')}
-            className={`min-h-[44px] h-11 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            className={`min-h-[44px] flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'agencies'
                 ? 'bg-white text-slate-900 shadow-2xs border border-[#E2DFD6]'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50 border border-transparent'
@@ -223,8 +209,8 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
             <PhoneCall className="w-4 h-4 shrink-0 text-blue-900" />
             <span>
               {language === 'taglish'
-                ? 'Tab B: National Government Crisis Hotlines & Portals'
-                : 'Tab B: National Government Crisis Hotlines & Portals'}
+                ? 'National Government Crisis Hotlines & Portals'
+                : 'National Government Crisis Hotlines & Portals'}
             </span>
           </button>
         </div>
@@ -243,26 +229,35 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   : 'How to utilize the Malasakit Center in 3 simple steps (RA 11463):'}
               </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="bg-white rounded-xl p-3.5 border border-[#E2DFD6] space-y-1">
-                <div className="font-bold text-slate-900">Hakbang 1: Pagka-admit</div>
+            <ol className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-0 sm:divide-x sm:divide-[#E2DFD6] text-xs">
+              <li className="min-w-0 space-y-2 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white flex items-center justify-center shrink-0">1</span>
+                  <span>Pagka-admit</span>
+                </div>
                 <p className="text-slate-700 text-xs leading-relaxed">
                   Sabihan agad ang Information o Nurse station na lalapit kayo sa Malasakit Center desk sa unang araw pa lamang.
                 </p>
-              </div>
-              <div className="bg-white rounded-xl p-3.5 border border-[#E2DFD6] space-y-1">
-                <div className="font-bold text-slate-900">Hakbang 2: Unified Intake Sheet</div>
+              </li>
+              <li className="min-w-0 space-y-2 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white flex items-center justify-center shrink-0">2</span>
+                  <span>Unified Intake Sheet</span>
+                </div>
                 <p className="text-slate-700 text-xs leading-relaxed">
                   Punan ang isang Unified Intake Sheet kasama ang Medical Abstract at Running Bill para sa Medical Social Worker.
                 </p>
-              </div>
-              <div className="bg-white rounded-xl p-3.5 border border-[#E2DFD6] space-y-1">
-                <div className="font-bold text-slate-900">Hakbang 3: Automatic Deductions</div>
+              </li>
+              <li className="min-w-0 space-y-2 sm:px-4 sm:first:pl-0 sm:last:pr-0">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white flex items-center justify-center shrink-0">3</span>
+                  <span>Automatic Deductions</span>
+                </div>
                 <p className="text-slate-700 text-xs leading-relaxed">
                   Awtomatikong ibabawas ang PhilHealth, DOH-MAIP fund, at PCSO allocations para mapababa o ma-zero ang bill.
                 </p>
-              </div>
-            </div>
+              </li>
+            </ol>
           </div>
 
           {/* Search & Region Filter Controls */}
@@ -275,6 +270,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                 </label>
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
+                  autoComplete="off"
                   id="directory-search-input"
                   name="directorySearch"
                   type="text"
@@ -286,7 +282,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       ? 'Maghanap ng pangalan ng ospital, lungsod, o probinsya...'
                       : 'Search hospital name, city, or province...'
                   }
-                  className="min-h-[44px] h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E2DFD6] text-base sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
+                  className={`${civicInput} pl-10`}
                 />
               </div>
 
@@ -296,6 +292,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   {language === 'taglish' ? 'Piliin ang Rehiyon' : 'Select Region'}
                 </label>
                 <select
+                  autoComplete="off"
                   id="directory-region-select"
                   name="directoryRegion"
                   aria-label={language === 'taglish' ? 'Piliin ang Rehiyon' : 'Select Region'}
@@ -304,7 +301,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     setSelectedRegion(e.target.value);
                     setVisibleCount(PAGE_SIZE);
                   }}
-                  className="min-h-[44px] h-11 w-full px-3.5 py-2.5 rounded-xl border border-[#E2DFD6] text-base sm:text-sm font-bold text-slate-800 bg-white shadow-2xs focus:ring-2 focus:ring-blue-600 focus:outline-hidden"
+                  className={civicInput}
                 >
                   {availableRegions.map((reg) => (
                     <option key={reg} value={reg}>
@@ -320,7 +317,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
             </div>
 
             {/* Quick Region Filter Pills with counts */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               {availableRegions.map((reg) => (
                 <button
                   key={reg}
@@ -329,7 +326,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     setSelectedRegion(reg);
                     setVisibleCount(PAGE_SIZE);
                   }}
-                  className={`min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`min-h-[44px] max-w-full px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-normal break-words transition-colors cursor-pointer ${
                     selectedRegion === reg
                       ? 'bg-blue-900 text-white shadow-xs'
                       : 'bg-[#FAF9F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
@@ -440,7 +437,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                       {/* Direct Call Link */}
                       <a
                         href={`tel:${parseDialableNumber(hospital.contactNumber)}`}
-                        className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-xs shrink-0"
+                        className="min-h-[44px] h-11 px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-xs shrink-0"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         <span>{hospital.contactNumber}</span>
@@ -458,7 +455,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
               <button
                 type="button"
                 onClick={handleLoadMore}
-                className="w-full sm:w-auto min-h-[48px] px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-900/20 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full sm:w-auto min-h-[48px] px-8 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-900/20 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <ChevronDown className="w-4 h-4" />
                 <span>
@@ -501,7 +498,10 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
             {/* Search Input with min-h-11 */}
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <label htmlFor="directory-agency-search" className="sr-only">{language === 'taglish' ? 'Maghanap ng ahensya, sakit, uri ng tulong, o hotline' : 'Search agency, illness, assistance type, or hotline'}</label>
               <input
+                id="directory-agency-search"
+                autoComplete="off"
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -510,20 +510,20 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                     ? 'Maghanap ng ahensya, sakit, uri ng tulong, o hotline...'
                     : 'Search by agency name, illness, hotline, or type of assistance...'
                 }
-                className="min-h-[44px] h-11 w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E2DFD6] text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-hidden bg-white shadow-2xs text-slate-900"
+                className={`${civicInput} pl-10`}
               />
             </div>
 
             {/* Category Filter Pills with min-h-11 */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`min-h-[44px] h-11 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                  className={`min-h-[44px] max-w-full px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-normal break-words transition-colors ${
                     selectedCategory === cat.id
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? 'bg-blue-900 text-white shadow-xs'
                       : 'bg-[#FAF8F5] border border-[#E2DFD6] text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
@@ -545,8 +545,18 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                 >
                   {/* Card Header */}
                   <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    aria-controls={`agency-details-${agency.id}`}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggleExpandAgency(agency.id);
+                      }
+                    }}
                     onClick={() => toggleExpandAgency(agency.id)}
-                    className="p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none hover:bg-[#FAF9F5]/60 transition-colors"
+                    className="p-5 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none hover:bg-[#FAF9F5]/60 transition-colors focus-ring"
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
@@ -572,11 +582,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                         {isExpanded ? 'Itago ang Detalye' : 'Tingnan ang Requirements'}
                       </span>
                       <div className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ease-[var(--ease-out-natural)] ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
                       </div>
                     </div>
                   </div>
@@ -656,7 +662,7 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="min-h-[44px] h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors"
+                        className="min-h-[44px] h-11 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-xs transition-colors"
                       >
                         <span>{t.openOfficialPortal}</span>
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -665,48 +671,56 @@ export const DirectoryView: React.FC<DirectoryViewProps> = ({
                   </div>
 
                   {/* Expanded Details */}
-                  {isExpanded && (
-                    <div className="p-5 border-t border-[#E2DFD6] bg-white space-y-5 text-xs">
-                      {/* Two Column Layout: Eligibility & Requirements */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Eligibility */}
-                        <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6] space-y-2">
-                          <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                            {language === 'taglish' ? 'Sino ang Kwalipikado?' : 'Who is Eligible?'}
-                          </h4>
-                          <ul className="space-y-1.5 text-slate-700 list-disc pl-4 leading-relaxed">
-                            {(language === 'taglish'
-                              ? agency.eligibilityTl
-                              : agency.eligibilityEn
-                            ).map((el, idx) => (
-                              <li key={idx}>{el}</li>
-                            ))}
-                          </ul>
+                  <div
+                    id={`agency-details-${agency.id}`}
+                    className="accordion-grid"
+                    data-expanded={isExpanded}
+                    aria-hidden={!isExpanded}
+                    inert={!isExpanded}
+                  >
+                    <div>
+                      <div className="p-5 border-t border-[#E2DFD6] bg-white space-y-5 text-xs">
+                        {/* Two Column Layout: Eligibility & Requirements */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Eligibility */}
+                          <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6] space-y-2">
+                            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                              {language === 'taglish' ? 'Sino ang Kwalipikado?' : 'Who is Eligible?'}
+                            </h4>
+                            <ul className="space-y-1.5 text-slate-700 list-disc pl-4 leading-relaxed">
+                              {(language === 'taglish'
+                                ? agency.eligibilityTl
+                                : agency.eligibilityEn
+                              ).map((el, idx) => (
+                                <li key={idx}>{el}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* How to Apply */}
+                          <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6] space-y-2">
+                            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                              {language === 'taglish' ? 'Paano Mag-apply?' : 'Step-by-Step Procedure:'}
+                            </h4>
+                            <ol className="space-y-1.5 text-slate-700 list-decimal pl-4 leading-relaxed">
+                              {(language === 'taglish'
+                                ? agency.howToApplyStepsTl
+                                : agency.howToApplyStepsEn
+                              ).map((step, idx) => (
+                                <li key={idx}>{step}</li>
+                              ))}
+                            </ol>
+                          </div>
                         </div>
 
-                        {/* How to Apply */}
-                        <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E2DFD6] space-y-2">
-                          <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
-                            {language === 'taglish' ? 'Paano Mag-apply?' : 'Step-by-Step Procedure:'}
-                          </h4>
-                          <ol className="space-y-1.5 text-slate-700 list-decimal pl-4 leading-relaxed">
-                            {(language === 'taglish'
-                              ? agency.howToApplyStepsTl
-                              : agency.howToApplyStepsEn
-                            ).map((step, idx) => (
-                              <li key={idx}>{step}</li>
-                            ))}
-                          </ol>
+                        {/* Policy Footer */}
+                        <div className="text-xs text-slate-600 pt-2 border-t border-slate-200">
+                          <span className="font-bold text-slate-900">Re-application Policy:</span>{' '}
+                          {agency.reapplicationPolicy}
                         </div>
-                      </div>
-
-                      {/* Policy Footer */}
-                      <div className="text-xs text-slate-600 pt-2 border-t border-slate-200">
-                        <span className="font-bold text-slate-900">Re-application Policy:</span>{' '}
-                        {agency.reapplicationPolicy}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}

@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import { CivicViewHeader } from '@/components/shared/CivicViewHeader';
+import { civicPaperMat, civicPaper } from '@/components/shared/civicStyles';
+
+import React, { useState, useCallback, useRef } from 'react';
 import {
   PatientProfile,
   RepresentativeProfile,
@@ -25,7 +28,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Building,
-  BadgeAlert,
   ChevronDown,
   ChevronUp,
   Upload,
@@ -40,7 +42,7 @@ import {
   formatBytes,
   getStandardizedDocFileName,
 } from '@/lib/compressor';
-import { saveDocuments } from '@/lib/storage';
+import { getWipeGeneration, saveDocuments } from '@/lib/storage';
 import { DocumentType } from '@/types/assistance';
 
 interface PrintFormsViewProps {
@@ -120,6 +122,7 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   const [showDocDrawer, setShowDocDrawer] = useState(true);
   const [processingDocType, setProcessingDocType] = useState<DocumentType | null>(null);
   const [compressionError, setCompressionError] = useState<string | null>(null);
+  const uploadRequestRef = useRef(0);
 
   const getDoc = (type: DocumentType) => documents.find((d) => d.docType === type);
 
@@ -127,6 +130,8 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
     async (type: DocumentType, e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      const uploadGeneration = getWipeGeneration();
+      const uploadRequest = ++uploadRequestRef.current;
 
       setProcessingDocType(type);
       setCompressionError(null);
@@ -134,6 +139,10 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
       try {
         const standardizedName = getStandardizedDocFileName(patient.lastName || 'Applicant', type);
         const result = await convertAndCompressImageToPdf(file, standardizedName);
+        if (getWipeGeneration() !== uploadGeneration) {
+          URL.revokeObjectURL(result.dataUrl);
+          return;
+        }
 
         const newDoc: StoredDocument = {
           id: `${type}_${Date.now()}`,
@@ -151,17 +160,19 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
         if (onUpdateDocuments) {
           onUpdateDocuments(updated);
         }
-        await saveDocuments(updated);
+        await saveDocuments(updated, uploadGeneration);
+        if (getWipeGeneration() !== uploadGeneration) return;
         triggerToast(
           language === 'taglish'
             ? `Na-compress at naidagdag ang ${result.fileName} (${formatBytes(result.compressedSize)})!`
             : `Compressed & saved ${result.fileName} (${formatBytes(result.compressedSize)})!`
         );
       } catch (err: unknown) {
+        if (getWipeGeneration() !== uploadGeneration) return;
         const msg = err instanceof Error ? err.message : 'Nabigong i-compress ang file';
         setCompressionError(msg);
       } finally {
-        setProcessingDocType(null);
+        if (uploadRequestRef.current === uploadRequest) setProcessingDocType(null);
         e.target.value = '';
       }
     },
@@ -388,26 +399,8 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
 
   return (
     <div className="space-y-6">
-      {/* Header Banner: Authoritative Civic Editorial Announcement Card */}
-      <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-950 border border-blue-200 mb-2">
-              <Printer className="w-3.5 h-3.5 text-blue-950" />
-              <span>{language === 'taglish' ? 'Print-Ready para sa Pisonet & Computer Shop' : 'Print-Ready for Computer Shops'}</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              {language === 'taglish' ? 'I-print ang mga Opisyal na Form' : 'Printable Hospital Packets & Forms'}
-            </h1>
-            <p className="text-slate-600 text-xs sm:text-sm mt-1 max-w-2xl">
-              {language === 'taglish'
-                ? 'Pre-filled na Malasakit Unified Intake Sheet (RA 11463), DSWD AICS Form, at Checklist Cover Sheet na handang dalhin sa Social Worker Desk ng ospital.'
-                : 'Pre-filled official Malasakit Center Intake Sheet (RA 11463), DSWD AICS Form, and Hospital Checklist ready for submission at hospital social service desks.'}
-            </p>
-          </div>
-
-          {/* Action Buttons Top */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+      <CivicViewHeader icon={Printer} badge={language === 'taglish' ? 'Print-Ready para sa Pisonet & Computer Shop' : 'Print-Ready for Computer Shops'} title={language === 'taglish' ? 'I-print ang mga Opisyal na Form' : 'Printable Hospital Packets & Forms'} description={language === 'taglish' ? 'Pre-filled na Malasakit Unified Intake Sheet (RA 11463), DSWD AICS Form, at Checklist Cover Sheet na handang dalhin sa Social Worker Desk ng ospital.' : 'Pre-filled official Malasakit Center Intake Sheet (RA 11463), DSWD AICS Form, and Hospital Checklist ready for submission at hospital social service desks.'} actions={
+<div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={handleDirectPrint}
               disabled={isGenerating}
@@ -442,29 +435,24 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
               </span>
             </button>
           </div>
-        </div>
-
-        {/* Printer Optimization & Public PC Advice Notes */}
-        <div className="mt-4 pt-4 border-t border-[#E2DFD6] space-y-2">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <BadgeAlert className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
+      }>
+        {/* Printer Optimization & Public PC Advice */}
+        <div className="mt-4 p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3 text-xs text-amber-950 leading-relaxed">
+          <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <p>
               {language === 'taglish'
-                ? 'Black & White / Monochrome Optimized: Walang makakapal na tinta o gradients para matipid at mabilis i-print sa kahit anong Pisonet o computer shop malapit sa ospital.'
-                : 'Black & White / Monochrome Optimized: High-contrast vector layouts designed to save ink on budget computer shop laser/inkjet printers.'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-amber-900 bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-lg">
-            <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
+                ? 'Black & White / Monochrome Optimized: Matipid sa tinta at madaling i-print sa Pisonet o computer shop.'
+                : 'Black & White / Monochrome Optimized: High-contrast layouts save ink on computer shop printers.'}
+            </p>
+            <p>
               {language === 'taglish'
-                ? '💡 Payo sa Pisonet / Computer Shop: Mas ligtas gamitin ang "I-print ang Form" kaysa mag-download upang walang maiwang PDF file sa Downloads folder ng publikong computer.'
-                : '💡 Public PC Privacy Tip: Using "Print Form" is safer than downloading because no permanent PDF file is left behind in the shared computer\'s Downloads folder.'}
-            </span>
+                ? 'Payo sa Pisonet / Computer Shop: Piliin ang "I-print ang Form" upang walang maiwang PDF sa Downloads folder ng publikong computer.'
+                : 'Public PC Privacy Tip: Choose "Print Form" to avoid leaving a PDF in the shared computer’s Downloads folder.'}
+            </p>
           </div>
         </div>
-      </div>
+      </CivicViewHeader>
 
       {/* Success Notification */}
       {successToast && (
@@ -481,48 +469,48 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             onClick={() => setSelectedForm('complete_packet')}
             className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
               selectedForm === 'complete_packet'
-                ? 'bg-blue-600 text-white shadow-xs'
+                ? 'bg-blue-900 text-white shadow-xs'
                 : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            <Files className="w-4 h-4" />
-            <span className="truncate">{language === 'taglish' ? 'Kumpletong Packet (3-in-1)' : 'Complete Packet'}</span>
+            <Files className="w-4 h-4 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">{language === 'taglish' ? 'Kumpletong Packet (3-in-1)' : 'Complete Packet'}</span>
           </button>
 
           <button
             onClick={() => setSelectedForm('malasakit')}
             className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
               selectedForm === 'malasakit'
-                ? 'bg-blue-600 text-white shadow-xs'
+                ? 'bg-blue-900 text-white shadow-xs'
                 : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span className="truncate">Malasakit Unified Form</span>
+            <FileText className="w-4 h-4 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">Malasakit Unified Form</span>
           </button>
 
           <button
             onClick={() => setSelectedForm('dswd')}
             className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
               selectedForm === 'dswd'
-                ? 'bg-blue-600 text-white shadow-xs'
+                ? 'bg-blue-900 text-white shadow-xs'
                 : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            <Building className="w-4 h-4" />
-            <span className="truncate">DSWD AICS Intake Sheet</span>
+            <Building className="w-4 h-4 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">DSWD AICS Intake Sheet</span>
           </button>
 
           <button
             onClick={() => setSelectedForm('checklist')}
             className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
               selectedForm === 'checklist'
-                ? 'bg-blue-600 text-white shadow-xs'
+                ? 'bg-blue-900 text-white shadow-xs'
                 : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            <FileCheck className="w-4 h-4" />
-            <span className="truncate">{language === 'taglish' ? 'Checklist Cover Sheet' : 'Filing Checklist'}</span>
+            <FileCheck className="w-4 h-4 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">{language === 'taglish' ? 'Checklist Cover Sheet' : 'Filing Checklist'}</span>
           </button>
         </div>
       </div>
@@ -681,6 +669,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                           </>
                         )}
                         <input
+                          autoComplete="off"
                           id={`print-upload-${req.type}`}
                           name={`upload-${req.type}`}
                           type="file"
@@ -707,6 +696,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           {selectedForm === 'complete_packet' && (
             <label htmlFor="merge-vault-attachments" className="inline-flex items-center min-h-[44px] py-1 gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
               <input
+                autoComplete="off"
                 id="merge-vault-attachments"
                 name="includeVaultAttachments"
                 type="checkbox"
@@ -860,7 +850,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
       </div>
 
       {/* LIVE PAPER PREVIEW CONTAINER */}
-      <div className="bg-[#F6F4EE] p-3 sm:p-6 rounded-2xl border border-[#E2DFD6] shadow-inner flex flex-col items-center">
+      <div className={`${civicPaperMat} flex flex-col items-center`}>
         <div className="w-full max-w-3xl flex items-center justify-between mb-3 text-xs font-bold text-slate-600 px-1">
           <div className="flex items-center gap-1.5">
             <FileText className="w-4 h-4 text-blue-600" />
@@ -880,7 +870,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
         </div>
 
         {/* Paper Sheet Preview */}
-        <div className="w-full max-w-3xl bg-white text-slate-900 shadow-2xl rounded-2xl border border-[#E2DFD6] p-4 sm:p-8 font-sans transition-all overflow-x-auto text-xs">
+        <div className={`${civicPaper} w-full text-slate-900 font-sans transition-all overflow-x-auto text-xs`}>
           {/* Header */}
           <div className="text-center pb-3 border-b-2 border-slate-900 mb-4">
             <p className="text-xs font-semibold tracking-wider text-slate-700 uppercase">

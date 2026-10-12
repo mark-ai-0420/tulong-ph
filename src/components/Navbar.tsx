@@ -1,6 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+import { clearAllUserData } from '@/lib/storage';
 import Link from 'next/link';
 import { HeartHandshake, Languages, Compass, Building2, Printer, Trash2 } from 'lucide-react';
 import { Language, translations } from '@/lib/i18n';
@@ -12,6 +14,7 @@ interface NavbarProps {
   onToggleLanguage: () => void;
   readyDocCount: number;
   onOpenPrivacyModal?: () => void;
+  isManualWipePending?: () => boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,12 +24,68 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleLanguage,
   readyDocCount,
   onOpenPrivacyModal,
+  isManualWipePending,
 }) => {
   const t = translations[language];
+  const pathname = usePathname();
+  const manualWipeReader = useRef(isManualWipePending);
+  useEffect(() => { manualWipeReader.current = isManualWipePending; }, [isManualWipePending]);
+  useEffect(() => {
+    const reload = () => {
+      if (manualWipeReader.current?.()) {
+        window.history.replaceState(null, '', pathname + '#privacy-cleared');
+        window.location.reload();
+      } else window.location.replace(pathname);
+    };
+    const recoverHistory = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
+    let timer: ReturnType<typeof setTimeout>;
+    const idleLimit = 15 * 60 * 1000;
+    const activityKey = 'tulongph-last-activity';
+    const channel = 'BroadcastChannel' in window ? new BroadcastChannel('tulongph-activity') : null;
+    let lastActivity = Date.now();
+    const receiveActivity = (value: unknown) => {
+      if (typeof value === 'number' && Number.isFinite(value) && value <= Date.now()) {
+        lastActivity = Math.max(lastActivity, value);
+      }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      try { receiveActivity(Number(localStorage.getItem(activityKey))); } catch { /* BroadcastChannel still shares activity. */ }
+      timer = setTimeout(() => {
+        try { receiveActivity(Number(localStorage.getItem(activityKey))); } catch { /* Use the most recent broadcast. */ }
+        if (Date.now() - lastActivity < idleLimit) { schedule(); return; }
+        void clearAllUserData().catch(() => window.alert('Hindi nabura ang lahat ng datos. Burahin ang site data sa browser bago umalis.'));
+      }, Math.max(1, idleLimit - (Date.now() - lastActivity)));
+    };
+    const reset = () => {
+      lastActivity = Date.now();
+      try { localStorage.setItem(activityKey, String(lastActivity)); } catch { /* No applicant data is broadcast. */ }
+      channel?.postMessage(lastActivity);
+      schedule();
+    };
+    const sharedActivity = (event: StorageEvent) => {
+      if (event.key === activityKey) { receiveActivity(Number(event.newValue)); schedule(); }
+    };
+    if (channel) channel.onmessage = event => { receiveActivity(event.data); schedule(); };
+    const events = ['pointerdown', 'keydown', 'input', 'scroll'];
+    events.forEach(event => window.addEventListener(event, reset, { passive: true }));
+    window.addEventListener('tulongph-data-cleared', reload);
+    window.addEventListener('pageshow', recoverHistory);
+    window.addEventListener('storage', sharedActivity);
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach(event => window.removeEventListener(event, reset));
+      window.removeEventListener('tulongph-data-cleared', reload);
+      window.removeEventListener('pageshow', recoverHistory);
+      window.removeEventListener('storage', sharedActivity);
+      channel?.close();
+    };
+  }, [pathname]);
 
   // Consolidated to 3 core workflows
   const navItems = [
-    { id: 'triage', label: t.navTriage, icon: Compass },
+    { id: 'triage', label: pathname === '/' ? t.navTriage : language === 'taglish' ? 'Gabay at Kompyutasyon' : 'Guide and Calculator', icon: Compass },
     {
       id: 'print_forms',
       label: t.navPrintForms,
@@ -37,8 +96,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E2DFD6] shadow-xs">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E2DFD6] shadow-xs print:hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav aria-label="Mga haligi ng tulong" className="grid grid-cols-3 gap-1 py-2 border-b border-[#E2DFD6]">
+          {[
+            { href: '/', label: 'Kalusugan at Ospital' },
+            { href: '/edukasyon', label: 'Edukasyon at Scholarship' },
+            { href: '/manggagawa', label: 'Manggagawa at Benepisyo' },
+          ].map(pillar => (
+            <Link key={pillar.href} href={pillar.href} aria-current={pathname === pillar.href ? 'page' : undefined}
+              className={`min-h-[44px] min-w-0 flex items-center justify-center rounded-lg px-2 py-2 text-center text-xs sm:text-sm font-bold focus-ring ${pathname === pillar.href ? 'bg-blue-900 text-white' : 'text-slate-700 hover:bg-stone-100'}`}>
+              {pillar.label}
+            </Link>
+          ))}
+        </nav>
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo & Authoritative Civic Emblem */}
           <div className="flex items-center gap-3">
@@ -105,7 +176,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>{item.label}</span>
                   {item.badge !== undefined && (
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      className={`px-2 py-0.5 rounded-full text-xs font-bold tabular-nums ${
                         isActive ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900'
                       }`}
                     >
@@ -136,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }
             >
               <Trash2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 transition-colors shrink-0" />
-              <span className="hidden sm:inline">Shop Mode</span>
+              <span className="hidden sm:inline">Burahin ang Data</span>
             </button>
 
             {/* Bilingual Toggle */}
@@ -180,7 +251,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="hidden sm:inline truncate">{item.label}</span>
                   {item.badge !== undefined && (
                     <span
-                      className={`px-1.5 py-0.5 rounded-full text-xs font-bold leading-none shrink-0 ${
+                      className={`px-1.5 py-0.5 rounded-full text-xs font-bold tabular-nums leading-none shrink-0 ${
                         isActive ? 'bg-blue-900 text-white' : 'bg-blue-50 text-blue-900'
                       }`}
                     >
