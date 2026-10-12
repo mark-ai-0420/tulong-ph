@@ -6,6 +6,10 @@
   --surface: #FFFFFF;
   --surface-muted: #F3F2EC;
   --border-rule: #E2DFD6;
+  --ease-out-natural: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-micro: 120ms;
+  --duration-step: 220ms;
+  --duration-overlay: 280ms;
 }
 
 @theme inline {
@@ -47,8 +51,126 @@ body {
 }
 
 @utility focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2;
 }
 
+::selection {
+  background-color: #dbeafe;
+  color: #172554;
+}
 
+input, textarea {
+  caret-color: #1e3a8a;
+}
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-rule) var(--surface-muted);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-rule);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.tabular-nums, input[type="number"] {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.accordion-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-step) var(--ease-out-natural);
+}
+
+.accordion-grid[data-expanded="true"] {
+  grid-template-rows: 1fr;
+}
+
+.accordion-grid > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.step-enter-forward {
+  animation: step-forward var(--duration-step) var(--ease-out-natural) both;
+}
+
+.step-enter-backward {
+  animation: step-backward var(--duration-step) var(--ease-out-natural) both;
+}
+
+.relief-pillar {
+  animation: relief-reveal 200ms var(--ease-out-natural) both;
+}
+
+@keyframes step-forward {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes step-backward {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes relief-reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility press-feedback {
+  @apply active:scale-[0.98];
+  transition-property: color, background-color, border-color, box-shadow, scale;
+  transition-duration: var(--duration-micro);
+  transition-timing-function: var(--ease-out-natural);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Remove entry/press motion while preserving positioned dialogs and state icons. */
+  .step-enter-forward, .step-enter-backward, .relief-pillar, .press-feedback {
+    animation: none !important;
+    transform: none !important;
+    scale: none !important;
+  }
+}
+
+/* Screen paper framing is absent from native, low-ink print. */
+@media print {
+  .worker-page > main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .civic-paper-mat, .civic-paper {
+    background: white !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+}

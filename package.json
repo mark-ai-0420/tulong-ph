@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs && node scripts/test-e2e-autocompute.mjs",
-    "test:unit": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs",
+    "test": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs scripts/test-education-engine.mjs scripts/test-worker-calculator.mjs && node scripts/test-e2e-autocompute.mjs",
+    "test:unit": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs scripts/test-education-engine.mjs scripts/test-worker-calculator.mjs",
     "test:e2e": "node scripts/test-e2e-autocompute.mjs"
   },
   "dependencies": {

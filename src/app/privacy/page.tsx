@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -29,7 +28,6 @@ import { Language } from '@/lib/i18n';
 import { clearAllUserData, loadDocuments } from '@/lib/storage';
 
 export default function PrivacyPage() {
-  const router = useRouter();
   const [language, setLanguage] = useState<Language>('taglish');
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [wipeStatus, setWipeStatus] = useState<string | null>(null);
@@ -92,7 +90,7 @@ export default function PrivacyPage() {
       );
 
       setTimeout(() => {
-        router.push('/');
+        window.location.replace('/');
       }, 1200);
     } catch (err) {
       console.error('Failed to wipe data:', err);
@@ -173,8 +171,8 @@ export default function PrivacyPage() {
 
           <p className="text-sm sm:text-base text-slate-700 leading-relaxed max-w-3xl font-medium">
             {isTaglish
-              ? 'Ang TulongPH ay binuo nang may "Zero-Data-Collection Philosophy" upang protektahan ang mga mahihinang pamilyang Pilipino sa oras ng krisis pangkalusugan. Lahat ng inyong mga dokumento, abstract, at profile ay nananatili lamang sa inyong sariling telepono o computer — walang server, walang tracker, at walang tagong database.'
-              : 'TulongPH is engineered with a strict "Zero-Data-Collection Philosophy" to safeguard vulnerable Filipino families facing severe medical crises. All uploaded files, clinical abstracts, and personal identity records remain strictly within your local browser sandbox — zero servers, zero trackers, and zero centralized databases.'}
+              ? 'Ang TulongPH ay binuo nang may "Zero-Data-Collection Philosophy" upang protektahan ang mga mahihinang pamilyang Pilipino sa oras ng krisis sa kalusugan, edukasyon at trabaho. Lahat ng inyong mga dokumento, abstract, student profile, worker simulation at profile ay nananatili lamang sa inyong sariling telepono o computer: walang server, walang tracker, at walang tagong database.'
+              : 'TulongPH is engineered with a strict "Zero-Data-Collection Philosophy" to safeguard vulnerable Filipino families facing health, education and employment crises. All uploaded files, clinical abstracts, student profiles, worker simulations and personal identity records remain strictly within your local browser sandbox: zero servers, zero trackers, and zero centralized databases.'}
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-600">
@@ -821,8 +819,8 @@ export default function PrivacyPage() {
               </li>
               <li>
                 {isTaglish
-                  ? 'Mapapansin ninyo na 0 network requests ang lalabas habang nag-eencode at nagco-compress — patunay na walang lumalabas na datos sa inyong device.'
-                  : 'Observe that 0 outbound network requests are fired during input or compression — absolute verification that no data leaves your machine.'}
+                  ? 'Mapapansin ninyo na 0 network requests ang lalabas habang nag-eencode at nagco-compress (patunay na walang lumalabas na datos sa inyong device).'
+                  : 'Observe that 0 outbound network requests are fired during input or compression (absolute verification that no data leaves your machine).'}
               </li>
             </ol>
           </div>
