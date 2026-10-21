@@ -5,7 +5,7 @@ import type { StudentEducationProfile } from '@/types/education';
 import type { BackupBundle } from './encryptedBackup';
 import type { TreatmentSessionTracker } from './treatmentTracker';
 import type { OFWCaseRecord } from './ofwTracker';
-import { isGWATrackerRecord, type GWATrackerRecord } from './gwaTracker';
+import { isGWATrackerRecord, type GWATrackerRecord } from './gwaTracker.ts';
 import type { WorkerProfileInput } from '@/types/worker';
 import { getCity, getProvince, resolveLocationMetadata } from './data/phLocations.ts';
 
@@ -316,7 +316,13 @@ export async function recoverAbandonedRestore(): Promise<boolean> {
     } catch { /* Legacy journals can still be recovered without a valid lease. */ }
   }
   const journalKey = sessionId ? `${RESTORE_JOURNAL_KEY}_${sessionId}` : RESTORE_JOURNAL_KEY;
-  const readJournal = async () => (await get<RestoreJournal>(journalKey)) ?? (await get<RestoreJournal>(RESTORE_JOURNAL_KEY));
+  const readJournal = async () => {
+    try {
+      return (await get<RestoreJournal>(journalKey)) ?? (await get<RestoreJournal>(RESTORE_JOURNAL_KEY));
+    } catch {
+      return null;
+    }
+  };
   const journal = await readJournal();
   if (!journal) return false;
   const token = beginBackupRestore();

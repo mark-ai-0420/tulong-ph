@@ -8,7 +8,7 @@ import { convertAndCompressImageToPdf, formatBytes, getStandardizedDocFileName }
 import { getDocumentSlotsForPillar, getProgramReadiness, type DocumentVaultPillar } from '@/lib/documentVault';
 import { createEncryptedBackup, restoreEncryptedBackup } from '@/lib/encryptedBackup';
 import type { RestoreErrorCode } from '@/lib/encryptedBackup';
-import { getWipeGeneration } from '@/lib/storage';
+import { getWipeGeneration, isWipingInProgress } from '@/lib/storage';
 import { translations, type Language } from '@/lib/i18n';
 
 export { DOCUMENT_SLOTS } from '@/lib/documentVault';
@@ -241,9 +241,19 @@ export function DocumentVault({
       return;
     }
 
+    const wipeGenBefore = getWipeGeneration();
+    if (isWipingInProgress()) {
+      setBackupFeedback({ error: true, message: backup.failed });
+      return;
+    }
+
     setBackupBusy(true);
     try {
       const blob = await createEncryptedBackup(backupPassword);
+      if (isWipingInProgress() || getWipeGeneration() !== wipeGenBefore) {
+        setBackupFeedback({ error: true, message: backup.failed });
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;

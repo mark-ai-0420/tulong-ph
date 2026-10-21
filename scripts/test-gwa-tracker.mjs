@@ -307,7 +307,7 @@ async function loadStorage({ failDefaultClear = false } = {}) {
     require: id => {
       if (id === 'idb-keyval') return idb;
       if (id === './data/phLocations.ts') return {};
-      if (id === './gwaTracker') return { isGWATrackerRecord };
+      if (id === './gwaTracker' || id === './gwaTracker.ts') return { isGWATrackerRecord };
       throw new Error(`Unexpected storage import: ${id}`);
     },
     window, localStorage: {

@@ -111,7 +111,7 @@ async function loadStorage({ failDefaultClear = false } = {}) {
     require: id => {
       if (id === 'idb-keyval') return idb;
       if (id === './data/phLocations.ts') return {};
-      if (id === './gwaTracker') return { isGWATrackerRecord: () => false };
+      if (id === './gwaTracker' || id === './gwaTracker.ts') return { isGWATrackerRecord: () => false };
       throw new Error(`Unexpected import in test: ${id}`);
     },
     window,

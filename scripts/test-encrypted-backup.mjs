@@ -5,7 +5,8 @@ import { webcrypto } from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 
-const header = Buffer.from('TULONGPH_BACKUP_V1', 'ascii');
+const headerV1 = Buffer.from('TULONGPH_BACKUP_V1', 'ascii');
+const header = Buffer.from('TULONGPH_BACKUP_V2', 'ascii');
 const patient = {
   firstName: 'Maria', middleName: '', lastName: 'Santos', dateOfBirth: '1980-01-01', gender: 'female',
   civilStatus: 'married', contactNumber: '', email: '',
@@ -111,6 +112,9 @@ let patientSaveFailures = 0;
 let applicationSaveFailures = 0;
 let activeToken = null;
 const clone = value => structuredClone(value);
+let wipeGen = 0;
+let wipingInProgress = false;
+
 const storage = {
   loadPatientProfile: async () => clone(stored.patient),
   loadRepresentativeProfile: async () => clone(stored.representative),
@@ -195,8 +199,8 @@ const storage = {
   saveRestoreJournal: async token => { assert.equal(token, activeToken); },
   clearRestoreJournal: async token => { assert.equal(token, activeToken); },
   recoverAbandonedRestore: async () => false,
-  getWipeGeneration: () => 0,
-  isWipingInProgress: () => false,
+  getWipeGeneration: () => wipeGen,
+  isWipingInProgress: () => wipingInProgress,
   beginBackupRestore: () => {
     if (activeToken !== null) return null;
     restorationEvents.push('restore-started');
@@ -216,7 +220,7 @@ async function encryptPayload(payload, password) {
   const iv = webcrypto.getRandomValues(new Uint8Array(12));
   const passwordKey = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
   const key = await webcrypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, passwordKey,
+    { name: 'PBKDF2', salt, iterations: 600_000, hash: 'SHA-256' }, passwordKey,
     { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
   );
   const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt(
@@ -302,6 +306,47 @@ test('encrypted backup roundtrip uses the TulongPH binary header and restores re
   assert.deepEqual(stored.ofwCaseTracker, originalOFWCaseTracker);
   assert.deepEqual(refreshEvents, ['tulongph-data-restored']);
   assert.deepEqual(restorationEvents, ['restore-started', 'restore-complete']);
+});
+
+test('legacy V1 backup with 100,000 PBKDF2 iterations restores successfully', async () => {
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const passwordKey = await webcrypto.subtle.importKey('raw', new TextEncoder().encode('v1-password'), 'PBKDF2', false, ['deriveKey']);
+  const key = await webcrypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' }, passwordKey,
+    { name: 'AES-GCM', length: 256 }, false, ['encrypt'],
+  );
+  const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(validBackupPayload())),
+  ));
+  const output = new Uint8Array(headerV1.length + salt.length + iv.length + ciphertext.length);
+  output.set(headerV1, 0);
+  output.set(salt, headerV1.length);
+  output.set(iv, headerV1.length + salt.length);
+  output.set(ciphertext, headerV1.length + salt.length + iv.length);
+  const v1Blob = new Blob([output], { type: 'application/octet-stream' });
+  const result = await restoreEncryptedBackup(v1Blob, 'v1-password');
+  assert.equal(result.success, true);
+});
+
+test('backup creation aborts if privacy wipe is in progress or intervenes', async () => {
+  wipingInProgress = true;
+  await assert.rejects(
+    async () => createEncryptedBackup('test-pw'),
+    /Backup aborted: data wipe in progress/
+  );
+  wipingInProgress = false;
+
+  const origRead = storage.loadPatientProfile;
+  storage.loadPatientProfile = async () => {
+    wipeGen++;
+    return origRead();
+  };
+  await assert.rejects(
+    async () => createEncryptedBackup('test-pw'),
+    /Backup aborted: data wipe occurred during backup creation/
+  );
+  storage.loadPatientProfile = origRead;
 });
 
 test('wrong password rejects without changing stored records', async () => {
@@ -477,7 +522,7 @@ async function loadStorage({ beforeSet = async () => {}, beforeClear = async () 
     require: id => {
       if (id === 'idb-keyval') return idb;
       if (id === './data/phLocations.ts') return {};
-      if (id === './gwaTracker') return { isGWATrackerRecord: () => false };
+      if (id === './gwaTracker' || id === './gwaTracker.ts') return { isGWATrackerRecord: () => false };
       throw new Error(`Unexpected import: ${id}`);
     },
     window: {

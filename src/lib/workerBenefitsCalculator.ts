@@ -92,7 +92,7 @@ export function calculateSSSDisabilityPension(input: WorkerProfileInput): NonNul
   const supplementalAllowance = eligible && !lumpSum ? 500 : 0;
   const monthlyTotal = money(monthlyBase + additionalBenefit + supplementalAllowance);
   const contributionMonthsForLumpSum = Math.max(12, comparison.months);
-  const ppdFraction = Math.min(1, duration / 50);
+  const ppdFraction = Math.min(1, Math.ceil((duration / 75) * 100) / 100);
   const lumpSumEstimate = !eligible ? 0
     : isPpd && contributionLumpSum ? money(selected.amount * contributionMonthsForLumpSum * ppdFraction)
       : isPpd && ppdLumpSum ? money(selected.amount * duration)

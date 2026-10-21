@@ -55,10 +55,12 @@ export type RestoreEncryptedBackupResult =
   | { success: true; itemCount: number }
   | { success: false; code: RestoreErrorCode };
 
-const MAGIC_HEADER = new TextEncoder().encode('TULONGPH_BACKUP_V1');
+const MAGIC_HEADER_V1 = new TextEncoder().encode('TULONGPH_BACKUP_V1');
+const MAGIC_HEADER_V2 = new TextEncoder().encode('TULONGPH_BACKUP_V2');
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
-const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_ITERATIONS_V1 = 100_000;
 
 export interface BackupBundle {
   schemaVersion: 1;
@@ -344,11 +346,11 @@ function getCrypto(): Crypto {
   return globalThis.crypto;
 }
 
-async function deriveKey(password: string, salt: BufferSource): Promise<CryptoKey> {
+async function deriveKey(password: string, salt: BufferSource, iterations = PBKDF2_ITERATIONS): Promise<CryptoKey> {
   const cryptoApi = getCrypto();
   const passwordKey = await cryptoApi.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
   return cryptoApi.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     passwordKey,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -410,20 +412,28 @@ function itemCount(bundle: BackupBundle): number {
 }
 
 export async function createEncryptedBackup(password: string): Promise<Blob> {
+  const initialWipeGen = getWipeGeneration();
+  if (isWipingInProgress()) throw new Error('Backup aborted: data wipe in progress.');
   if (!password) throw new Error('Enter a password for this backup.');
   if (typeof window === 'undefined') throw new Error('Backups can only be created in a browser.');
   const cryptoApi = getCrypto();
   const bundle = await readBundle();
+  if (isWipingInProgress() || getWipeGeneration() !== initialWipeGen) {
+    throw new Error('Backup aborted: data wipe occurred during backup creation.');
+  }
   const salt = cryptoApi.getRandomValues(new Uint8Array(SALT_LENGTH));
   const iv = cryptoApi.getRandomValues(new Uint8Array(IV_LENGTH));
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
   const plaintext = new TextEncoder().encode(JSON.stringify(bundle));
   const ciphertext = new Uint8Array(await cryptoApi.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext));
-  const output = new Uint8Array(MAGIC_HEADER.length + SALT_LENGTH + IV_LENGTH + ciphertext.length);
-  output.set(MAGIC_HEADER, 0);
-  output.set(salt, MAGIC_HEADER.length);
-  output.set(iv, MAGIC_HEADER.length + SALT_LENGTH);
-  output.set(ciphertext, MAGIC_HEADER.length + SALT_LENGTH + IV_LENGTH);
+  if (isWipingInProgress() || getWipeGeneration() !== initialWipeGen) {
+    throw new Error('Backup aborted: data wipe occurred during backup creation.');
+  }
+  const output = new Uint8Array(MAGIC_HEADER_V2.length + SALT_LENGTH + IV_LENGTH + ciphertext.length);
+  output.set(MAGIC_HEADER_V2, 0);
+  output.set(salt, MAGIC_HEADER_V2.length);
+  output.set(iv, MAGIC_HEADER_V2.length + SALT_LENGTH);
+  output.set(ciphertext, MAGIC_HEADER_V2.length + SALT_LENGTH + IV_LENGTH);
   return new Blob([output], { type: 'application/octet-stream' });
 }
 
@@ -436,17 +446,25 @@ export async function restoreEncryptedBackup(
   if (!password) throw new Error('Enter the backup password.');
   if (typeof window === 'undefined') throw new Error('Backups can only be restored in a browser.');
   const bytes = new Uint8Array(fileData instanceof Blob ? await fileData.arrayBuffer() : fileData);
-  const minimumLength = MAGIC_HEADER.length + SALT_LENGTH + IV_LENGTH + 16;
-  if (bytes.length < minimumLength || MAGIC_HEADER.some((byte, index) => bytes[index] !== byte)) {
+  const headerLength = MAGIC_HEADER_V2.length;
+  const minimumLength = headerLength + SALT_LENGTH + IV_LENGTH + 16;
+  if (bytes.length < minimumLength) {
     return { success: false, code: 'INVALID_FORMAT' };
   }
 
-  const saltStart = MAGIC_HEADER.length;
+  const isV2 = MAGIC_HEADER_V2.every((byte, index) => bytes[index] === byte);
+  const isV1 = MAGIC_HEADER_V1.every((byte, index) => bytes[index] === byte);
+  if (!isV2 && !isV1) {
+    return { success: false, code: 'INVALID_FORMAT' };
+  }
+  const iterations = isV2 ? PBKDF2_ITERATIONS : PBKDF2_ITERATIONS_V1;
+
+  const saltStart = headerLength;
   const ivStart = saltStart + SALT_LENGTH;
   const ciphertextStart = ivStart + IV_LENGTH;
   const salt = bytes.slice(saltStart, ivStart);
   const iv = bytes.slice(ivStart, ciphertextStart);
-  const key = await deriveKey(password, salt);
+  const key = await deriveKey(password, salt, iterations);
   let plaintext: ArrayBuffer;
   try {
     plaintext = await getCrypto().subtle.decrypt({ name: 'AES-GCM', iv }, key, bytes.slice(ciphertextStart));

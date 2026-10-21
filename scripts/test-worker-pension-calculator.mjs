@@ -113,14 +113,26 @@ test('SSS PPD below 36 contributions prorates the base pension by disability fra
   const ptd = calculateSSSDisabilityPension(worker({ pensionType: 'disability_ptd', contributionMonths: 24 }));
   assert.equal(ptd.lumpSumEstimate, 96_000);
 
-  const ppd = calculateSSSDisabilityPension(worker({
+  const ppd10 = calculateSSSDisabilityPension(worker({
     pensionType: 'disability_ppd', contributionMonths: 24, disabilityDurationMonths: 10,
   }));
-  assert.equal(ppd.formulaUsed, 'lump_sum');
-  assert.equal(ppd.lumpSumEstimate, 19_200);
-  assert.equal(ppd.additionalBenefit, 0);
-  assert.equal(ppd.supplementalAllowance, 0);
-  assert.equal(ppd.totalMonthlyPension, 0);
+  assert.equal(ppd10.formulaUsed, 'lump_sum');
+  assert.equal(ppd10.lumpSumEstimate, 13_440);
+  assert.equal(ppd10.additionalBenefit, 0);
+  assert.equal(ppd10.supplementalAllowance, 0);
+  assert.equal(ppd10.totalMonthlyPension, 0);
+
+  // Short duration boundary (1 month -> ceil(1/75 * 100)% = 2%)
+  const ppd1 = calculateSSSDisabilityPension(worker({
+    pensionType: 'disability_ppd', contributionMonths: 24, disabilityDurationMonths: 1,
+  }));
+  assert.equal(ppd1.lumpSumEstimate, 1_920);
+
+  // Full schedule boundary (75 months -> 100%)
+  const ppd75 = calculateSSSDisabilityPension(worker({
+    pensionType: 'disability_ppd', contributionMonths: 24, disabilityDurationMonths: 75,
+  }));
+  assert.equal(ppd75.lumpSumEstimate, 96_000);
 });
 
 test('GSIS BMP returns both RA 8291 payment choices and respects minimum and cap', () => {
