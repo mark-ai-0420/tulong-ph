@@ -2,7 +2,7 @@ import type { LoanEstimate, LoanInstallment, WorkerCalculationResult, WorkerProf
 import { workerPrograms } from './data/workerPrograms.ts';
 
 export const defaultWorkerProfile: WorkerProfileInput = {
-  sector: 'private', scenario: 'loans', monthlySalary: 0,
+  sector: 'private', scenario: 'loans', monthlySalary: 0, payrollSchedule: 'six_day_week',
   averageMonthlySalaryCredit: 0, highestSixMonthlySalaryCredit: 0,
   funeralAverageMonthlySalaryCredit: 0, unemploymentAverageMonthlySalaryCredit: 0, contributionMonths: 0,
   recentContributionMonths: 0, qualifyingBenefitContributions: 0,
@@ -16,8 +16,13 @@ export const defaultWorkerProfile: WorkerProfileInput = {
   involuntarilySeparated: false, unemploymentClaimWithinThreeYears: false,
   gsisPermanent: true, gsisNetTakeHomePay: 0, gsisOutstandingLoan: 0,
   gsisLoanTermYears: 3, gsisAdvanceInsuranceMonths: 1, gsisEmergencyRenewal: false, gsisEmergencyOutstanding: 0,
-  contingencyDate: '2026-10-12', regionalDailyWage: 0, tupadDays: 10,
+  contingencyDate: '2026-10-12', regionalDailyWage: 0, regionalDailyWageManual: false, tupadDays: 10,
   owwaMembership: 'none', returnedWithinThreeYears: false,
+  unpaidDays: 0, monthsWorkedInCurrentYear: 0, unusedServiceIncentiveLeaveDays: 0,
+  separationCause: 'none', yearsOfService: 0, unpaidOvertimeHours: 0, unpaidHolidayDays: 0,
+  pensionType: 'retirement', disabilityDurationMonths: 0,
+  mp2ContributionMode: 'monthly', mp2MonthlyContribution: 500, mp2OneTimeDeposit: 0,
+  mp2DividendRatePercent: 7, mp2PayoutType: 'compounded',
 };
 
 const amount = (v: number) => Number.isFinite(v) ? Math.min(1_000_000_000, Math.max(0, v)) : 0;
@@ -26,6 +31,213 @@ const money = (v: number) => {
   return Number.isFinite(v) && Number.isFinite(cents) ? cents / 100 : 0;
 };
 const count = (v: number) => Math.min(1_200, Math.floor(amount(v)));
+
+function sssFormulaComparison(input: WorkerProfileInput, disability = false) {
+  const months = count(input.contributionMonths);
+  const cys = Math.floor(months / 12);
+  const amsc = Math.min(20_000, amount(input.averageMonthlySalaryCredit || input.monthlySalary));
+  const formula1 = money(300 + .2 * amsc + .02 * amsc * Math.max(0, cys - 10));
+  const formula2 = money(.4 * amsc);
+  const guaranteedMin = disability
+    ? cys >= 20 ? 2400 : cys >= 10 ? 1200 : 1000
+    : cys >= 20 ? 2400 : cys >= 10 ? 1200 : 0;
+  return { months, cys, amsc, formula1, formula2, guaranteedMin };
+}
+
+function highestSSSFormula(comparison: ReturnType<typeof sssFormulaComparison>) {
+  if (comparison.guaranteedMin >= comparison.formula1 && comparison.guaranteedMin >= comparison.formula2) {
+    return { amount: comparison.guaranteedMin, formulaUsed: 'guaranteed_min' as const };
+  }
+  if (comparison.formula2 > comparison.formula1) return { amount: comparison.formula2, formulaUsed: 'formula2' as const };
+  return { amount: comparison.formula1, formulaUsed: 'formula1' as const };
+}
+
+export function calculateSSSRetirementPension(input: WorkerProfileInput): NonNullable<WorkerCalculationResult['pension']> {
+  const comparison = sssFormulaComparison(input);
+  const selected = highestSSSFormula(comparison);
+  const lumpSum = comparison.months < 120;
+  const eligible = comparison.months > 0;
+  const baseMonthlyPension = lumpSum ? 0 : selected.amount;
+  const additionalBenefit = baseMonthlyPension > 0 ? 1000 : 0;
+  const totalMonthlyPension = money(baseMonthlyPension + additionalBenefit);
+  return {
+    eligible,
+    formulaUsed: lumpSum ? 'lump_sum' : selected.formulaUsed,
+    baseMonthlyPension,
+    additionalBenefit,
+    supplementalAllowance: 0,
+    totalMonthlyPension,
+    thirteenthMonthPension: totalMonthlyPension,
+    lumpSumEstimate: lumpSum ? money(comparison.amsc * comparison.months * .15) : 0,
+    gsisFiveYearLumpSum: 0,
+    gsisCashPayment: 0,
+    explanation: lumpSum
+      ? 'Below 120 posted contributions: SSS pays a one-time benefit based on contributions paid plus interest. This illustration uses the entered AMSC, current 15% contribution rate, and month count; it excludes historical rates and interest. Check the My.SSS record for the amount.'
+      : 'Monthly pension uses the highest of the three RA 11199 formulas. SSS also lists a PHP 1,000 additional monthly benefit and a 13th month pension. Age, separation status, credited years, MSC history, and agency records affect entitlement.',
+    formulaComparison: { formula1: comparison.formula1, formula2: comparison.formula2, guaranteedMin: comparison.guaranteedMin },
+  };
+}
+
+export function calculateSSSDisabilityPension(input: WorkerProfileInput): NonNullable<WorkerCalculationResult['pension']> {
+  const isPpd = input.pensionType === 'disability_ppd';
+  const comparison = sssFormulaComparison(input, true);
+  const selected = highestSSSFormula(comparison);
+  const duration = Math.min(120, count(input.disabilityDurationMonths ?? 0));
+  const contributionLumpSum = comparison.months < 36;
+  const ppdLumpSum = isPpd && duration > 0 && duration < 12;
+  const lumpSum = contributionLumpSum || ppdLumpSum;
+  const eligible = comparison.months > 0 && (!isPpd || duration > 0);
+  const monthlyBase = eligible && !contributionLumpSum ? selected.amount : 0;
+  const additionalBenefit = eligible && !lumpSum ? 1000 : 0;
+  const supplementalAllowance = eligible && !lumpSum ? 500 : 0;
+  const monthlyTotal = money(monthlyBase + additionalBenefit + supplementalAllowance);
+  const contributionMonthsForLumpSum = Math.max(12, comparison.months);
+  const ppdFraction = Math.min(1, duration / 50);
+  const lumpSumEstimate = !eligible ? 0
+    : isPpd && contributionLumpSum ? money(selected.amount * contributionMonthsForLumpSum * ppdFraction)
+      : isPpd && ppdLumpSum ? money(selected.amount * duration)
+        : contributionLumpSum ? money(selected.amount * contributionMonthsForLumpSum) : 0;
+  const thirteenthMonthPension = !isPpd || duration >= 12 ? monthlyTotal : 0;
+  return {
+    eligible,
+    formulaUsed: lumpSum ? 'lump_sum' : selected.formulaUsed,
+    baseMonthlyPension: monthlyBase,
+    additionalBenefit,
+    supplementalAllowance,
+    totalMonthlyPension: lumpSum ? 0 : monthlyTotal,
+    thirteenthMonthPension: lumpSum ? 0 : thirteenthMonthPension,
+    lumpSumEstimate,
+    gsisFiveYearLumpSum: 0,
+    gsisCashPayment: 0,
+    explanation: isPpd
+      ? `Permanent partial disability uses the entered ${duration}-month schedule estimate. SSS determines the body-part schedule, disability rating, duration, and whether payment is monthly or lump sum. The PHP 1,000 additional benefit and PHP 500 supplemental allowance apply to disability pensioners; the 13th month applies when the approved duration is at least 12 months.`
+      : 'Permanent total disability uses the SSS disability formula and requires at least 36 contributions for a monthly pension. A lump-sum estimate below that threshold uses the higher of 12 months or the entered contribution months. SSS confirms the medical assessment and final amount.',
+    formulaComparison: { formula1: comparison.formula1, formula2: comparison.formula2, guaranteedMin: comparison.guaranteedMin },
+  };
+}
+
+export function calculateGSISRetirementPension(input: WorkerProfileInput): NonNullable<WorkerCalculationResult['pension']> {
+  const months = count(input.contributionMonths);
+  const years = Math.floor(months / 12);
+  const amc = amount(input.monthlySalary || input.averageMonthlySalaryCredit);
+  const ramc = amc > 0 ? amc + 700 : 0;
+  const rawBmp = years <= 15 ? .375 * ramc : (.375 + .025 * (years - 15)) * ramc;
+  const minimum = years >= 20 ? 2400 : 1300;
+  const bmp = amc > 0 ? money(Math.min(amc * .9, Math.max(minimum, rawBmp))) : 0;
+  const eligible = years >= 15 && input.age >= 60;
+  return {
+    eligible,
+    formulaUsed: 'gsis_bmp',
+    baseMonthlyPension: bmp,
+    additionalBenefit: 0,
+    supplementalAllowance: 0,
+    totalMonthlyPension: bmp,
+    thirteenthMonthPension: 0,
+    lumpSumEstimate: 0,
+    gsisFiveYearLumpSum: money(bmp * 60),
+    gsisCashPayment: money(bmp * 18),
+    explanation: `GSIS estimate uses RAMC = AMC + PHP 700, a 37.5% RAMC formula through 15 years, then 2.5% for each additional year; BMP is capped at 90% of AMC and uses a PHP ${minimum.toLocaleString('en-PH')} minimum for this service range. RA 8291 retirement generally requires at least 15 years of service and age 60.`,
+    formulaComparison: { formula1: 0, formula2: 0, guaranteedMin: minimum },
+  };
+}
+
+export function calculatePagIbigMP2Savings(input: WorkerProfileInput): NonNullable<WorkerCalculationResult['mp2']> {
+  const payoutType = input.mp2PayoutType === 'annual' ? 'annual' : 'compounded';
+  const contributionMode = input.mp2ContributionMode === 'lump_sum' ? 'lump_sum' : 'monthly';
+  const monthlyContribution = amount(input.mp2MonthlyContribution ?? 0) >= 500 ? amount(input.mp2MonthlyContribution ?? 0) : 0;
+  const oneTimeDeposit = amount(input.mp2OneTimeDeposit ?? 0) >= 500 ? amount(input.mp2OneTimeDeposit ?? 0) : 0;
+  const annualRate = Math.min(100, amount(input.mp2DividendRatePercent ?? 0)) / 100;
+  const yearlyBreakdown: NonNullable<WorkerCalculationResult['mp2']>['yearlyBreakdown'] = [];
+  let balance = 0;
+  let totalPrincipal = 0;
+  let totalDividends = 0;
+  let totalAnnualPayout = 0;
+  for (let year = 1; year <= 5; year++) {
+    const startingBalance = balance;
+    const contributions = contributionMode === 'monthly' ? monthlyContribution * 12 : year === 1 ? oneTimeDeposit : 0;
+    const newDepositEarnings = contributionMode === 'monthly'
+      ? monthlyContribution * annualRate * 6.5
+      : contributions * annualRate;
+    const dividendEarned = money(startingBalance * annualRate + newDepositEarnings);
+    const annualPayout = payoutType === 'annual' ? dividendEarned : 0;
+    balance = money(startingBalance + contributions + (payoutType === 'compounded' ? dividendEarned : 0));
+    totalPrincipal = money(totalPrincipal + contributions);
+    totalDividends = money(totalDividends + dividendEarned);
+    totalAnnualPayout = money(totalAnnualPayout + annualPayout);
+    yearlyBreakdown.push({ year, startingBalance: money(startingBalance), contributions: money(contributions), dividendEarned, endingBalance: balance, annualPayout });
+  }
+  return {
+    totalPrincipal,
+    totalDividends,
+    totalValueAtMaturity: money(balance + totalAnnualPayout),
+    payoutType,
+    yearlyBreakdown,
+  };
+}
+
+function calculatePensionSavings(input: WorkerProfileInput) {
+  const pension = input.sector === 'government'
+    ? calculateGSISRetirementPension(input)
+    : (input.pensionType ?? 'retirement') === 'retirement'
+      ? calculateSSSRetirementPension(input)
+      : calculateSSSDisabilityPension(input);
+  return { pension, mp2: calculatePagIbigMP2Savings(input) };
+}
+
+const payrollScheduleDivisors = {
+  six_day_week: { monthly: 26, annualFactor: 313 },
+  five_day_week: { monthly: 21.75, annualFactor: 261 },
+  monthly_paid: { monthly: 30.42, annualFactor: 365 },
+} as const;
+
+function wageClaims(input: WorkerProfileInput): WorkerCalculationResult['wageClaims'] {
+  const schedule = payrollScheduleDivisors[input.payrollSchedule] ?? payrollScheduleDivisors.six_day_week;
+  const salary = amount(input.monthlySalary);
+  const enteredDailyWage = amount(input.regionalDailyWage);
+  const dailyWageBasis = salary > 0 ? salary / schedule.monthly : enteredDailyWage;
+  const monthlySalaryBasis = salary > 0 ? salary : enteredDailyWage * schedule.monthly;
+  const dailyWage = money(dailyWageBasis);
+  const unpaidDays = amount(input.unpaidDays ?? 0);
+  const months = Math.min(12, amount(input.monthsWorkedInCurrentYear ?? 0));
+  const silDays = Math.min(5, amount(input.unusedServiceIncentiveLeaveDays ?? 0));
+  const unpaidOvertimeHours = amount(input.unpaidOvertimeHours ?? 0);
+  const unpaidHolidayDays = amount(input.unpaidHolidayDays ?? 0);
+  const unpaidBasicPay = money(amount(unpaidDays * dailyWageBasis));
+  const thirteenthMonthPay = money(amount(monthlySalaryBasis * months / 12));
+  const monetizedSIL = money(amount(silDays * dailyWageBasis));
+  const cause = input.separationCause === 'redundancy' || input.separationCause === 'retrenchment_closure' || input.separationCause === 'disease'
+    ? input.separationCause : 'none';
+  const effectiveYears = cause === 'none' ? 0 : Math.max(1, Math.round(amount(input.yearsOfService ?? 0)));
+  const separationRate = cause === 'redundancy' ? monthlySalaryBasis : monthlySalaryBasis * 0.5;
+  const separationPay = cause === 'none' ? 0 : money(amount(Math.max(monthlySalaryBasis, effectiveYears * separationRate)));
+  const overtimePay = money(amount(unpaidOvertimeHours * (dailyWageBasis / 8) * 1.25));
+  const holidayPay = money(amount(unpaidHolidayDays * dailyWageBasis));
+  const totalClaim = money(amount(unpaidBasicPay + thirteenthMonthPay + monetizedSIL + separationPay + overtimePay + holidayPay));
+  const formatPHP = (value: number) => `PHP ${value.toFixed(2)}`;
+  const formatCount = (value: number) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+  const separationBasis = cause === 'redundancy' ? 'Art. 298, Labor Code' : 'Art. 298/299, Labor Code';
+  const scheduleDescription = `${schedule.monthly} days/month; annual factor ${schedule.annualFactor}`;
+  const breakdownItems = [
+    { label: 'Unpaid basic salary', amount: unpaidBasicPay, basis: `Unpaid days x daily wage (${salary > 0 ? `monthly salary / ${schedule.monthly}` : `daily wage x ${schedule.monthly}`} days; ${scheduleDescription})` },
+    { label: 'Pro-rata 13th month pay', amount: thirteenthMonthPay, basis: `PD 851; estimated as monthly wage equivalent x months worked / 12 (${scheduleDescription})` },
+    { label: 'Monetized Service Incentive Leave (SIL)', amount: monetizedSIL, basis: 'Art. 95, Labor Code; up to 5 days, subject to coverage and service eligibility' },
+    { label: 'Statutory separation pay', amount: separationPay, basis: cause === 'none' ? 'No authorized cause selected' : `${separationBasis}; at least 1 month salary, with a fraction of 6 months or more counted as a year` },
+    { label: 'Unpaid overtime pay', amount: overtimePay, basis: 'Art. 87, Labor Code; regular-day overtime estimated at 125% of hourly rate' },
+    { label: 'Unpaid regular holiday pay', amount: holidayPay, basis: 'Art. 94, Labor Code; unpaid regular holiday pay estimated at 100% of daily wage' },
+  ];
+  const summary = [
+    `Unpaid Basic Salary (${formatCount(unpaidDays)} days @ ${formatPHP(dailyWage)}/day): ${formatPHP(unpaidBasicPay)}`,
+    `Pro-Rata 13th Month Pay (${formatCount(months)} months / 12 - PD 851): ${formatPHP(thirteenthMonthPay)}`,
+    `Unused Service Incentive Leave (${formatCount(silDays)} days - Art. 95): ${formatPHP(monetizedSIL)}`,
+  ];
+  if (cause !== 'none') summary.push(`Statutory Separation Pay (${formatCount(effectiveYears)} years - ${separationBasis}): ${formatPHP(separationPay)}`);
+  if (unpaidOvertimeHours > 0 || unpaidHolidayDays > 0) {
+    summary.push(`Unpaid OT / Holiday Pay: ${formatPHP(overtimePay + holidayPay)} (OT ${formatCount(unpaidOvertimeHours)} hours: ${formatPHP(overtimePay)}; Holiday ${formatCount(unpaidHolidayDays)} days: ${formatPHP(holidayPay)})`);
+  }
+  summary.push(`TOTAL ESTIMATED SENA CLAIM: ${formatPHP(totalClaim)}`);
+  return { dailyWage, unpaidBasicPay, thirteenthMonthPay, monetizedSIL, separationPay, overtimePay, holidayPay,
+    totalClaim, formattedSummary: summary.join('\n'), breakdownItems };
+}
 
 export function monthlyLoanPayment(principal: number, annualRate: number, months: number): number {
   const p = amount(principal), n = count(months), r = amount(annualRate) / 12;
@@ -68,7 +280,7 @@ const gsisRI6 = [.31157, .31492, .32739, .34254, .35908, .37657, .39486, .41392,
   .43379, .45452, .47617, .49880, .52244, .54707, .57269];
 const gsisRI7 = [.31238, .31663, .33000, .34605, .36350, .38190, .40111, .42111, .44193, .46364];
 
-export function calculateWorkerBenefitsAndLoans(input: WorkerProfileInput): WorkerCalculationResult {
+export function calculateWorkerBenefits(input: WorkerProfileInput): WorkerCalculationResult {
   const msc = Math.min(20000, amount(input.averageMonthlySalaryCredit));
   const sixMSC = Math.min(20000, amount(input.highestSixMonthlySalaryCredit));
   const ads = sixMSC * 6 / 180;
@@ -172,6 +384,7 @@ export function calculateWorkerBenefitsAndLoans(input: WorkerProfileInput): Work
     ? money(amount(input.regionalDailyWage) * Math.min(30, Math.max(10, count(input.tupadDays)))) : 0;
   const bpbh = input.sector === 'ofw' && input.returnedWithinThreeYears
     ? input.owwaMembership === 'active' ? 20000 : input.owwaMembership === 'inactive_once' ? 5000 : input.owwaMembership === 'inactive_multiple' ? 10000 : 0 : 0;
+  const pensionSavings = input.scenario === 'pension_savings' ? calculatePensionSavings(input) : {};
   const ids = new Set<string>(input.scenario === 'loans' ? loans.map(l => l.id) : []);
   if (input.scenario === 'maternity') ids.add('sss_maternity');
   if (input.scenario === 'sickness') { ids.add('sss_sickness'); if (ecCovered) ids.add('ecc'); }
@@ -182,6 +395,11 @@ export function calculateWorkerBenefitsAndLoans(input: WorkerProfileInput): Work
     if (input.sector === 'ofw') { ids.add('bpbh'); ids.add('aksyon'); }
   }
   if (input.scenario === 'wages') ids.add('sena');
+  if (input.scenario === 'pension_savings') {
+    ids.add('pagibig_mp2');
+    ids.add(input.sector === 'government' ? 'gsis_retirement'
+      : (input.pensionType ?? 'retirement') === 'retirement' ? 'sss_retirement' : 'sss_disability');
+  }
   const matched = workerPrograms.filter(p => ids.has(p.id));
   return {
     loans, maternity: { days, averageDailySalaryCredit: money(ads), sssBenefit: maternityBenefit,
@@ -190,7 +408,10 @@ export function calculateWorkerBenefitsAndLoans(input: WorkerProfileInput): Work
       ecMedicalReimbursement: ecMedical, ecCarerMonthly: ecCarer, combinedBenefit: money(sickBenefit + ecBenefit + ecMedical) },
     unemploymentBenefit: unemployment,
     funeral: { regularBenefit: regularFuneral, ecBenefit: ecFuneral, combinedBenefit: regularFuneral + ecFuneral },
-    livelihood: { tupadEstimate: tupad, bpbhGrant: bpbh }, matchedPrograms: matched,
+    livelihood: { tupadEstimate: tupad, bpbhGrant: bpbh }, wageClaims: wageClaims(input), matchedPrograms: matched,
+    ...pensionSavings,
     consolidatedChecklist: [...new Set(matched.flatMap(p => p.checklist))], advisories,
   };
 }
+
+export const calculateWorkerBenefitsAndLoans = calculateWorkerBenefits;

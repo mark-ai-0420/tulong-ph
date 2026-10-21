@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs scripts/test-education-engine.mjs scripts/test-worker-calculator.mjs && node scripts/test-e2e-autocompute.mjs",
-    "test:unit": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs scripts/test-education-engine.mjs scripts/test-worker-calculator.mjs",
+    "test:unit": "node --test scripts/test-billing-calculator.mjs scripts/test-triage-engine.mjs scripts/test-education-engine.mjs scripts/test-worker-calculator.mjs scripts/test-worker-wage-calculator.mjs scripts/test-unified-document-vault.mjs scripts/test-zbenefits-and-caf.mjs scripts/test-priority-degrees-calendar.mjs scripts/test-worker-directory.mjs scripts/test-i18n-regional-languages.mjs scripts/test-worker-pension-calculator.mjs scripts/test-encrypted-backup.mjs scripts/test-treatment-quota-tracker.mjs scripts/test-ofw-case-tracker.mjs scripts/test-lgu-scholarship-directory.mjs scripts/test-gwa-tracker.mjs scripts/test-generic-prescription-guide.mjs",
     "test:e2e": "node scripts/test-e2e-autocompute.mjs"
   },
   "dependencies": {

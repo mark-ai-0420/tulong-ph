@@ -5,7 +5,14 @@ import { usePathname } from 'next/navigation';
 import { clearAllUserData } from '@/lib/storage';
 import Link from 'next/link';
 import { HeartHandshake, Languages, Compass, Building2, Printer, Trash2 } from 'lucide-react';
-import { Language, translations } from '@/lib/i18n';
+import { getNextLanguage, Language, supportedLanguages, translations } from '@/lib/i18n';
+
+const compactLanguageNames: Record<Language, string> = {
+  taglish: 'Taglish',
+  cebuano: 'Bisaya',
+  ilocano: 'Ilocano',
+  en: 'English',
+};
 
 interface NavbarProps {
   currentTab: string;
@@ -27,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isManualWipePending,
 }) => {
   const t = translations[language];
+  const currentLanguage = supportedLanguages.find(({ id }) => id === language) ?? supportedLanguages[0];
+  const nextLanguage = supportedLanguages.find(({ id }) => id === getNextLanguage(language)) ?? supportedLanguages[0];
   const pathname = usePathname();
   const manualWipeReader = useRef(isManualWipePending);
   useEffect(() => { manualWipeReader.current = isManualWipePending; }, [isManualWipePending]);
@@ -37,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         window.location.reload();
       } else window.location.replace(pathname);
     };
+    const refreshAfterRestore = () => { window.setTimeout(() => window.location.reload(), 300); };
     const recoverHistory = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
     let timer: ReturnType<typeof setTimeout>;
     const idleLimit = 15 * 60 * 1000;
@@ -70,6 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     const events = ['pointerdown', 'keydown', 'input', 'scroll'];
     events.forEach(event => window.addEventListener(event, reset, { passive: true }));
     window.addEventListener('tulongph-data-cleared', reload);
+    window.addEventListener('tulongph-data-restored', refreshAfterRestore);
     window.addEventListener('pageshow', recoverHistory);
     window.addEventListener('storage', sharedActivity);
     reset();
@@ -77,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       clearTimeout(timer);
       events.forEach(event => window.removeEventListener(event, reset));
       window.removeEventListener('tulongph-data-cleared', reload);
+      window.removeEventListener('tulongph-data-restored', refreshAfterRestore);
       window.removeEventListener('pageshow', recoverHistory);
       window.removeEventListener('storage', sharedActivity);
       channel?.close();
@@ -210,16 +222,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Burahin ang Data</span>
             </button>
 
-            {/* Bilingual Toggle */}
+            {/* Language Toggle */}
             <button
               onClick={onToggleLanguage}
               className="h-11 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2.5 rounded-lg border border-[#E2DFD6] bg-white hover:bg-stone-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 sm:gap-2 focus-ring cursor-pointer shrink-0"
-              aria-label={`Palitan ang wika sa ${language === 'taglish' ? 'English' : 'Taglish'}`}
-              title="Palitan ang wika / Switch language"
+              aria-label={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
+              title={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
             >
               <Languages className="w-4 h-4 text-blue-900 shrink-0" />
-              <span className="hidden sm:inline">{language === 'taglish' ? 'English' : 'Taglish'}</span>
-              <span className="inline sm:hidden">{language === 'taglish' ? 'EN' : 'FIL'}</span>
+              <span className="font-bold">{currentLanguage.shortLabel}</span>
+              <span className="inline sm:hidden">{compactLanguageNames[language]}</span>
+              <span className="hidden sm:inline">{currentLanguage.label}</span>
             </button>
           </div>
         </div>
@@ -230,10 +243,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentTab === item.id;
-              const shortLabels: Record<string, { taglish: string; en: string }> = {
-                triage: { taglish: 'Gabay', en: 'Navigator' },
-                print_forms: { taglish: 'Forms', en: 'Forms' },
-                directory: { taglish: 'Direktoryo', en: 'Directory' },
+              const shortLabels: Record<string, Record<Language, string>> = {
+                triage: { taglish: 'Gabay', cebuano: 'Giya', ilocano: 'Giya', en: 'Navigator' },
+                print_forms: { taglish: 'Forms', cebuano: 'Porma', ilocano: 'Porma', en: 'Forms' },
+                directory: { taglish: 'Direktoryo', cebuano: 'Direktoryo', ilocano: 'Direktoryo', en: 'Directory' },
               };
               const shortLabel = shortLabels[item.id]?.[language] || item.label;
               return (

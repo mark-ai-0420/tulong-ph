@@ -1,132 +1,210 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  FileText,
-  Upload,
-  CheckCircle2,
-  AlertTriangle,
-  Download,
-  Trash2,
-  RefreshCw,
-  ShieldAlert,
-  Info,
-} from 'lucide-react';
-import { DocumentType, StoredDocument, PatientProfile } from '@/types/assistance';
-import {
-  convertAndCompressImageToPdf,
-  formatBytes,
-  getStandardizedDocFileName,
-} from '@/lib/compressor';
-import { Language, translations } from '@/lib/i18n';
+import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { AlertTriangle, CheckCircle2, Download, FileText, RefreshCw, ShieldAlert, Trash2, Upload } from 'lucide-react';
+import type { DocumentType, StoredDocument } from '@/types/assistance';
+import { convertAndCompressImageToPdf, formatBytes, getStandardizedDocFileName } from '@/lib/compressor';
+import { getDocumentSlotsForPillar, getProgramReadiness, type DocumentVaultPillar } from '@/lib/documentVault';
+import { createEncryptedBackup, restoreEncryptedBackup } from '@/lib/encryptedBackup';
+import type { RestoreErrorCode } from '@/lib/encryptedBackup';
+import { getWipeGeneration } from '@/lib/storage';
+import { translations, type Language } from '@/lib/i18n';
+
+export { DOCUMENT_SLOTS } from '@/lib/documentVault';
+
+const backupCopy: Record<Language, {
+  title: string;
+  createHeading: string;
+  restoreHeading: string;
+  warning: string;
+  description: string;
+  password: string;
+  confirmPassword: string;
+  create: string;
+  restorePassword: string;
+  file: string;
+  noFile: string;
+  restore: string;
+  replaceNote: string;
+  confirmRestore: string;
+  created: string;
+  restored: (count: number) => string;
+  passwordMismatch: string;
+  missingPassword: string;
+  missingFile: string;
+  failed: string;
+  restoreErrors: Record<RestoreErrorCode, string>;
+}> = {
+  taglish: {
+    title: 'Backup at Restore',
+    createHeading: 'Gumawa ng backup',
+    restoreHeading: 'I-restore ang backup',
+    warning: 'Babala: Gamitin lamang ito sa inyong personal na cellphone o computer. Huwag i-save sa computer shop o pisonet upang manatiling pribado ang inyong datos.',
+    description: 'Gumawa ng encrypted backup na mabubuksan lamang gamit ang password mo. Nananatili sa device ang pag-encrypt at pag-decrypt.',
+    password: 'Password para sa backup',
+    confirmPassword: 'Ulitin ang password',
+    create: 'I-download ang encrypted backup',
+    restorePassword: 'Password ng backup',
+    file: 'Backup file (.tulongph)',
+    noFile: 'Wala pang napipiling backup file.',
+    restore: 'I-restore at palitan ang kasalukuyang records',
+    replaceNote: 'Papalitan ng backup ang kasalukuyang records at documents sa device na ito.',
+    confirmRestore: 'Papalitan ng backup na ito ang kasalukuyang records sa device na ito. Ituloy ang restore?',
+    created: 'Na-download ang encrypted backup.',
+    restored: (count) => `Na-restore ang ${count} records. Nire-refresh ang app.`,
+    passwordMismatch: 'Hindi magkatugma ang mga password.',
+    missingPassword: 'Ilagay ang password para magpatuloy.',
+    missingFile: 'Pumili muna ng backup file.',
+    failed: 'Hindi natuloy ang backup o restore. Suriin ang password at storage ng device.',
+    restoreErrors: {
+      RESTORE_LOCK_BUSY: 'May kasalukuyang restore o pagbura ng datos. Hintayin itong matapos bago subukan muli.',
+      RESTORE_ABORTED_BY_WIPE: 'Itinigil ang restore dahil sinimulan ang pagbura ng pribadong datos. Hindi ibinalik ang dating records.',
+      INVALID_PASSWORD_OR_CORRUPTED: 'Hindi mabuksan ang backup. Mali ang password o sira ang encrypted file; hindi ginalaw ang kasalukuyang records.',
+      INVALID_FORMAT: 'Hindi ito valid na TulongPH backup file. Nanatili ang kasalukuyang records.',
+      CORRUPTED_PAYLOAD: 'Nabuksan ang file pero hindi wasto ang laman. Hindi ginalaw ang kasalukuyang records.',
+      RESTORE_FAILED_ROLLBACK_SUCCEEDED: 'Hindi natuloy ang restore, pero ligtas na naibalik ang dati mong records.',
+      RESTORE_FAILED_ROLLBACK_FAILED: 'Hindi natuloy ang restore at nabigo ang pagbawi sa dating records. Suriin agad ang saved data at huwag munang mag-edit.',
+    },
+  },
+  cebuano: {
+    title: 'Backup ug Restore',
+    createHeading: 'Paghimo og backup',
+    restoreHeading: 'Pagpahiuli sa backup',
+    warning: 'Pasidaan: Gamita lamang kini sa imong personal nga cellphone o computer. Ayaw kini i-save sa computer shop o pisonet aron magpabilin nga pribado ang imong datos.',
+    description: 'Paghimo og encrypted backup nga maablihan lamang pinaagi sa imong password. Dinhi ra sa device himoon ang pag-encrypt ug pag-decrypt.',
+    password: 'Password sa backup',
+    confirmPassword: 'Isulod pag-usab ang password',
+    create: 'I-download ang encrypted backup',
+    restorePassword: 'Password sa backup',
+    file: 'Backup file (.tulongph)',
+    noFile: 'Wala pay napiling backup file.',
+    restore: 'I-restore ug pulihan ang kasamtangang records',
+    replaceNote: 'Pulihan sa backup ang kasamtangang records ug documents niining device.',
+    confirmRestore: 'Pulihan niini nga backup ang kasamtangang records niining device. Mopadayon ka?',
+    created: 'Na-download na ang encrypted backup.',
+    restored: (count) => `Na-restore ang ${count} ka records. Gi-refresh ang app.`,
+    passwordMismatch: 'Dili magkapareho ang mga password.',
+    missingPassword: 'Isulod ang password aron mopadayon.',
+    missingFile: 'Pilia una ang backup file.',
+    failed: 'Napakyas ang backup o restore. Susiha ang password ug storage sa device.',
+    restoreErrors: {
+      RESTORE_LOCK_BUSY: 'Adunay nagpadayon nga restore o pagpahid sa datos. Hulata kini mahuman una mosulay pag-usab.',
+      RESTORE_ABORTED_BY_WIPE: 'Gihunong ang restore kay gisugdan ang pagpahid sa pribadong datos. Wala ibalik ang daang records.',
+      INVALID_PASSWORD_OR_CORRUPTED: 'Dili maablihan ang backup. Sayop ang password o nadaot ang encrypted file; wala hilabti ang kasamtangang records.',
+      INVALID_FORMAT: 'Dili kini balidong TulongPH backup file. Nagpabilin ang kasamtangang records.',
+      CORRUPTED_PAYLOAD: 'Naablihan ang file apan dili balido ang sulod. Wala hilabti ang kasamtangang records.',
+      RESTORE_FAILED_ROLLBACK_SUCCEEDED: 'Napakyas ang restore, apan nabalik nga luwas ang imong daang records.',
+      RESTORE_FAILED_ROLLBACK_FAILED: 'Napakyas ang restore ug wala molampos ang pagbalik sa daang records. Susiha dayon ang saved data ug ayaw una pag-edit.',
+    },
+  },
+  ilocano: {
+    title: 'Backup ken Restore',
+    createHeading: 'Agaramid iti backup',
+    restoreHeading: 'Isubli ti backup',
+    warning: 'Pakdaar: Usaren laeng daytoy iti bukodmo a cellphone wenno computer. Dimo i-save iti computer shop wenno pisonet tapno agtalinaed a pribado dagiti datosmo.',
+    description: 'Mangaramid iti encrypted backup a mabalin laeng a luktan babaen iti passwordmo. Iti device laeng maaramid ti encryption ken decryption.',
+    password: 'Password ti backup',
+    confirmPassword: 'I-type manen ti password',
+    create: 'I-download ti encrypted backup',
+    restorePassword: 'Password ti backup',
+    file: 'Backup file (.tulongph)',
+    noFile: 'Awan pay napili a backup file.',
+    restore: 'I-restore ken sukatam dagiti agdama a rekord',
+    replaceNote: 'Suksukatan ti backup dagiti agdama a rekord ken dokumento iti daytoy a device.',
+    confirmRestore: 'Suksukatan daytoy a backup dagiti agdama a rekord iti daytoy a device. Ituloy ti restore?',
+    created: 'Na-download ti encrypted backup.',
+    restored: (count) => `Na-restore dagiti ${count} a rekord. I-refresh ti app.`,
+    passwordMismatch: 'Saan a nagtutunos dagiti password.',
+    missingPassword: 'Ilagay ti password tapno agtultuloy.',
+    missingFile: 'Pilien pay laeng ti backup file.',
+    failed: 'Saan a napasamak ti backup wenno restore. Kitaen ti password ken storage ti device.',
+    restoreErrors: {
+      RESTORE_LOCK_BUSY: 'Adda agtultuloy a restore wenno panangikkat iti datos. Urayem a malpas sakbay a padasem manen.',
+      RESTORE_ABORTED_BY_WIPE: 'Naisardeng ti restore gapu ta nangrugi ti panangikkat iti pribado a datos. Saan a naisubli dagiti dati a rekord.',
+      INVALID_PASSWORD_OR_CORRUPTED: 'Saan a mailukat ti backup. Di umiso ti password wenno nadadael ti encrypted file; saan a nagbaliw dagiti agdama a rekord.',
+      INVALID_FORMAT: 'Saan a mabalin daytoy a TulongPH backup file. Agtalinaed dagiti agdama a rekord.',
+      CORRUPTED_PAYLOAD: 'Nailukat ti file ngem saan a husto ti linaonna. Saan a nagbaliw dagiti agdama a rekord.',
+      RESTORE_FAILED_ROLLBACK_SUCCEEDED: 'Saan a nagballigi ti restore, ngem natalged a naisubli dagiti dati a rekordmo.',
+      RESTORE_FAILED_ROLLBACK_FAILED: 'Saan a nagballigi ti restore ken ti panangisubli kadagiti dati a rekord. Kitaen a dagus ti na-save a datos ken saan pay nga ag-edit.',
+    },
+  },
+  en: {
+    title: 'Backup and Restore',
+    createHeading: 'Create a backup',
+    restoreHeading: 'Restore a backup',
+    warning: 'Warning: Use this only on your personal phone or computer. Do not save it on a computer shop or pisonet computer so your data stays private.',
+    description: 'Create an encrypted backup that can only be opened with your password. Encryption and decryption happen on this device.',
+    password: 'Backup password',
+    confirmPassword: 'Confirm password',
+    create: 'Download encrypted backup',
+    restorePassword: 'Backup password',
+    file: 'Backup file (.tulongph)',
+    noFile: 'No backup file selected yet.',
+    restore: 'Restore and replace current records',
+    replaceNote: 'The backup will replace the records and documents currently saved on this device.',
+    confirmRestore: 'This backup will replace the records currently saved on this device. Continue with restore?',
+    created: 'Encrypted backup downloaded.',
+    restored: (count) => `Restored ${count} records. Refreshing the app.`,
+    passwordMismatch: 'The passwords do not match.',
+    missingPassword: 'Enter the password to continue.',
+    missingFile: 'Choose a backup file first.',
+    failed: 'Backup or restore failed. Check the password and device storage.',
+    restoreErrors: {
+      RESTORE_LOCK_BUSY: 'A restore or privacy wipe is already in progress. Wait for it to finish before trying again.',
+      RESTORE_ABORTED_BY_WIPE: 'The restore stopped because a privacy wipe was started. Previous records were not restored.',
+      INVALID_PASSWORD_OR_CORRUPTED: 'The backup could not be opened. The password is wrong or the encrypted file is damaged; your current records were not changed.',
+      INVALID_FORMAT: 'This is not a valid TulongPH backup file. Your current records remain unchanged.',
+      CORRUPTED_PAYLOAD: 'The file opened, but its contents are invalid. Your current records were not changed.',
+      RESTORE_FAILED_ROLLBACK_SUCCEEDED: 'The restore did not finish, but your previous records were safely restored.',
+      RESTORE_FAILED_ROLLBACK_FAILED: 'The restore failed and the previous records could not be recovered. Check your saved data now and avoid editing until you confirm it.',
+    },
+  },
+};
 
 interface DocumentVaultProps {
   documents: StoredDocument[];
   onUpdateDocuments: (docs: StoredDocument[]) => void;
-  patient: PatientProfile;
+  applicantName?: string;
   language: Language;
+  currentPillar?: DocumentVaultPillar;
 }
 
-export interface DocSlotConfig {
-  type: DocumentType;
-  labelEn: string;
-  labelTl: string;
-  requiredFor: string[];
-  helperEn: string;
-  helperTl: string;
-}
-
-export const DOCUMENT_SLOTS: DocSlotConfig[] = [
-  {
-    type: 'clinical_abstract',
-    labelEn: 'Clinical Abstract / Medical Certificate',
-    labelTl: 'Medical Abstract / Sertipiko ng Doktor',
-    requiredFor: ['Senate Assist', 'PCSO MAP', 'Malasakit', 'DSWD'],
-    helperEn: 'Signed by attending physician with License & PTR numbers.',
-    helperTl: 'May pirma ng doktor, License Number, at PTR number.',
-  },
-  {
-    type: 'statement_of_account',
-    labelEn: 'Statement of Account (SOA) / Running Bill',
-    labelTl: 'Hospital Billing / Statement of Account (SOA)',
-    requiredFor: ['Senate Assist', 'PCSO MAP', 'Malasakit', 'DSWD'],
-    helperEn: 'Must reflect PhilHealth and Senior/PWD deductions if applicable.',
-    helperTl: 'Kailangang nakalagay ang bawas ng PhilHealth o Senior/PWD kung mayroon.',
-  },
-  {
-    type: 'barangay_indigency',
-    labelEn: 'Barangay Certificate of Indigency',
-    labelTl: 'Barangay Certificate of Indigency',
-    requiredFor: ['Senate Assist', 'Malasakit', 'DSWD', 'LGU Aid'],
-    helperEn: 'Issued by the Barangay Hall stating the patient/claimant is in financial crisis.',
-    helperTl: 'Galing sa Barangay Hall na nagpapatunay na kapos sa pananalapi.',
-  },
-  {
-    type: 'patient_valid_id',
-    labelEn: "Patient's Valid Government ID",
-    labelTl: 'Valid ID ng Pasyente',
-    requiredFor: ['Senate Assist', 'PCSO MAP', 'Malasakit', 'DSWD'],
-    helperEn: 'PhilSys National ID, UMID, Driver’s License, Senior Citizen ID, or Passport.',
-    helperTl: 'National ID, UMID, Driver’s License, Senior ID, Voter’s, o Passport.',
-  },
-  {
-    type: 'representative_valid_id',
-    labelEn: "Representative's Valid Government ID",
-    labelTl: 'Valid ID ng Maglalakad / Kamag-anak',
-    requiredFor: ['Senate Assist', 'PCSO MAP', 'Malasakit', 'DSWD'],
-    helperEn: 'Government ID of the family member transacting for the patient.',
-    helperTl: 'Valid ID ng kapamilyang nag-aasikaso ng tulong.',
-  },
-  {
-    type: 'authorization_letter',
-    labelEn: 'Authorization Letter',
-    labelTl: 'Authorization Letter (Liham Pahintulot)',
-    requiredFor: ['Senate Assist', 'PCSO MAP'],
-    helperEn: 'Signed letter from the patient authorizing the representative to apply.',
-    helperTl: 'Pirmadong sulat ng pasyente na pumapayag na lakarin ng kamag-anak ang tulong.',
-  },
-  {
-    type: 'proof_of_relationship',
-    labelEn: 'Proof of Relationship (PSA Birth / Marriage Cert)',
-    labelTl: 'Katunayan ng Relasyon (PSA Birth / Marriage Cert)',
-    requiredFor: ['PCSO MAP', 'OWWA'],
-    helperEn: 'To establish legitimate kinship between representative and patient.',
-    helperTl: 'Katunayan na lehitimong kadugo o asawa ang maglalakad ng papel.',
-  },
-  {
-    type: 'social_case_study',
-    labelEn: 'Social Case Study Report (SCSR)',
-    labelTl: 'Social Case Study Report (SCSR)',
-    requiredFor: ['PAGCOR', 'High Bill Assistance (>₱50k)'],
-    helperEn: 'Prepared by a licensed medical social worker (MSS or CSWDO).',
-    helperTl: 'Galing sa lisensyadong social worker ng ospital o munisipyo para sa malalaking halaga.',
-  },
-];
-
-export const DocumentVault: React.FC<DocumentVaultProps> = ({
+export function DocumentVault({
   documents,
   onUpdateDocuments,
-  patient,
+  applicantName = '',
   language,
-}) => {
+  currentPillar = 'all',
+}: DocumentVaultProps) {
   const t = translations[language];
   const [processingType, setProcessingType] = useState<DocumentType | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupPasswordConfirmation, setBackupPasswordConfirmation] = useState('');
+  const [restorePassword, setRestorePassword] = useState('');
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const restoreInput = useRef<HTMLInputElement>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<{ error: boolean; message: string } | null>(null);
+  const backup = backupCopy[language];
+  const slots = getDocumentSlotsForPillar(currentPillar);
+  const readiness = getProgramReadiness(documents, currentPillar);
 
-  const getDoc = (type: DocumentType) => documents.find((d) => d.docType === type);
+  const getDoc = (type: DocumentType) => documents.find((document) => document.docType === type);
 
-  const handleFileUpload = async (type: DocumentType, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  async function handleFileUpload(type: DocumentType, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setProcessingType(type);
     setErrorMessage(null);
-
     try {
-      const standardizedName = getStandardizedDocFileName(patient.lastName, type);
-      const result = await convertAndCompressImageToPdf(file, standardizedName);
-
-      const newDoc: StoredDocument = {
+      const startGen = getWipeGeneration();
+      const fileName = getStandardizedDocFileName(applicantName, type);
+      const result = await convertAndCompressImageToPdf(file, fileName);
+      if (getWipeGeneration() !== startGen) return;
+      const newDocument: StoredDocument = {
         id: `${type}_${Date.now()}`,
         docType: type,
         fileName: result.fileName,
@@ -134,259 +212,251 @@ export const DocumentVault: React.FC<DocumentVaultProps> = ({
         compressedSize: result.compressedSize,
         mimeType: result.mimeType,
         dataUrl: result.dataUrl,
+        attachmentDataUrl: result.attachmentDataUrl,
         uploadedAt: new Date().toISOString(),
         isCompliantUnder2MB: result.isCompliantUnder2MB,
       };
-
-      const updated = documents.filter((d) => d.docType !== type).concat(newDoc);
-      onUpdateDocuments(updated);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to process document';
-      setErrorMessage(`Error compressing file: ${msg}`);
+      onUpdateDocuments(documents.filter((document) => document.docType !== type).concat(newDocument));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to process document';
+      setErrorMessage(message);
     } finally {
       setProcessingType(null);
-      // Reset input value so same file can be re-selected if needed
-      e.target.value = '';
+      event.target.value = '';
     }
-  };
+  }
 
-  const handleRemoveDoc = (type: DocumentType) => {
-    const updated = documents.filter((d) => d.docType !== type);
-    onUpdateDocuments(updated);
-  };
+  function handleRemoveDoc(type: DocumentType) {
+    onUpdateDocuments(documents.filter((document) => document.docType !== type));
+  }
 
-  // Readiness calculations
-  const senateReqs: DocumentType[] = [
-    'clinical_abstract',
-    'statement_of_account',
-    'barangay_indigency',
-    'patient_valid_id',
-    'representative_valid_id',
-    'authorization_letter',
-  ];
-  const pcsoReqs: DocumentType[] = [
-    'clinical_abstract',
-    'statement_of_account',
-    'patient_valid_id',
-    'representative_valid_id',
-    'authorization_letter',
-    'proof_of_relationship',
-  ];
+  async function handleCreateBackup() {
+    setBackupFeedback(null);
+    if (!backupPassword) {
+      setBackupFeedback({ error: true, message: backup.missingPassword });
+      return;
+    }
+    if (backupPassword !== backupPasswordConfirmation) {
+      setBackupFeedback({ error: true, message: backup.passwordMismatch });
+      return;
+    }
 
-  const senateReadyCount = senateReqs.filter((r) => getDoc(r)?.isCompliantUnder2MB).length;
-  const pcsoReadyCount = pcsoReqs.filter((r) => getDoc(r)?.isCompliantUnder2MB).length;
+    setBackupBusy(true);
+    try {
+      const blob = await createEncryptedBackup(backupPassword);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `TulongPH-Backup-${new Date().toISOString().slice(0, 10)}.tulongph`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setBackupFeedback({ error: false, message: backup.created });
+      setBackupPassword('');
+      setBackupPasswordConfirmation('');
+    } catch {
+      setBackupFeedback({ error: true, message: backup.failed });
+    } finally {
+      setBackupBusy(false);
+    }
+  }
 
-  return (
-    <div className="space-y-6">
-      {/* Header Announcement Board */}
-      <div className="bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs text-slate-900">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2.5">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
-                CLIENT-SIDE ENGINE
-              </span>
-              <span className="text-xs text-slate-500 font-medium">
-                • Strict PCSO & Senate 2.0MB Limit Enforced
-              </span>
-            </div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
-              {language === 'taglish' ? 'Document Vault & Auto-Compressor' : 'Document Vault & Auto-Compressor'}
-            </h2>
-            <p className="text-sm text-slate-600 max-w-2xl mt-1.5 leading-relaxed">
-              {language === 'taglish'
-                ? 'Mag-upload ng picture mula sa cellphone. Awtomatikong lilinisin, gagawing PDF, at icocompress sa ilalim ng 2MB para hindi ma-reject sa portal ng PCSO at Senado.'
-                : 'Upload photos directly from your phone. Our engine auto-converts, cleans, and compresses each document into a high-clarity PDF under 2MB so government portals never reject your upload.'}
-            </p>
+  async function handleRestoreBackup() {
+    setBackupFeedback(null);
+    if (!restorePassword) {
+      setBackupFeedback({ error: true, message: backup.missingPassword });
+      return;
+    }
+    if (!restoreFile) {
+      setBackupFeedback({ error: true, message: backup.missingFile });
+      return;
+    }
+    if (!window.confirm(backup.confirmRestore)) return;
+
+    setBackupBusy(true);
+    try {
+      const result = await restoreEncryptedBackup(restoreFile, restorePassword);
+      if (!result.success) {
+        setBackupFeedback({ error: true, message: backup.restoreErrors[result.code] });
+        return;
+      }
+      setBackupFeedback({ error: false, message: backup.restored(result.itemCount) });
+      setRestorePassword('');
+      setRestoreFile(null);
+      if (restoreInput.current) restoreInput.current.value = '';
+    } catch {
+      setBackupFeedback({ error: true, message: backup.failed });
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  const title = currentPillar === 'all' ? 'All program documents'
+    : currentPillar === 'medical' ? 'Medical assistance documents'
+      : currentPillar === 'education' ? 'Education assistance documents'
+        : 'Worker assistance documents';
+
+  return <section className="space-y-4" aria-label={title}>
+    <header className="rounded-2xl border border-[#E2DFD6] bg-white p-4 text-slate-900 sm:p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-bold text-amber-950">CLIENT-SIDE VAULT</span>
+            <span className="text-xs font-medium text-slate-600">Compressed image PDFs, under 2 MB when compliant</span>
           </div>
-
-          {/* Readiness Badges */}
-          <div className="flex flex-row md:flex-col gap-3 shrink-0">
-            <div className="bg-amber-50/80 rounded-xl p-3 border border-amber-200/90 shadow-2xs">
-              <div className="text-xs text-amber-900 font-semibold">Senate Assist Ready</div>
-              <div className="text-lg font-black text-amber-950">
-                {senateReadyCount} / {senateReqs.length} Documents
-              </div>
-            </div>
-            <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/90 shadow-2xs">
-              <div className="text-xs text-emerald-900 font-semibold">PCSO MAP Ready</div>
-              <div className="text-lg font-black text-emerald-950">
-                {pcsoReadyCount} / {pcsoReqs.length} Documents
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Security & Privacy Notice */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-        <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-bold">
-            {language === 'taglish' ? '100% Pribado at Ligtas:' : '100% Private & Browser-Secured:'}
-          </span>{' '}
-          {language === 'taglish'
-            ? 'Ang inyong mga medical abstract, billing, at ID ay pinoproseso LAMANG sa inyong browser (Data Privacy Act of 2012). Hindi ito pinapadala o iniimbak sa mga pampublikong cloud server.'
-            : 'All medical records and government IDs are converted inside your browser using client-side WebAssembly and Canvas APIs (RA 10173 compliant). Documents are never transmitted to an unvetted cloud server.'}
-        </div>
-      </div>
-
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* Grid of Document Slots */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {DOCUMENT_SLOTS.map((slot) => {
-          const doc = getDoc(slot.type);
-          const isProcessing = processingType === slot.type;
-          const isUploaded = !!doc;
-
-          return (
-            <div
-              key={slot.type}
-              className={`rounded-2xl border p-5 transition-all ${
-                isUploaded
-                  ? 'bg-white border-emerald-400 shadow-sm'
-                  : 'bg-white border-[#E2DFD6] hover:border-slate-400 shadow-xs'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      isUploaded
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {isUploaded ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                    ) : (
-                      <FileText className="w-5 h-5 text-slate-600" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      {language === 'taglish' ? slot.labelTl : slot.labelEn}
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {language === 'taglish' ? slot.helperTl : slot.helperEn}
-                    </p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {slot.requiredFor.map((agency) => (
-                        <span
-                          key={agency}
-                          className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700"
-                        >
-                          {agency}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {isUploaded && (
-                  <button
-                    onClick={() => handleRemoveDoc(slot.type)}
-                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-red-600 hover:bg-slate-100 transition-colors"
-                    title={language === 'taglish' ? 'Alisin ang dokumento' : 'Remove document'}
-                    aria-label={language === 'taglish' ? 'Alisin ang dokumento' : 'Remove document'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Uploaded State Details */}
-              {isUploaded && doc && (
-                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-0.5">
-                    <div className="font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-[240px]">
-                      {doc.fileName}
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-600">
-                      <span className="text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                        {formatBytes(doc.compressedSize)}
-                      </span>
-                      <span>(from {formatBytes(doc.originalSize)})</span>
-                      <span className="text-emerald-700 font-bold">
-                        ✓ {t.compliantBadge}
-                      </span>
-                    </div>
-                  </div>
-
-                  <a
-                    href={doc.dataUrl}
-                    download={doc.fileName}
-                    className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-xl bg-blue-50 text-blue-950 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition-colors shrink-0"
-                  >
-                    <Download className="w-3.5 h-3.5 text-blue-800" />
-                    <span>{language === 'taglish' ? 'I-download ang PDF' : 'Download PDF'}</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Upload Trigger Button */}
-              {!isUploaded && (
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <label htmlFor={`vault-upload-${slot.type}`} className="relative flex items-center justify-center gap-2 w-full min-h-[44px] py-2.5 px-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 bg-white hover:bg-blue-50/50 cursor-pointer text-xs font-bold text-blue-950 transition-colors">
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-blue-700" />
-                        <span>{language === 'taglish' ? 'Kino-convert at Kino-compress...' : 'Compressing & Converting to PDF...'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 text-blue-700" />
-                        <span>
-                          {language === 'taglish' ? 'Pumili ng Larawan o PDF' : 'Select Photo or PDF'}
-                        </span>
-                      </>
-                    )}
-                    <input
-                      id={`vault-upload-${slot.type}`}
-                      name={`vault-upload-${slot.type}`}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      aria-label={language === 'taglish' ? `I-upload ang ${slot.labelTl}` : `Upload ${slot.labelEn}`}
-                      disabled={isProcessing}
-                      onChange={(e) => handleFileUpload(slot.type, e)}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Pro-Tips Checklist Footer */}
-      <div className="bg-white rounded-2xl p-5 border border-[#E2DFD6] shadow-xs">
-        <div className="flex items-center gap-2 text-slate-900 font-bold text-sm mb-2">
-          <Info className="w-4 h-4 text-blue-600" />
-          <span>
+          <h2 className="text-xl font-extrabold tracking-tight">{title}</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
             {language === 'taglish'
-              ? 'Paano masigurong 100% Ma-a-approve ang mga Dokumento:'
-              : 'How to Ensure 100% Document Approval:'}
-          </span>
+              ? 'Nananatili sa device mo ang mga dokumento. Pumili ng larawan para gumawa ng compressed PDF na maaari mong i-download at ilakip sa packet.'
+              : 'Documents stay on this device. Choose an image to create a compressed PDF you can download and include in a packet.'}
+          </p>
         </div>
-        <ul className="text-xs text-slate-700 space-y-1.5 list-disc pl-5">
-          <li>
-            <strong className="text-slate-900">Doctor’s License & PTR Number:</strong> Karaniwang nare-reject ang Medical Abstract kapag walang pirma at License Number ng attending physician.
-          </li>
-          <li>
-            <strong className="text-slate-900">PhilHealth Deduction on SOA:</strong> Humingi ng updated Statement of Account kung saan bawas na ang PhilHealth Case Rates.
-          </li>
-          <li>
-            <strong className="text-slate-900">Barangay Indigency:</strong> Tiyaking tugma ang pangalan ng pasyente o kinatawan sa nakalagay sa sedula o Valid ID.
-          </li>
-        </ul>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:max-w-[32rem]">
+          {readiness.map(({ program, ready, total }) => (
+            <div key={program} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-xs font-semibold text-slate-700">{program}</div>
+              <div className="text-sm font-bold text-slate-950">{ready} / {total} docs ready</div>
+            </div>
+          ))}
+        </div>
       </div>
+    </header>
+
+    <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+      <ShieldAlert aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+      <p>
+        <strong>Private on this device:</strong> Uploads are processed in your browser and saved locally. This vault accepts image files; PDF uploads are not supported yet. Program readiness is a preparation aid, not an eligibility decision.
+      </p>
     </div>
-  );
-};
+
+    {errorMessage && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0" />
+      <span>{errorMessage}</span>
+    </div>}
+
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {slots.map((slot) => {
+        const document = getDoc(slot.type);
+        const isProcessing = processingType === slot.type;
+        const isUploaded = Boolean(document);
+        const isCompliant = Boolean(document?.isCompliantUnder2MB);
+
+        return <article key={slot.type} className={`min-w-0 rounded-2xl border p-4 ${isCompliant ? 'border-emerald-400 bg-white' : 'border-[#E2DFD6] bg-white'}`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isCompliant ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                {isCompliant ? <CheckCircle2 aria-hidden="true" className="h-5 w-5" /> : <FileText aria-hidden="true" className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-950">{language === 'taglish' ? slot.labelTl : slot.labelEn}</h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-700">{language === 'taglish' ? slot.helperTl : slot.helperEn}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Related programs">
+                  {slot.programs.map((program) => <span key={program} className="rounded border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{program}</span>)}
+                </div>
+              </div>
+            </div>
+            {document && <button type="button" onClick={() => handleRemoveDoc(slot.type)}
+              className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900"
+              aria-label={language === 'taglish' ? `Alisin ang ${slot.labelTl}` : `Remove ${slot.labelEn}`}>
+              <Trash2 aria-hidden="true" className="h-5 w-5" />
+            </button>}
+          </div>
+
+          {document && <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 text-xs">
+              <div className="truncate font-semibold text-slate-900">{document.fileName}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-slate-700">
+                <span className={`rounded border px-2 py-1 font-bold ${isCompliant ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
+                  {formatBytes(document.compressedSize)} {isCompliant ? `<2 MB ${t.compliantBadge}` : 'Over 2 MB'}
+                </span>
+                <span>Original: {formatBytes(document.originalSize)}</span>
+              </div>
+            </div>
+            {document.dataUrl && <a href={document.dataUrl} download={document.fileName}
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-xs font-bold text-blue-950 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900">
+              <Download aria-hidden="true" className="h-4 w-4" />{language === 'taglish' ? 'I-download ang PDF' : 'Download PDF'}
+            </a>}
+          </div>}
+
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <label htmlFor={`vault-upload-${slot.type}`} className="relative flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 hover:border-blue-400 hover:bg-blue-50 focus-within:outline focus-within:outline-2 focus-within:outline-blue-900">
+              {isProcessing ? <><RefreshCw aria-hidden="true" className="h-4 w-4 animate-spin" /><span>Compressing image...</span></>
+                : <><Upload aria-hidden="true" className="h-4 w-4" /><span>{isUploaded ? 'Replace image' : 'Select an image'}</span></>}
+              <input id={`vault-upload-${slot.type}`} name={`vault-upload-${slot.type}`} type="file" accept="image/*" autoComplete="off"
+                aria-label={language === 'taglish' ? `Mag-upload ng ${slot.labelTl}` : `Upload ${slot.labelEn}`} disabled={processingType !== null}
+                onChange={(event) => void handleFileUpload(slot.type, event)} className="sr-only" />
+            </label>
+          </div>
+        </article>;
+      })}
+    </div>
+
+    <p className="text-xs leading-relaxed text-slate-700">
+      {language === 'taglish'
+        ? 'Kumpirmahin ang kasalukuyang requirements sa ahensya o paaralan. Hindi garantiya ng eligibility, pondo, o approval ang bilang na ito.'
+        : 'Confirm current requirements with the agency or school. These counts do not guarantee eligibility, funding, or approval.'}
+    </p>
+
+    <details className="rounded-2xl border border-[#E2DFD6] bg-white text-slate-900">
+      <summary className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900 sm:px-5">
+        <span>{backup.title}</span>
+        <span aria-hidden="true" className="text-slate-600">+</span>
+      </summary>
+      <div className="space-y-4 border-t border-slate-200 p-4 sm:p-5">
+        <div role="note" className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs font-semibold leading-relaxed text-amber-950">
+          <ShieldAlert aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" />
+          <p>{backup.warning}</p>
+        </div>
+        <p className="text-xs leading-relaxed text-slate-700">{backup.description}</p>
+
+        <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-950">{backup.createHeading}</h3>
+            <label htmlFor="vault-backup-password" className="block text-xs font-bold text-slate-800">
+              {backup.password}
+              <input id="vault-backup-password" type="password" autoComplete="off" value={backupPassword}
+                onChange={(event) => setBackupPassword(event.target.value)} disabled={backupBusy}
+                className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900" />
+            </label>
+            <label htmlFor="vault-backup-password-confirm" className="block text-xs font-bold text-slate-800">
+              {backup.confirmPassword}
+              <input id="vault-backup-password-confirm" type="password" autoComplete="off" value={backupPasswordConfirmation}
+                onChange={(event) => setBackupPasswordConfirmation(event.target.value)} disabled={backupBusy}
+                className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900" />
+            </label>
+            <button type="button" onClick={() => void handleCreateBackup()} disabled={backupBusy}
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-blue-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-950 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-900">
+              <Download aria-hidden="true" className="h-4 w-4" />{backup.create}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-950">{backup.restoreHeading}</h3>
+            <label htmlFor="vault-restore-file" className="block text-xs font-bold text-slate-800">
+              {backup.file}
+              <input ref={restoreInput} id="vault-restore-file" type="file" accept=".tulongph,application/octet-stream" autoComplete="off"
+                onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)} disabled={backupBusy}
+                className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 file:mr-3 file:min-h-[44px] file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:font-bold file:text-blue-950" />
+            </label>
+            <p className="min-h-5 text-xs text-slate-600">{restoreFile?.name ?? backup.noFile}</p>
+            <label htmlFor="vault-restore-password" className="block text-xs font-bold text-slate-800">
+              {backup.restorePassword}
+              <input id="vault-restore-password" type="password" autoComplete="off" value={restorePassword}
+                onChange={(event) => setRestorePassword(event.target.value)} disabled={backupBusy}
+                className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-normal text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900" />
+            </label>
+            <p className="text-xs leading-relaxed text-amber-900">{backup.replaceNote}</p>
+            <button type="button" onClick={() => void handleRestoreBackup()} disabled={backupBusy}
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-blue-900 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-900">
+              <Upload aria-hidden="true" className="h-4 w-4" />{backup.restore}
+            </button>
+          </div>
+        </div>
+
+        {backupBusy && <p role="status" className="text-xs font-semibold text-slate-700">{language === 'taglish' ? 'Pinoproseso sa device na ito...' : language === 'cebuano' ? 'Giproseso dinhi sa device...' : language === 'ilocano' ? 'Agproseso ditoy a device...' : 'Processing on this device...'}</p>}
+        {backupFeedback && <p role={backupFeedback.error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-xs font-semibold ${backupFeedback.error ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+          {backupFeedback.message}
+        </p>}
+      </div>
+    </details>
+  </section>;
+}

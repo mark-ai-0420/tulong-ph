@@ -81,9 +81,9 @@ test('Test 4: Tagalog & acronym keyword matching', () => {
   assert.match(cs.matchedName, /Cesarean/i);
   assert.strictEqual(cs.isEstimated, false);
 
-  // "hemodialysis" -> Hemodialysis (₱4,000)
+  // "hemodialysis" -> Hemodialysis (₱6,350)
   const hemo = matchPhilHealthCaseRate('hemodialysis');
-  assert.strictEqual(hemo.rate, 4000);
+  assert.strictEqual(hemo.rate, 6350);
   assert.match(hemo.matchedName, /Hemodialysis/i);
   assert.strictEqual(hemo.isEstimated, false);
 

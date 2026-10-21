@@ -29,11 +29,14 @@ import {
   loadApplications,
   saveApplications,
   clearAllUserData,
+  getWipeGeneration,
+  applySharedFamilyContextToPatient,
   defaultPatientProfile,
   defaultRepresentativeProfile,
   defaultMedicalCase,
+  loadSharedFamilyContext,
 } from '@/lib/storage';
-import { Language, translations } from '@/lib/i18n';
+import { getNextLanguage, isLanguage, Language, translations } from '@/lib/i18n';
 import { X, Layers } from 'lucide-react';
 import { StackingInfographic } from '@/components/StackingInfographic';
 
@@ -44,9 +47,11 @@ export default function Home() {
   const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
   const [triageResetKey] = useState(0);
   const [privacyToast, setPrivacyToast] = useState(false);
+  const [bridgeNotice, setBridgeNotice] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [wipeError, setWipeError] = useState('');
   const [writesFrozen, setWritesFrozen] = useState(false);
+  const [backupRestorePending, setBackupRestorePending] = useState(false);
   const manualWipe = useRef(false);
   const writesDisabled = useRef(false);
   useEffect(() => {
@@ -57,6 +62,22 @@ export default function Home() {
     }, 0);
     const dismiss = setTimeout(() => setPrivacyToast(false), 5000);
     return () => { clearTimeout(timer); clearTimeout(dismiss); };
+  }, []);
+
+  useEffect(() => {
+    const syncLanguage = () => {
+      try {
+        const savedLanguage = localStorage.getItem('tulong_lang');
+        setLanguage(isLanguage(savedLanguage) ? savedLanguage : 'taglish');
+      }
+      catch { setLanguage('taglish'); }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'tulong_lang' || event.key === null) syncLanguage();
+    };
+    syncLanguage();
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
 
@@ -70,29 +91,56 @@ export default function Home() {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [, setIsLoaded] = useState(false);
 
+  useEffect(() => {
+    const pauseWrites = () => {
+      writesDisabled.current = true;
+      setBackupRestorePending(true);
+    };
+    const resumeWrites = () => {
+      if (manualWipe.current) return;
+      writesDisabled.current = false;
+      setBackupRestorePending(false);
+    };
+    const reloadAfterRestore = () => window.location.reload();
+    window.addEventListener('tulongph-backup-restore-started', pauseWrites);
+    window.addEventListener('tulongph-backup-restore-failed', resumeWrites);
+    window.addEventListener('tulongph-data-restored', reloadAfterRestore);
+    return () => {
+      window.removeEventListener('tulongph-backup-restore-started', pauseWrites);
+      window.removeEventListener('tulongph-backup-restore-failed', resumeWrites);
+      window.removeEventListener('tulongph-data-restored', reloadAfterRestore);
+    };
+  }, []);
+
   // Load from IndexedDB on initial mount
   useEffect(() => {
     async function initData() {
+      const generation = getWipeGeneration();
       try {
-        const [savedP, savedR, savedC, savedDocs, savedApps] = await Promise.all([
+        const [savedP, savedR, savedC, savedDocs, savedApps, shared] = await Promise.all([
           loadPatientProfile(),
           loadRepresentativeProfile(),
           loadMedicalCase(),
           loadDocuments(),
           loadApplications(),
+          loadSharedFamilyContext().catch(() => null),
         ]);
-        setPatient(savedP);
+        if (getWipeGeneration() !== generation) return;
+        const loadedPatient = shared ? applySharedFamilyContextToPatient(savedP, shared) : savedP;
+        setPatient(loadedPatient);
         setRepresentative(savedR);
         setMedicalCase(savedC);
         setDocuments(savedDocs);
         setApplications(savedApps);
-
-        const savedLang = localStorage.getItem('tulong_lang') as Language;
-        if (savedLang) setLanguage(savedLang);
+        const fromAnotherPillar = shared?.sourcePillar === 'education' || shared?.sourcePillar === 'worker';
+        if (fromAnotherPillar && shared && (shared.province || shared.cityMunicipality || shared.barangay || shared.is4Ps || shared.isPWD || shared.isOFW || shared.isSoloParent || shared.isSeniorCitizen || shared.monthlyIncome !== undefined)) {
+          setBridgeNotice(true);
+          await savePatientProfile(loadedPatient);
+        }
       } catch (err) {
         console.error('Failed to load local state', err);
       } finally {
-        setIsLoaded(true);
+        if (getWipeGeneration() === generation) setIsLoaded(true);
       }
     }
     initData();
@@ -130,7 +178,7 @@ export default function Home() {
   };
 
   const handleToggleLanguage = () => {
-    const nextLang = language === 'taglish' ? 'en' : 'taglish';
+    const nextLang = getNextLanguage(language);
     setLanguage(nextLang);
     localStorage.setItem('tulong_lang', nextLang);
   };
@@ -142,6 +190,7 @@ export default function Home() {
     setWritesFrozen(true);
     setWiping(true);
     setWipeError('');
+    setLanguage('taglish');
     try {
       // 1. Revoke all active document blob URLs to purge in-memory scans
       documents.forEach((d) => {
@@ -243,6 +292,17 @@ export default function Home() {
       )}
       </>}>
       {privacyToast && <CivicStatusBanner language={language} onDismiss={() => setPrivacyToast(false)} />}
+      {backupRestorePending && <p role="status" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        {language === 'taglish' ? 'Nakahinto muna ang pag-save habang nire-restore ang backup.' : 'Saving is paused while a backup is being restored.'}
+      </p>}
+      {bridgeNotice && <div role="status" className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        <p className="flex-1">{language === 'taglish'
+          ? 'Na-load mula sa family context ang lokasyon at detalye ng sektor. Pakisuri bago magpatuloy.'
+          : 'Location and sector details were loaded from family context. Please review them before continuing.'}</p>
+        <button type="button" onClick={() => setBridgeNotice(false)} aria-label={language === 'taglish' ? 'Isara ang abiso' : 'Dismiss notice'} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl hover:bg-blue-100 focus-ring">
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>}
       {currentTab === 'triage' && <CivicHeroBanner language={language} badge={t.badgeOfficialData}
         title={language === 'taglish' ? 'Huwag mawalan ng pag-asa.' : 'Never face a medical crisis alone.'}
         accent={language === 'taglish' ? 'May tulong ang gobyerno.' : 'Government aid is available.'}
@@ -287,6 +347,8 @@ export default function Home() {
               onUpdatePatient={handleUpdatePatient}
               onUpdateMedicalCase={handleUpdateMedicalCase}
               onUpdateDocuments={handleUpdateDocuments}
+              applications={applications}
+              onSaveApplications={handleSaveApplications}
               language={language}
             />
           )}

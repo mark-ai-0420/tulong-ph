@@ -2,7 +2,7 @@ import type { EducationMatch, EducationTriageResult, StudentEducationProfile } f
 import { EDUCATION_AMOUNTS as amounts, educationPrograms } from './data/educationPrograms.ts';
 
 export const defaultEducationProfile: StudentEducationProfile = {
-  fullName: '', schoolName: '', cityMunicipality: '', educationLevel: 'college', schoolType: 'suc_luc',
+  fullName: '', schoolName: '', degreeProgram: '', cityMunicipality: '', educationLevel: 'college', schoolType: 'suc_luc',
   location: 'NCR', annualTuitionAndFees: 0, gwa: 85, yearLevel: 1, age: 18,
   annualHouseholdIncome: 120_000, isFilipino: true, schoolParticipates: false,
   firstDegree: true, withinResidencyLimit: true, isIncomingFreshman: true,
@@ -13,7 +13,7 @@ export const defaultEducationProfile: StudentEducationProfile = {
   isDeceasedOFWDependent: false, isCoconutFarmerDependent: false, coconutPriorityCourse: false,
   isGSISDependent: false, gsisSalaryGrade: 15, isTop10PublicHS: false,
   hasFamilyCrisis: false, hasOtherNationalScholarship: false, hasNC3OrHigher: false,
-  trainingDays: 20, regionalDailyWage: 0, willingReturnService: false,
+  trainingDays: 20, regionalDailyWage: 0, regionalDailyWageManual: false, willingReturnService: false,
   selectedPrimaryProgram: '', needsLicensureReimbursement: false,
 };
 
@@ -35,6 +35,7 @@ export function normalizeEducationProfile(value: unknown): StudentEducationProfi
   if (!['public', 'suc_luc', 'private'].includes(profile.schoolType)) profile.schoolType = 'suc_luc';
   if (!['NCR', 'HUC', 'other'].includes(profile.location)) profile.location = 'NCR';
   if (!['public_jhs', 'esc', 'approved_private', 'none'].includes(profile.voucherCategory)) profile.voucherCategory = 'none';
+  profile.degreeProgram = typeof profile.degreeProgram === 'string' ? profile.degreeProgram.slice(0, 150) : '';
   profile.gwa = Math.min(100, profile.gwa);
   profile.yearLevel = Math.floor(profile.yearLevel);
   profile.age = Math.floor(profile.age);

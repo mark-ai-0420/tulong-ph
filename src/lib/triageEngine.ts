@@ -6,6 +6,8 @@ import type {
   AdmissionStatus,
   TriageResult,
 } from '../types/assistance.ts';
+import { getCancerAssistanceFundSitesForLocation } from './data/cancerAssistanceFund.ts';
+import { matchPhilHealthZBenefit } from './data/philhealthRates.ts';
 
 export type { TriageResult };
 
@@ -148,6 +150,131 @@ function checkIsHighDeficit(medicalCase: MedicalCase): boolean {
     medicalCase.category === 'surgery_implants' ||
     medicalCase.privateAccommodation === 'icu'
   );
+}
+
+function addConditionSpecificGuidance(
+  result: TriageResult,
+  patient: PatientProfile,
+  medicalCase: MedicalCase
+) {
+  const diagnosis = medicalCase.diagnosis || '';
+  const normalizedDiagnosis = diagnosis.toLowerCase();
+  const isCancerCase =
+    medicalCase.category === 'chemotherapy' ||
+    /\b(cancer|carcinoma|neoplasm|leukemia|leukaemia|lymphoma)\b/i.test(diagnosis);
+  const isDialysisCase =
+    medicalCase.category === 'dialysis' ||
+    /\b(hemodialysis|haemodialysis|peritoneal dialysis|dialysis|capd|apd|pd first)\b/i.test(diagnosis);
+  const matchedZBenefit = matchPhilHealthZBenefit(diagnosis);
+  const guidanceSteps: StackingStep[] = [];
+
+  if (isCancerCase) {
+    guidanceSteps.push({
+      stepNumber: result.steps.length + guidanceSteps.length + 1,
+      agencyId: 'philhealth_z_benefit',
+      agencyName: 'PhilHealth Z Benefits',
+      actionTitleEn: matchedZBenefit
+        ? `Ask about the ${matchedZBenefit.name} Z Benefit package`
+        : 'Ask whether a cancer Z Benefit package matches the diagnosis and treatment',
+      actionTitleTl: matchedZBenefit
+        ? `Magtanong tungkol sa Z Benefit para sa ${matchedZBenefit.name}`
+        : 'Magtanong kung may Z Benefit package para sa diagnosis at gamutan',
+      explanationEn: matchedZBenefit
+        ? `${matchedZBenefit.name}: ${matchedZBenefit.amountLabel}. The contracted hospital team must confirm clinical criteria, covered services, and pre-authorization. This is a provider-paid package, not a cash grant.`
+        : 'PhilHealth has Z Benefit packages for selected cancers. Ask the treating team to check the diagnosis, stage, contracted providers, and pre-authorization rules. Availability and amount vary by package.',
+      explanationTl: matchedZBenefit
+        ? `${matchedZBenefit.name}: ${matchedZBenefit.amountLabel}. Ipa-check sa contracted hospital ang clinical criteria, covered services, at pre-authorization. Benepisyo ito sa provider at hindi cash grant.`
+        : 'May Z Benefit packages ang PhilHealth para sa ilang cancer. Ipa-check sa treating team ang diagnosis, stage, contracted provider, at pre-authorization. Nag-iiba ang coverage at halaga ayon sa package.',
+      targetExpense: 'Eligible cancer diagnostics and treatment at a contracted provider',
+      estimatedTime: 'Provider assessment and pre-authorization',
+      priorityScore: 98,
+      requiredDocuments: ['clinical_abstract', 'patient_valid_id'],
+      pathwayScope: 'all',
+      badgeTagEn: 'Provider assessment required',
+      badgeTagTl: 'Kailangan ng assessment ng provider',
+      warningNoteEn: 'Package ceilings are not guaranteed awards. The contracted hospital and PhilHealth confirm eligibility and approved services.',
+      warningNoteTl: 'Hindi garantisadong matatanggap ang pinakamataas na package. Ospital at PhilHealth ang magkukumpirma ng kwalipikasyon at aprubadong serbisyo.',
+    });
+
+    const nearbySites = getCancerAssistanceFundSitesForLocation({
+      region: patient.address.region,
+      province: patient.address.province,
+    });
+    const nearbySiteNames = nearbySites.slice(0, 3).map((site) => site.hospitalName).join(', ');
+    guidanceSteps.push({
+      stepNumber: result.steps.length + guidanceSteps.length + 1,
+      agencyId: 'doh_cancer_assistance_fund',
+      agencyName: 'DOH Cancer Assistance Fund (CAF)',
+      actionTitleEn: 'Ask a DOH CAF access site about eligible cancer costs',
+      actionTitleTl: 'Magtanong sa DOH CAF access site tungkol sa eligible na gastusing pang-cancer',
+      explanationEn: `The Cancer Assistance Fund may support eligible diagnostics, treatment, and supportive cancer medicines up to ₱150,000 per patient per year. It is assessed at an access site and depends on program rules and available funds.${nearbySiteNames ? ` Sites listed for this region include: ${nearbySiteNames}.` : ' No site is listed for the selected region in this snapshot; use the DOH site locator to confirm the nearest current site.'}`,
+      explanationTl: `Maaaring tumulong ang Cancer Assistance Fund sa eligible na diagnostics, gamutan, at supportive cancer medicines hanggang ₱150,000 bawat pasyente kada taon. Ina-assess ito sa access site at nakadepende sa patakaran at pondong available.${nearbySiteNames ? ` Mga site sa rehiyon: ${nearbySiteNames}.` : ' Walang site para sa napiling rehiyon sa listahang ito; tingnan ang DOH site locator para makumpirma ang pinakamalapit na kasalukuyang site.'}`,
+      targetExpense: 'Eligible cancer diagnostics, treatment services, and supportive medicines',
+      estimatedTime: 'Ask the access-site Cancer Assistance Fund desk',
+      priorityScore: 97,
+      requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id'],
+      pathwayScope: 'all',
+      badgeTagEn: 'Up to ₱150,000 per year',
+      badgeTagTl: 'Hanggang ₱150,000 kada taon',
+      warningNoteEn: 'The site confirms eligibility, covered services, documents, and remaining funds. The listed amount is not automatic cash assistance.',
+      warningNoteTl: 'Site ang magkukumpirma ng kwalipikasyon, covered services, dokumento, at natitirang pondo. Hindi awtomatikong cash aid ang nakalistang halaga.',
+    });
+  }
+
+  if (isDialysisCase) {
+    const isPeritonealDialysis = /peritoneal dialysis|\bcapd\b|\bapd\b|\bpd first\b/i.test(diagnosis);
+    const zPackage = isPeritonealDialysis ? matchPhilHealthZBenefit(diagnosis) : undefined;
+    guidanceSteps.push({
+      stepNumber: result.steps.length + guidanceSteps.length + 1,
+      agencyId: 'philhealth_dialysis_support',
+      agencyName: 'PhilHealth Dialysis Benefits and Hospital Social Service',
+      actionTitleEn: isPeritonealDialysis
+        ? 'Check the updated peritoneal dialysis Z Benefit package'
+        : 'Check hemodialysis sessions and identify uncovered supplies',
+      actionTitleTl: isPeritonealDialysis
+        ? 'Ipa-check ang updated na peritoneal dialysis Z Benefit package'
+        : 'Ipa-check ang hemodialysis sessions at mga supply na hindi kasama',
+      explanationEn: isPeritonealDialysis
+        ? `PhilHealth Circular 2024-0036 sets peritoneal dialysis rates by age and daily bag regimen. ${zPackage?.amountLabel || 'Ask the accredited PD provider to confirm the applicable package and related benefits.'} Ask the provider to itemize any uncovered medicines or supplies.`
+        : 'PhilHealth pays ₱6,350 per hemodialysis session, up to 156 sessions in a year under Circular 2024-0023 (up to ₱990,600 at 156 sessions). Ask the dialysis unit and hospital social worker to identify any uncovered or unavailable items, including EPO, dialyzer, and iron sucrose, then ask Malasakit, PCSO, or DSWD about help for the documented gap.',
+      explanationTl: isPeritonealDialysis
+        ? `Itinatakda ng PhilHealth Circular 2024-0036 ang halaga ng peritoneal dialysis batay sa edad at dami ng PD bags kada araw. ${zPackage?.amountLabel || 'Ipa-confirm sa accredited PD provider ang tamang package at kaugnay na benepisyo.'} Ipa-itemize ang gamot o supply na hindi sakop.`
+        : '₱6,350 bawat hemodialysis session ang bayad ng PhilHealth, hanggang 156 session kada taon sa ilalim ng Circular 2024-0023 (hanggang ₱990,600 kung 156 session). Ipa-check sa dialysis unit at hospital social worker kung may hindi sakop o hindi available na EPO, dialyzer, at iron sucrose. Itanong sa Malasakit, PCSO, o DSWD kung maaaring makatulong sa dokumentadong kakulangan.',
+      targetExpense: 'Dialysis sessions and documented gaps in prescribed medicines or supplies',
+      estimatedTime: 'Confirm at the dialysis unit and hospital social service desk',
+      priorityScore: 96,
+      requiredDocuments: ['clinical_abstract', 'doctor_prescription', 'statement_of_account', 'patient_valid_id'],
+      pathwayScope: 'all',
+      badgeTagEn: isPeritonealDialysis ? 'Regimen-based package rates' : '₱6,350 per session',
+      badgeTagTl: isPeritonealDialysis ? 'Nag-iiba ayon sa regimen' : '₱6,350 bawat session',
+      warningNoteEn: 'The dialysis facility and PhilHealth must confirm approved sessions, package details, and which supplies are included in the current claim.',
+      warningNoteTl: 'Ospital at PhilHealth ang magkukumpirma ng aprubadong session, detalye ng package, at mga supply na kasama sa claim.',
+    });
+  }
+
+  const hasHighCostTest = /\b(ct|mri|pet|imaging|diagnostic scan|diagnostic imaging)\b/i.test(normalizedDiagnosis);
+  if (medicalCase.category === 'laboratory_diagnostics' || (medicalCase.admissionStatus === 'outpatient' && hasHighCostTest)) {
+    guidanceSteps.push({
+      stepNumber: result.steps.length + guidanceSteps.length + 1,
+      agencyId: 'dswd_aics_quotations',
+      agencyName: 'Outpatient Diagnostic Assistance Requirements',
+      actionTitleEn: 'Ask whether three written quotations are required',
+      actionTitleTl: 'Itanong kung kailangan ang tatlong nakasulat na quotation',
+      explanationEn: 'For high-cost outpatient imaging and laboratory requests such as CT, MRI, or PET scans, ask the receiving assistance office whether it requires three current written quotations. Requirements can vary by agency and case.',
+      explanationTl: 'Para sa mamahaling outpatient imaging at laboratory tulad ng CT, MRI, o PET scan, itanong sa assistance office kung kailangan ang tatlong kasalukuyang nakasulat na quotation. Nag-iiba ang requirements kada ahensya at kaso.',
+      targetExpense: 'High-cost outpatient imaging and laboratory tests',
+      estimatedTime: 'Before submitting the request to the assistance office',
+      priorityScore: 80,
+      requiredDocuments: ['clinical_abstract', 'doctor_prescription', 'patient_valid_id'],
+      pathwayScope: 'all',
+      badgeTagEn: 'Confirm office checklist',
+      badgeTagTl: 'I-confirm ang checklist ng ahensya',
+      warningNoteEn: 'The three-quotation requirement is not identical at every agency. Confirm before paying for or collecting quotes.',
+      warningNoteTl: 'Hindi pare-pareho ang three-quotation requirement sa bawat ahensya. I-confirm muna bago kumuha o magbayad para sa quotation.',
+    });
+  }
+
+  result.steps.push(...guidanceSteps);
 }
 
 /**
@@ -1000,6 +1127,8 @@ export function calculateAidStacking(
       result = buildPrivateGLStackingTriage(patient, medicalCase);
     }
   }
+
+  addConditionSpecificGuidance(result, patient, medicalCase);
 
   // Inspect admissionStatus (defaults to 'confined_running_bill')
   const status: AdmissionStatus = medicalCase.admissionStatus || 'confined_running_bill';
