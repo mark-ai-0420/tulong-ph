@@ -191,7 +191,7 @@ export function WorkerPrintView({ profile, language = 'taglish', worksheet: fiel
       </div>
     </details>
     <label htmlFor="worker-include-vault" className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 print:hidden">
-      <input id="worker-include-vault" type="checkbox" checked={includeVaultAttachments} disabled={attachableDocumentCount === 0}
+      <input id="worker-include-vault" type="checkbox" autoComplete="off" checked={includeVaultAttachments} disabled={attachableDocumentCount === 0}
         onChange={event => setIncludeVaultAttachments(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-blue-900" />
       <span>{english ? `Append ${attachableDocumentCount} compliant vault image(s) to the worksheet PDF` : `Isama ang ${attachableDocumentCount} compliant na vault image sa worksheet PDF`}</span>
     </label>

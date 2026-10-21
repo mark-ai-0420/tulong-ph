@@ -302,6 +302,7 @@ export const GenericPrescriptionGuideCard: React.FC<GenericPrescriptionGuideCard
           <select
             id="generic-medicine-category"
             name="genericMedicineCategory"
+            autoComplete="off"
             value={category}
             onChange={(event) => setCategory(event.target.value as TherapeuticCategory | 'all')}
             className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800"

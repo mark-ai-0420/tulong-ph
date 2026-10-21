@@ -219,7 +219,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }
             >
               <Trash2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 transition-colors shrink-0" />
-              <span className="hidden sm:inline">Burahin ang Data</span>
+              <span className="hidden xl:inline">Burahin ang Data</span>
             </button>
 
             {/* Language Toggle */}
@@ -231,8 +231,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Languages className="w-4 h-4 text-blue-900 shrink-0" />
               <span className="font-bold">{currentLanguage.shortLabel}</span>
-              <span className="inline sm:hidden">{compactLanguageNames[language]}</span>
-              <span className="hidden sm:inline">{currentLanguage.label}</span>
+              <span className="inline xl:hidden">{compactLanguageNames[language]}</span>
+              <span className="hidden xl:inline">{currentLanguage.label}</span>
             </button>
           </div>
         </div>
