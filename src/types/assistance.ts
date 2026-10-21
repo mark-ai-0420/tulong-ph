@@ -1,4 +1,4 @@
-export type Language = 'taglish' | 'en';
+export type Language = 'taglish' | 'cebuano' | 'ilocano' | 'en';
 
 export type EmergencyCategory =
   | 'hospitalization'
@@ -36,6 +36,7 @@ export interface PatientProfile {
   isPWD: boolean;
   is4PsBeneficiary: boolean;
   isOFWOrDependent: boolean;
+  isSoloParent?: boolean;
   socioeconomicClass: SocioeconomicClass;
   monthlyHouseholdIncome?: number;
 }
@@ -92,7 +93,13 @@ export type DocumentType =
   | 'proof_of_relationship'
   | 'social_case_study'
   | 'doctor_prescription'
-  | 'death_certificate';
+  | 'death_certificate'
+  | 'certificate_of_enrollment'
+  | 'academic_grades'
+  | 'income_tax_return'
+  | 'payslip_payroll'
+  | 'certificate_of_employment'
+  | 'incident_logbook';
 
 export interface StoredDocument {
   id: string;
@@ -102,13 +109,14 @@ export interface StoredDocument {
   compressedSize: number;
   mimeType: string;
   dataUrl?: string; // base64 or object URL for preview
+  attachmentDataUrl?: string;
   uploadedAt: string;
   isCompliantUnder2MB: boolean;
 }
 
 export interface ApplicationRecord {
   id: string;
-  agencyId: 'senate_assist' | 'pcso_map' | 'doh_malasakit' | 'dswd_aics' | 'pace_op';
+  agencyId: 'senate_assist' | 'pcso_map' | 'doh_malasakit' | 'dswd_aics' | 'pace_op' | 'lgu_congressional';
   referenceNumber: string;
   submissionDate: string;
   status: 'draft' | 'submitted' | 'processing' | 'gl_issued' | 'claimed' | 'rejected';

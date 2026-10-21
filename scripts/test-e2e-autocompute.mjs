@@ -3,6 +3,75 @@ import { writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert';
 
+const LANGUAGE_CYCLE = ['taglish', 'cebuano', 'ilocano', 'en'];
+const LANGUAGE_LABELS = {
+  taglish: 'Tagalog / Taglish',
+  cebuano: 'Cebuano / Bisaya',
+  ilocano: 'Ilokano / Ilocano',
+  en: 'English',
+};
+
+async function getCurrentLanguage(page) {
+  const label = await page.locator('button[aria-label*="Switch to"]').getAttribute('aria-label');
+  const match = /^Current language: (.+)\. Switch to (.+)$/.exec(label ?? '');
+  assert.ok(match, `Language switch button exposes its current and next languages: ${label}`);
+  const language = Object.entries(LANGUAGE_LABELS).find(([, languageLabel]) => languageLabel === match[1])?.[0];
+  assert.ok(language, `Language switch button shows a supported current language: ${match[1]}`);
+  return language;
+}
+
+async function assertLanguage(page, expected, description) {
+  await page.waitForFunction(
+    languageLabel => document.querySelector('button[aria-label*="Switch to"]')?.getAttribute('aria-label')
+      ?.startsWith(`Current language: ${languageLabel}. Switch to `),
+    LANGUAGE_LABELS[expected],
+  );
+  await page.waitForFunction(
+    expectedLang => {
+      const saved = localStorage.getItem('tulong_lang');
+      return saved === expectedLang || (expectedLang === 'taglish' && saved === null);
+    },
+    expected,
+  );
+  assert.equal(await getCurrentLanguage(page), expected, `${description}: rendered language`);
+  const saved = await page.evaluate(() => localStorage.getItem('tulong_lang'));
+  assert.ok(
+    saved === expected || (expected === 'taglish' && saved === null),
+    `${description}: saved language (${saved}) matches expected (${expected})`,
+  );
+}
+
+async function switchToLanguage(page, target) {
+  assert.ok(LANGUAGE_CYCLE.includes(target), `Unsupported language target: ${target}`);
+  const button = page.locator('button[aria-label*="Switch to"]');
+
+  for (let attempt = 0; attempt < LANGUAGE_CYCLE.length; attempt += 1) {
+    const current = await getCurrentLanguage(page);
+    if (current === target) {
+      await assertLanguage(page, target, 'Language already selected');
+      return;
+    }
+
+    const next = LANGUAGE_CYCLE[(LANGUAGE_CYCLE.indexOf(current) + 1) % LANGUAGE_CYCLE.length];
+    const following = LANGUAGE_CYCLE[(LANGUAGE_CYCLE.indexOf(next) + 1) % LANGUAGE_CYCLE.length];
+    assert.equal(
+      await button.getAttribute('aria-label'),
+      `Current language: ${LANGUAGE_LABELS[current]}. Switch to ${LANGUAGE_LABELS[next]}`,
+      'Language button advertises the next language in the four-way cycle',
+    );
+    await button.click();
+    await page.waitForFunction(
+      ({ currentLabel, nextLabel }) => document.querySelector('button[aria-label*="Switch to"]')?.getAttribute('aria-label')
+        === `Current language: ${currentLabel}. Switch to ${nextLabel}`,
+      { currentLabel: LANGUAGE_LABELS[next], nextLabel: LANGUAGE_LABELS[following] },
+    );
+    await page.waitForFunction(expected => localStorage.getItem('tulong_lang') === expected, next);
+    assert.equal(await getCurrentLanguage(page), next, 'Language switch advances one step in the rendered cycle');
+  }
+
+  assert.equal(await getCurrentLanguage(page), target, `Language cycle reaches ${target}`);
+}
+
 async function probePort(p) {
   return new Promise((resolve) => {
     const req = http.get(`http://localhost:${p}`, { timeout: 1000 }, (res) => {
@@ -26,6 +95,52 @@ async function waitForPageConditionWithNodePolling(page, predicate, timeoutMs = 
   throw new Error(`Timed out after ${timeoutMs}ms waiting for a page condition`);
 }
 
+async function readWorkerSession(page) {
+  return page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('tulongph-worker-session');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    if (!db.objectStoreNames.contains('workerSession')) { db.close(); return null; }
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction('workerSession').objectStore('workerSession').get('tulongph_worker_session');
+        request.onsuccess = () => resolve(request.result ?? null);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  });
+}
+
+async function waitForWorkerSession(page, predicate, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const saved = await readWorkerSession(page);
+    if (predicate(saved)) return saved;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out after ${timeoutMs}ms waiting for the IndexedDB worker session`);
+}
+
+async function readWorkerSessionCount(page) {
+  return page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('tulongph-worker-session');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    if (!db.objectStoreNames.contains('workerSession')) { db.close(); return 0; }
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction('workerSession').objectStore('workerSession').count();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  });
+}
+
 async function assertPrivacyControls(page) {
   const invalid = await page.locator('form, input, select, textarea').evaluateAll(elements =>
     elements.filter(el => el.getAttribute('autocomplete') !== 'off').map(el => el.id || el.tagName));
@@ -43,7 +158,7 @@ async function assertStepCardLayout(page, route, step) {
     const headings = [...(form?.querySelectorAll('h2') ?? [])];
     const heading = headings.find(item => item.tabIndex === -1 && !item.textContent?.includes('sample profile'))
       ?? headings.find(item => !item.textContent?.includes('sample profile'));
-    const banners = [...(form?.querySelectorAll('section') ?? [])].filter(section =>
+    const banners = [...(document.querySelector('main')?.querySelectorAll('section') ?? [])].filter(section =>
       [...section.querySelectorAll('h2')].some(title => title.closest('section') === section && /Subukan ang sample profile|Try a sample profile/.test(title.textContent ?? '')));
     if (expectedRoute === '/' && expectedStep === 3) {
       const search = document.querySelector('#roadmap-search');
@@ -199,8 +314,8 @@ async function checkPacket(page, kind) {
   await page.setViewportSize({ width: 794, height: 1123 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `/private/tmp/tulongph-${kind}-print.png` });
-  assert.equal(await page.locator('header').isVisible(), false, 'Navigation is absent from low-ink print');
-  assert.equal(await page.locator('footer').isVisible(), false, 'Shared footer is absent from low-ink print');
+  assert.equal(await page.locator('header.print\\:hidden').isVisible(), false, 'Navigation is absent from low-ink print');
+  assert.equal(await page.locator('footer.print\\:hidden').isVisible(), false, 'Shared footer is absent from low-ink print');
   const pdf = await page.pdf({ format: 'A4', path: `/private/tmp/tulongph-${kind}-native.pdf` });
   assert.ok(pdf.length > 1000, 'Native printable packet renders into PDF');
   await page.emulateMedia({ media: 'screen' });
@@ -216,12 +331,41 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.goto(`${baseUrl}/edukasyon`);
   await page.waitForSelector('#edu-level');
   await assertPrivacyControls(page); await assertNoOverflow(page);
+  for (const language of LANGUAGE_CYCLE) {
+    await switchToLanguage(page, language);
+    await assertLanguage(page, language, `Education route selects ${language}`);
+    await page.goto(`${baseUrl}/manggagawa`); await page.waitForSelector('#worker-sector');
+    await assertLanguage(page, language, `Worker route restores ${language}`);
+    await page.goto(baseUrl); await page.waitForSelector('#patient-first-name');
+    await assertLanguage(page, language, `Medical route restores ${language}`);
+    await page.goto(`${baseUrl}/edukasyon`); await page.waitForSelector('#edu-level');
+    await assertLanguage(page, language, `Education route restores ${language}`);
+  }
+  await switchToLanguage(page, 'taglish');
+  await page.selectOption('#edu-level', 'shs');
+  assert.match(await page.locator('#edu-level option[value="jhs"]').innerText(), /Junior High School \(JHS/);
+  assert.match(await page.locator('#edu-voucher-category option[value="public_jhs"]').innerText(), /Alternative Learning System \(ALS\) \/ Placement Test \(PEPT\)/);
+  await switchToLanguage(page, 'en');
+  assert.match(await page.locator('#edu-voucher-category option[value="public_jhs"]').innerText(), /Alternative Learning System \(ALS\) \/ Placement Test \(PEPT\)/);
+  await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
   assert.equal(await page.inputValue('#edu-level'), 'tvet');
   await page.getByRole('button', { name: 'Sample: DOST / CHED Honor (96%)', exact: true }).click();
   assert.equal(await page.inputValue('#edu-gwa'), '96');
   await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
   assert.equal(await page.inputValue('#edu-school-type'), 'suc_luc');
+  await page.fill('#edu-school-search', 'PUP');
+  assert.ok(await page.getByRole('listbox').isVisible(), 'School search opens its suggestion list');
+  await page.getByRole('option', { name: /Polytechnic University of the Philippines/ }).click();
+  assert.equal(await page.inputValue('#edu-school-search'), 'Polytechnic University of the Philippines');
+  assert.equal(await page.inputValue('#edu-school-type'), 'suc_luc');
+  assert.equal(await page.inputValue('#edu-province'), 'Metro Manila');
+  assert.equal(await page.inputValue('#edu-city'), 'Manila City');
+  assert.equal(await page.inputValue('#edu-location'), 'NCR');
+  assert.equal(await page.getByRole('listbox').count(), 0, 'Selecting a school closes the suggestion list');
+  await page.fill('#edu-school-search', 'UP');
+  await page.locator('#edu-level').click();
+  assert.equal(await page.getByRole('listbox').count(), 0, 'Clicking outside closes the suggestion list');
   await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
   assert.equal(await page.inputValue('#edu-level'), 'shs');
   assert.equal(await page.inputValue('#edu-tuition'), '30000');
@@ -252,6 +396,10 @@ async function runCivicPillarTests(browser, baseUrl) {
   await assertSchoolQuestionFilter(page);
   await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
   assert.ok(await page.locator('#edu-daily-wage').isVisible(), 'Sample on Step 2 stays on Step 2');
+  assert.equal(await page.getByLabel('Pamilyang kasama sa Pantawid Pamilya o talaan ng DSWD (4Ps / Listahanan)', { exact: true }).count(), 1);
+  await switchToLanguage(page, 'en');
+  assert.equal(await page.getByLabel('Household in Pantawid Pamilya or low-income registry (DSWD 4Ps / Listahanan)', { exact: true }).count(), 1);
+  await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
   assert.ok(await page.locator('#edu-training-days').isVisible());
   assert.ok(await page.locator('#edu-nc3').isVisible());
@@ -304,10 +452,16 @@ async function runCivicPillarTests(browser, baseUrl) {
     return profile.location === 'HUC' && profile.regionalDailyWage === 777;
   });
   await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
-  await page.getByRole('button', { name: 'UP / PUP / TUP / State Univ', exact: true }).click();
+  await page.fill('#edu-print-school', 'UP');
+  await page.getByRole('option', { name: /University of the Philippines Diliman/ }).click();
   await page.getByRole('button', { name: 'DSWD Crisis Intervention Unit', exact: true }).click();
-  assert.equal(await page.inputValue('#edu-print-school'), 'UP / PUP / TUP / State Univ');
+  assert.equal(await page.inputValue('#edu-print-school'), 'University of the Philippines Diliman');
   assert.equal(await page.inputValue('#edu-print-city'), 'Quezon City');
+  assert.equal(await page.inputValue('#edu-print-province'), 'Metro Manila');
+  await page.waitForFunction(() => {
+    const profile = JSON.parse(localStorage.getItem('tulongph_education_session') ?? '{}');
+    return profile.schoolType === 'suc_luc' && profile.location === 'NCR' && profile.regionalDailyWage === 755;
+  });
   assert.equal(await page.inputValue('#edu-print-recipient'), 'DSWD Crisis Intervention Unit');
   await page.fill('#edu-print-barangay', 'Printable Barangay Edit');
   await page.waitForFunction(() => {
@@ -315,8 +469,8 @@ async function runCivicPillarTests(browser, baseUrl) {
     return profile.barangay === 'Printable Barangay Edit';
   });
   const printedProfile = await page.evaluate(() => JSON.parse(localStorage.getItem('tulongph_education_session')));
-  assert.equal(printedProfile.location, 'HUC', 'Printable barangay edit preserves manual location tier');
-  assert.equal(printedProfile.regionalDailyWage, 777, 'Printable barangay edit preserves manual regional wage');
+  assert.equal(printedProfile.location, 'NCR', 'Print school selection fills the location tier');
+  assert.equal(printedProfile.regionalDailyWage, 755, 'Print school selection fills the official regional wage');
   await page.getByRole('button', { name: 'Cavite → Indang → Daine I', exact: true }).click();
   assert.ok((await page.locator('.education-print-packet').innerText()).includes('Daine I, Indang, Cavite'));
   await checkPacket(page, 'education');
@@ -346,6 +500,11 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.waitForSelector('#worker-sector');
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await assertLocationHierarchy(page, 'worker');
+  assert.equal(await page.getByLabel('Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('Base sa 12 buwan bago ang 6-buwang semester ng panganganak o pagkakasakit (hindi kasama ang mismong semester; hanggang ₱20,000 max).', { exact: true }).count(), 1);
+  await switchToLanguage(page, 'en');
+  assert.equal(await page.getByText('Based on the 12 months before the 6-month semester of childbirth or illness (excluding that 6-month semester; up to ₱20,000 max).', { exact: true }).count(), 1);
+  await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Sample: Maternity + Differential', exact: true }).click();
   assert.equal(await page.inputValue('#worker-monthlySalary'), '25000');
   await page.getByRole('button', { name: '₱15,000', exact: true }).click();
@@ -356,29 +515,35 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: '72 buwan (6 yrs - 2-Mo Loan)', exact: true }).click();
   assert.equal(await page.inputValue('#worker-pagibigContributionMonths'), '72');
   assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800');
+  await page.fill('#worker-pagibigTAV', '0');
+  await page.getByRole('button', { name: 'Tantiyahin ang ipon base sa buwan ng hulog (× ₱400/buwan)', exact: true }).click();
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Pag-IBIG savings estimate uses paid months times PHP 400');
   await assertNoOverflow(page);
   await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.fill('#worker-barangay', 'Daine II');
   assert.equal(await page.inputValue('#worker-barangay'), 'Daine II');
-  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await page.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
+  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await page.fill('#worker-regionalDailyWage', '777');
   await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.fill('#worker-barangay', 'Daine I');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
-  await page.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
   assert.equal(await page.inputValue('#worker-regionalDailyWage'), '777', 'Barangay-only edit preserves manual regional wage');
   await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.fill('#worker-monthlySalary', '30000');
-  await page.fill('#worker-averageMonthlySalaryCredit', '20000');
-  await page.fill('#worker-highestSixMonthlySalaryCredit', '20000');
+  await page.fill('#worker-averageMonthlySalaryCredit', '0');
+  await page.fill('#worker-highestSixMonthlySalaryCredit', '0');
+  await page.getByRole('button', { name: 'Tantiyahin ang SSS bracket mula sa buwanang sahod', exact: true }).click();
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '20000', 'SSS wage estimate is capped at PHP 20,000');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '20000', 'SSS wage estimate updates both salary brackets');
   await page.fill('#worker-contributionMonths', '72');
   await assertLocationHierarchy(page, 'worker');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
-  await page.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
-  assert.equal(await page.inputValue('#worker-regionalDailyWage'), '520');
+  assert.equal(await page.inputValue('#worker-regionalDailyWage'), '777', 'Manual wage override survives province and city edits');
   assert.ok(await page.getByText('Live na benefit / loan preview', { exact: true }).isVisible());
+  await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.getByLabel('Maternity at salary differential', { exact: true }).check();
+  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await page.fill('#worker-qualifyingBenefitContributions', '3');
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
@@ -390,20 +555,27 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'I-clear ang roadmap filter', exact: true }).click();
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await page.getByRole('button', { name: '2. Pangangailangan', exact: true }).click();
-  await page.getByLabel('Sakit / aksidente at EC claim', { exact: true }).check();
+  assert.match(await page.locator('#worker-maternityType option[value="miscarriage"]').innerText(), /Emergency Termination of Pregnancy \(Miscarriage \/ ETP\)/);
+  await switchToLanguage(page, 'en');
+  assert.match(await page.locator('#worker-maternityType option[value="miscarriage"]').innerText(), /Miscarriage, stillbirth, or Emergency Termination of Pregnancy \(ETP\): 60 days/);
+  await page.locator('button').filter({ hasText: /Sektor at Kontribusyon|Sector and Contributions/ }).first().click();
+  assert.equal(await page.getByLabel("Work-related sickness or accident (Employees' Compensation / EC claim)", { exact: true }).count(), 1);
+  await switchToLanguage(page, 'taglish');
+  await page.getByLabel("Sakit o aksidente sa trabaho (Employees' Compensation / EC claim)", { exact: true }).check();
+  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await page.fill('#worker-sicknessDays', '10');
   await page.check('#worker-sickLeaveExhausted');
   await page.check('#worker-isWorkRelated');
   await page.fill('#worker-approvedECMedicalReimbursement', '8000');
-  const sicknessPreview = page.locator('section[aria-live="polite"]').filter({ hasText: 'Approved EC medical reimbursement' }).first();
+  const sicknessPreview = page.locator('section[aria-live="polite"]').filter({ hasText: "Approved Employees' Compensation (EC) medical reimbursement" }).first();
   const previewAmounts = await sicknessPreview.locator('dl > div dd').evaluateAll(elements => elements.map(element => Number(element.textContent?.replace(/[^\d.]/g, ''))));
   assert.equal(previewAmounts[2], 8000, 'Sickness preview includes approved EC medical reimbursement');
   assert.equal(previewAmounts.slice(0, -1).reduce((sum, amount) => sum + amount, 0), previewAmounts.at(-1), 'Sickness preview rows sum to the combined benefit');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   assert.ok((await page.getByTestId('worker-sickness-total').innerText()).includes('18,800'));
-  await page.getByRole('button', { name: 'Palitan ang wika sa English', exact: true }).click();
+  await switchToLanguage(page, 'en');
   assert.ok(await page.getByRole('button', { name: 'Open Printable Worker Packet', exact: true }).isVisible());
-  await page.getByRole('button', { name: 'Palitan ang wika sa Taglish', exact: true }).click();
+  await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Buksan ang Printable Worker Packet', exact: true }).click();
   await page.getByRole('button', { name: 'Hindi nabayarang sahod', exact: true }).click();
   assert.ok((await page.inputValue('#worker-print-unpaid')).includes('Hindi nabayarang sahod'));
@@ -415,15 +587,44 @@ async function runCivicPillarTests(browser, baseUrl) {
   assert.ok((await page.inputValue('#worker-print-budget')).includes('25,000'));
   await page.fill('#worker-print-name', 'Synthetic Worker');
   await page.fill('#worker-print-employer', 'Synthetic Employer');
+  await page.fill('#worker-print-address', 'Synthetic Employer Address');
+  await page.fill('#worker-print-start', '2020-01-02');
+  await page.fill('#worker-print-end', '2026-10-20');
+  await page.fill('#worker-print-event', 'Synthetic work event');
+  await page.fill('#worker-print-budget', 'Tools and materials: PHP 25,000');
+  const worksheetSave = await waitForWorkerSession(page, saved => saved?.worksheetName === 'Synthetic Worker'
+    && saved.worksheetEmployer === 'Synthetic Employer'
+    && saved.worksheetEmployerAddress === 'Synthetic Employer Address'
+    && saved.worksheetStartDate === '2020-01-02'
+    && saved.worksheetEndDate === '2026-10-20'
+    && saved.worksheetUnpaidDetails.includes('Hindi nabayarang sahod')
+    && saved.worksheetEventDetails === 'Synthetic work event'
+    && saved.worksheetProjectTitle === 'Sari-Sari Store at Bigasan'
+    && saved.worksheetProposedBudget === 'Tools and materials: PHP 25,000');
+  assert.equal(worksheetSave.worksheetName, 'Synthetic Worker');
+  await page.locator('header button:visible').filter({ hasText: /Gabay|Navigator/ }).first().click();
+  await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
+  assert.equal(await page.inputValue('#worker-print-name'), 'Synthetic Worker', 'Worksheet survives print tab unmount and remount');
+  assert.equal(await page.inputValue('#worker-print-address'), 'Synthetic Employer Address');
+  assert.equal(await page.inputValue('#worker-print-start'), '2020-01-02');
+  await page.fill('#worker-print-name', 'N'.repeat(250));
+  assert.equal((await page.inputValue('#worker-print-name')).length, 200, 'Worker name is capped at 200 characters');
+  await page.fill('#worker-print-address', 'A'.repeat(250));
+  assert.equal((await page.inputValue('#worker-print-address')).length, 200, 'Employer address is capped at 200 characters');
+  await page.fill('#worker-print-unpaid', 'D'.repeat(2200));
+  assert.equal((await page.inputValue('#worker-print-unpaid')).length, 2000, 'Worksheet details are capped at 2,000 characters');
+  await page.fill('#worker-print-name', 'Synthetic Worker');
+  await page.fill('#worker-print-address', 'Synthetic Employer Address');
+  await page.fill('#worker-print-unpaid', 'Hindi nabayarang sahod\nHindi nabayarang 13th Month Pay');
   await checkPacket(page, 'worker');
   await page.locator('header button:visible').filter({ hasText: /Direktoryo/ }).first().click();
   await page.waitForSelector('#worker-directory-search');
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await page.getByRole('button', { name: 'Unpaid Sahod 1349', exact: true }).click();
   assert.ok(await page.getByRole('heading', { name: 'DOLE SEnA', exact: false }).isVisible());
-  const workerContact = page.locator('article').filter({ has: page.getByRole('button', { name: 'Copy Hotline: DOLE / e-SEnA / PESO', exact: true }) });
-  await workerContact.getByRole('button', { name: 'Copy Hotline: DOLE / e-SEnA / PESO', exact: true }).click();
-  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '1349');
+  const workerContact = page.locator('article').filter({ has: page.getByRole('button', { name: /(?:Copy|Kopyahin ang) [Hh]otline: DOLE.*SEnA/ }) });
+  await workerContact.getByRole('button', { name: /(?:Copy|Kopyahin ang) [Hh]otline: DOLE.*SEnA/ }).click();
+  assert.ok((await page.evaluate(() => navigator.clipboard.readText())).includes('1349'));
   await assertNoOverflow(page);
   await page.getByRole('button', { name: 'Lahat ng pangangailangan', exact: true }).click();
   await page.fill('#worker-directory-search', 'not-a-real-desk');
@@ -432,7 +633,13 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.waitForSelector('#worker-monthlySalary');
   assert.equal(await page.inputValue('#worker-monthlySalary'), '30000', 'Worker session survives reload');
   assert.ok(await page.evaluate(() => localStorage.getItem('tulongph_education_session')));
-  assert.ok(await page.evaluate(() => localStorage.getItem('tulongph_worker_session')));
+  const savedWorkerSession = await readWorkerSession(page);
+  assert.ok(savedWorkerSession, 'Worker session is stored in IndexedDB');
+  assert.equal(savedWorkerSession.worksheetName, 'Synthetic Worker', 'Worksheet survives page reload');
+  await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
+  assert.equal(await page.inputValue('#worker-print-name'), 'Synthetic Worker');
+  assert.equal(await page.inputValue('#worker-print-address'), 'Synthetic Employer Address');
+  assert.equal(await page.inputValue('#worker-print-unpaid'), 'Hindi nabayarang sahod\nHindi nabayarang 13th Month Pay');
   await page.evaluate(async () => {
     sessionStorage.setItem('synthetic-private-record', 'wipe-me');
     const database = await new Promise((resolve, reject) => {
@@ -456,7 +663,8 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Oo, Burahin Lahat', exact: true }).click();
   await page.waitForSelector('#worker-monthlySalary');
   await page.waitForFunction(() => document.querySelector('#worker-monthlySalary')?.value === '0');
-  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => key !== 'tulongph-last-activity')), [], 'Both civic sessions and every private local key wiped; mount records fresh nonpersonal activity');
+  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => !['tulongph-last-activity', 'tulong_lang'].includes(key))), [], 'Both civic sessions and every private local key wiped; mount records fresh nonpersonal activity');
+  assert.equal(await page.evaluate(() => localStorage.getItem('tulong_lang')), 'taglish', 'Privacy wipe restores the default language');
   assert.equal(await page.evaluate(() => sessionStorage.length), 0, 'Session records wiped');
   const idbCount = await page.evaluate(async () => {
     const db = await new Promise(resolve => { const req = indexedDB.open('keyval-store'); req.onsuccess = () => resolve(req.result); });
@@ -464,6 +672,7 @@ async function runCivicPillarTests(browser, baseUrl) {
     db.close(); return count;
   });
   assert.equal(idbCount, 0, 'Medical profiles and document records wiped from IndexedDB');
+  assert.equal(await readWorkerSessionCount(page), 0, 'Worker profile and worksheet records wiped from the workerSession object store');
   await secondTab.waitForFunction(() => document.querySelector('#edu-tuition')?.value === '0');
   assert.equal(await secondTab.evaluate(() => sessionStorage.length), 0, 'Other pillar tab session and React state wiped');
   await secondTab.close();
@@ -473,7 +682,8 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.fill('#edu-tuition', '4321');
   await page.clock.fastForward(15 * 60 * 1000 + 1000);
   await page.waitForFunction(() => document.querySelector('#edu-tuition')?.value === '0');
-  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => key !== 'tulongph-last-activity')), [], '15-minute inactivity wipes all user data; reload may record fresh nonpersonal activity');
+  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => !['tulongph-last-activity', 'tulong_lang'].includes(key))), [], '15-minute inactivity wipes all user data; reload may record fresh nonpersonal activity');
+  assert.equal(await page.evaluate(() => localStorage.getItem('tulong_lang')), 'taglish');
   assert.deepEqual(errors, [], 'Civic pages have no browser runtime errors');
   await context.close();
   await runCrossTabIdleTests(browser, baseUrl);
@@ -486,29 +696,29 @@ async function runCrossTabIdleTests(browser, baseUrl) {
     const context = await browser.newContext();
     try {
       if (!broadcast) await context.addInitScript(() => { delete window.BroadcastChannel; });
-      const idle = await context.newPage();
-      const active = await context.newPage();
       const now = new Date('2026-10-11T23:59:00Z');
       // Playwright's clock controls every page in this browser context.
-      await idle.clock.install({ time: now });
+      await context.clock.install({ time: now });
+      const idle = await context.newPage();
+      const active = await context.newPage();
       await idle.goto(`${baseUrl}/edukasyon`);
       await idle.waitForSelector('#edu-tuition');
-      await idle.clock.pauseAt(new Date('2026-10-12T00:00:00Z'));
+      await context.clock.pauseAt(new Date('2026-10-12T00:00:00Z'));
       await idle.fill('#edu-tuition', '1234');
-      await idle.clock.fastForward(14 * 60 * 1000);
+      await context.clock.fastForward(14 * 60 * 1000);
       await active.goto(`${baseUrl}/manggagawa`);
       await active.waitForSelector('#worker-monthlySalary');
       await waitForPageConditionWithNodePolling(idle, () => localStorage.getItem('tulongph-last-activity') === String(Date.parse('2026-10-12T00:14:00Z')));
-      await idle.clock.fastForward(61 * 1000);
+      await context.clock.fastForward(61 * 1000);
       assert.equal(await idle.inputValue('#edu-tuition'), '1234', 'Opening a second tab at minute 14 extends the first tab deadline without further interaction');
       await active.fill('#worker-monthlySalary', '5678');
       await waitForPageConditionWithNodePolling(idle, () => localStorage.getItem('tulongph-last-activity') === String(Date.parse('2026-10-12T00:15:01Z')));
-      await idle.clock.fastForward(14 * 60 * 1000);
+      await context.clock.fastForward(14 * 60 * 1000);
       assert.equal(await active.inputValue('#worker-monthlySalary'), '5678', 'Idle tab cannot erase another tab actively editing');
-      assert.equal(await idle.evaluate(() => JSON.parse(localStorage.getItem('tulongph_worker_session')).monthlySalary), 5678);
+      await waitForWorkerSession(idle, saved => saved?.monthlySalary === 5678);
       await active.close();
-      await idle.clock.fastForward(61 * 1000);
-      await waitForPageConditionWithNodePolling(idle, () => localStorage.getItem('tulongph_worker_session') === null);
+      await idle.clock.fastForward(2 * 60 * 1000);
+      await waitForWorkerSession(idle, saved => saved === null);
       await waitForPageConditionWithNodePolling(idle, () => document.querySelector('#edu-tuition')?.value === '0');
       assert.equal(await idle.inputValue('#edu-tuition'), '0', 'Global wipe resumes once every tab is inactive');
     } finally { await context.close(); }
@@ -534,13 +744,14 @@ async function runPrivacyRecoveryTest(browser, baseUrl) {
     await assertPrivacyControls(page);
     await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
     await page.selectOption('#worker-sector', 'ofw');
+    await page.getByLabel("Sakit o aksidente sa trabaho (Employees' Compensation / EC claim)", { exact: true }).check();
     await page.getByRole('button', { name: 'Susunod', exact: true }).click();
-    await page.getByLabel('Sakit / aksidente at EC claim', { exact: true }).check();
     await page.check('#worker-ofwSeaBased');
+    await waitForWorkerSession(page, saved => saved?.ofwSeaBased === true);
     await assertPrivacyControls(page);
     await page.reload();
     await page.waitForSelector('#worker-monthlySalary');
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tulongph_worker_session')));
+    const saved = await readWorkerSession(page);
     assert.equal(saved.sssOutstandingLoan, 1000);
     assert.equal(saved.sssCalamityOutstandingLoan, 2500);
     assert.equal(saved.gsisAdvanceInsuranceMonths, 2);
@@ -579,6 +790,56 @@ async function runPrivacyRecoveryTest(browser, baseUrl) {
   console.log('  PASS: privacy-page wipe permits fresh patient and worker saves');
 }
 
+async function runServiceWorkerTests(browser, baseUrl) {
+  console.log('\n[Service worker] Public shell precache, offline navigation and Pisonet cache wipe...');
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  try {
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      window.addEventListener('tulongph-data-cleared', event => event.stopImmediatePropagation(), true);
+    });
+    await page.goto(baseUrl);
+    await page.waitForSelector('#patient-first-name');
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.reload();
+    await page.waitForSelector('#patient-first-name');
+    await page.waitForFunction(() => navigator.serviceWorker.controller?.scriptURL.endsWith('/sw.js'));
+
+    const precached = await page.evaluate(async () => {
+      const shell = await caches.open('tulongph-offline-shell-v1');
+      const statics = await caches.open('tulongph-offline-static-v1');
+      return {
+        routes: (await shell.keys()).map(request => new URL(request.url).pathname).sort(),
+        staticCount: (await statics.keys()).length,
+      };
+    });
+    assert.deepEqual(precached.routes, ['/','/edukasyon','/manggagawa','/privacy'].sort(), 'All public shell routes are precached');
+    assert.ok(precached.staticCount > 0, 'Hashed Next.js bundles are precached');
+
+    await page.goto(`${baseUrl}/?applicant=must-not-be-cached`);
+    const cachedQueries = await page.evaluate(async () => {
+      const shell = await caches.open('tulongph-offline-shell-v1');
+      return (await shell.keys()).filter(request => new URL(request.url).search !== '').length;
+    });
+    assert.equal(cachedQueries, 0, 'Navigations with query data are not cached');
+
+    await context.setOffline(true);
+    for (const [route, selector] of [['/', '#patient-first-name'], ['/edukasyon', '#edu-level'], ['/manggagawa', '#worker-sector'], ['/privacy', 'h1']]) {
+      await page.goto(baseUrl + route);
+      await page.waitForSelector(selector, { timeout: 20_000 });
+    }
+    await context.setOffline(false);
+    await page.goto(baseUrl);
+    await page.waitForSelector('#patient-first-name');
+    await page.getByRole('button', { name: 'Burahin ang Aking Datos (Pisonet / Shop Mode)', exact: true }).click();
+    await page.getByRole('button', { name: 'Oo, Burahin ang Lahat', exact: true }).click();
+    await page.waitForFunction(async () => (await caches.keys()).length === 0);
+    assert.equal(await page.evaluate(() => localStorage.getItem('tulong_lang')), 'taglish');
+    assert.equal(await page.evaluate(() => sessionStorage.length), 0);
+  } finally { await context.close(); }
+  console.log('  PASS: production SW precache, offline route reloads, query exclusion and full cache wipe');
+}
+
 async function runUniformDesignTests(browser, baseUrl) {
   console.log('\n[Uniform design] Shared shell, footer, stepper, roadmap and privacy...');
   const shellMetrics = [];
@@ -614,7 +875,7 @@ async function runUniformDesignTests(browser, baseUrl) {
         window.restoreClipboardForTest = () => { navigator.clipboard.writeText = original; };
         navigator.clipboard.writeText = () => Promise.reject(new Error('Synthetic clipboard denial'));
       });
-      const copy = route.path === '/' ? page.getByRole('button', { name: 'Kopyahin ang Telepono', exact: true }).first() : route.path === '/edukasyon' ? page.getByRole('button', { name: 'Copy Email', exact: true }).first() : page.getByRole('button', { name: /^Copy Hotline:/ }).first();
+      const copy = route.path === '/' ? page.getByRole('button', { name: 'Kopyahin ang Telepono', exact: true }).first() : route.path === '/edukasyon' ? page.getByRole('button', { name: 'Copy Email', exact: true }).first() : page.getByRole('button', { name: /^(?:Copy|Kopyahin ang) [Hh]otline:/ }).first();
       await copy.click();
       await page.getByRole('status').filter({ hasText: /Hindi (?:nakopya|makopya)/ }).waitFor();
       await page.evaluate(() => window.restoreClipboardForTest());
@@ -765,7 +1026,14 @@ async function runUniformDesignTests(browser, baseUrl) {
         // Pause the existing cache purge to verify repeat-click and Escape guards.
         await page.evaluate(() => {
           const original = caches.keys.bind(caches);
-          caches.keys = () => new Promise(resolve => { window.releaseWipeForTest = async () => resolve(await original()); });
+          let paused = true;
+          caches.keys = async () => {
+            if (paused) {
+              await new Promise(resolve => { window.releaseWipeForTest = resolve; });
+              paused = false;
+            }
+            return await original();
+          };
         });
         await dialog.getByRole('button', { name: route.confirm, exact: true }).click();
         await page.waitForFunction(() => typeof window.releaseWipeForTest === 'function');
@@ -777,7 +1045,8 @@ async function runUniformDesignTests(browser, baseUrl) {
         const toast = page.getByRole('status').filter({ hasText: 'Nabura na ang lahat ng datos' });
         await toast.waitFor();
         assert.equal(await page.evaluate(() => location.hash), '', 'One-shot fragment consumed after full reload');
-        assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => key !== 'tulongph-last-activity')), [], 'Success notice leaves no stored marker or private data');
+        assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => !['tulongph-last-activity', 'tulong_lang'].includes(key))), [], 'Success notice leaves no stored marker or private data');
+        assert.equal(await page.evaluate(() => localStorage.getItem('tulong_lang')), 'taglish');
         assert.equal(await page.evaluate(() => sessionStorage.length), 0);
         await page.screenshot({ path: `/private/tmp/tulongph-uniform-${route.key}-toast-${origin}.png` });
         await page.getByRole('button', { name: 'Isara ang abiso', exact: true }).click();
@@ -812,6 +1081,7 @@ async function runE2ETests() {
   });
 
   try {
+    if (process.env.SW_ONLY === '1') { await runServiceWorkerTests(browser, baseUrl); return; }
     if (process.env.CIVIC_ONLY === '1') { await runCivicPillarTests(browser, baseUrl); return; }
     if (process.env.UNIFORM_ONLY === '1') { await runUniformDesignTests(browser, baseUrl); return; }
     // -------------------------------------------------------------

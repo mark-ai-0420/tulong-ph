@@ -9,8 +9,12 @@ import {
   RepresentativeProfile,
   MedicalCase,
   StoredDocument,
+  ApplicationRecord,
 } from '@/types/assistance';
 import { Language } from '@/lib/i18n';
+import { GLCooldownTrackerCard } from '@/components/triage/GLCooldownTrackerCard';
+import { TreatmentQuotaTrackerCard } from '@/components/triage/TreatmentQuotaTrackerCard';
+import { GenericPrescriptionChecklistPrintView } from '@/components/triage/GenericPrescriptionGuideCard';
 import {
   generateMalasakitFormPdf,
   generateDSWDIntakePdf,
@@ -53,6 +57,8 @@ interface PrintFormsViewProps {
   onUpdatePatient: (updated: PatientProfile) => void;
   onUpdateMedicalCase: (updated: MedicalCase) => void;
   onUpdateDocuments?: (updated: StoredDocument[]) => void;
+  applications?: ApplicationRecord[];
+  onSaveApplications?: (apps: ApplicationRecord[]) => void;
   language: Language;
 }
 
@@ -95,7 +101,7 @@ const PREP_REQUIREMENTS: PrepRequirement[] = [
   },
 ];
 
-type SelectedForm = 'complete_packet' | 'malasakit' | 'dswd' | 'checklist';
+type SelectedForm = 'complete_packet' | 'malasakit' | 'dswd' | 'checklist' | 'prescription_checklist';
 
 export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   patient,
@@ -105,9 +111,12 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   onUpdatePatient,
   onUpdateMedicalCase,
   onUpdateDocuments,
+  applications = [],
+  onSaveApplications,
   language,
 }) => {
   const [selectedForm, setSelectedForm] = useState<SelectedForm>('complete_packet');
+  const isPrescriptionChecklist = selectedForm === 'prescription_checklist';
   const [includeVaultAttachments, setIncludeVaultAttachments] = useState(true);
   const [showQuickEdit, setShowQuickEdit] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -140,7 +149,7 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
         const standardizedName = getStandardizedDocFileName(patient.lastName || 'Applicant', type);
         const result = await convertAndCompressImageToPdf(file, standardizedName);
         if (getWipeGeneration() !== uploadGeneration) {
-          URL.revokeObjectURL(result.dataUrl);
+          if (result.dataUrl.startsWith('blob:')) URL.revokeObjectURL(result.dataUrl);
           return;
         }
 
@@ -152,6 +161,7 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
           compressedSize: result.compressedSize,
           mimeType: result.mimeType,
           dataUrl: result.dataUrl,
+          attachmentDataUrl: result.attachmentDataUrl,
           uploadedAt: new Date().toISOString(),
           isCompliantUnder2MB: result.isCompliantUnder2MB,
         };
@@ -198,9 +208,14 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
     ? fullName
     : representative.fullName || 'Juan Dela Cruz (Kinatawan)';
 
-  const availableVaultDocs = documents.filter((d) => d.dataUrl && d.mimeType.startsWith('image/'));
+  const availableVaultDocs = documents.filter((document) => document.isCompliantUnder2MB && document.attachmentDataUrl);
 
   const handleDownload = async () => {
+    if (isPrescriptionChecklist) {
+      window.print();
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const cleanPatientName = (patient.lastName || 'Applicant').replace(/[^a-zA-Z0-9]/g, '');
@@ -236,6 +251,11 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   };
 
   const handleDirectPrint = async () => {
+    if (isPrescriptionChecklist) {
+      window.print();
+      return;
+    }
+
     setIsGenerating(true);
     try {
       if (selectedForm === 'complete_packet') {
@@ -266,6 +286,8 @@ export const PrintFormsView: React.FC<PrintFormsViewProps> = ({
   };
 
   const handleShareToRelatives = async () => {
+    if (isPrescriptionChecklist) return;
+
     setIsGenerating(true);
     const cleanPatientName = (patient.lastName || 'Applicant').replace(/[^a-zA-Z0-9]/g, '');
     const patientDisplay = fullName || 'Pasyente';
@@ -399,7 +421,19 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
 
   return (
     <div className="space-y-6">
-      <CivicViewHeader icon={Printer} badge={language === 'taglish' ? 'Print-Ready para sa Pisonet & Computer Shop' : 'Print-Ready for Computer Shops'} title={language === 'taglish' ? 'I-print ang mga Opisyal na Form' : 'Printable Hospital Packets & Forms'} description={language === 'taglish' ? 'Pre-filled na Malasakit Unified Intake Sheet (RA 11463), DSWD AICS Form, at Checklist Cover Sheet na handang dalhin sa Social Worker Desk ng ospital.' : 'Pre-filled official Malasakit Center Intake Sheet (RA 11463), DSWD AICS Form, and Hospital Checklist ready for submission at hospital social service desks.'} actions={
+      <div className={isPrescriptionChecklist ? 'print:hidden' : ''}>
+      <CivicViewHeader
+        icon={Printer}
+        badge={isPrescriptionChecklist
+          ? language === 'taglish' ? 'Matipid sa tinta na checklist' : language === 'cebuano' ? 'Checklist nga gamay og tinta' : language === 'ilocano' ? 'Checklist a makurtian iti tinta' : 'Low-ink checklist'
+          : language === 'taglish' ? 'Print-Ready para sa Pisonet & Computer Shop' : 'Print-Ready for Computer Shops'}
+        title={isPrescriptionChecklist
+          ? language === 'taglish' ? 'Checklist ng Reseta' : language === 'cebuano' ? 'Checklist sa Reseta' : language === 'ilocano' ? 'Checklist ti Reseta' : 'Prescription Checklist'
+          : language === 'taglish' ? 'I-print ang mga Opisyal na Form' : 'Printable Hospital Packets & Forms'}
+        description={isPrescriptionChecklist
+          ? language === 'taglish' ? 'Isang malinis at low-ink na checklist na puwedeng i-print at dalhin sa doktor o parmasyutiko.' : language === 'cebuano' ? 'Usa ka limpyo ug tipid-og-tinta nga checklist nga maimprinta ug madala sa doktor o pharmacist.' : language === 'ilocano' ? 'Nalinis ken makurtian iti tinta a checklist a mabalin nga i-print ken iyeg iti doktor wenno parmasista.' : 'A clean, low-ink checklist to print and bring to a doctor or pharmacist.'
+          : language === 'taglish' ? 'Pre-filled na Malasakit Unified Intake Sheet (RA 11463), DSWD AICS Form, at Checklist Cover Sheet na handang dalhin sa Social Worker Desk ng ospital.' : 'Pre-filled official Malasakit Center Intake Sheet (RA 11463), DSWD AICS Form, and Hospital Checklist ready for submission at hospital social service desks.'}
+        actions={
 <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={handleDirectPrint}
@@ -407,35 +441,48 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-white" />
-              <span>{language === 'taglish' ? 'I-print ang Form' : 'Print Form'}</span>
-            </button>
-            <button
-              onClick={handleDownload}
-              disabled={isGenerating}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>{isGenerating ? (language === 'taglish' ? 'Ginagawa...' : 'Generating...') : (language === 'taglish' ? 'I-download ang PDF' : 'Download PDF')}</span>
-            </button>
-            <button
-              onClick={handleShareToRelatives}
-              disabled={isGenerating}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              title={
-                language === 'taglish'
-                  ? 'I-share sa Kamag-anak (Viber / Messenger)'
-                  : 'Share to Relatives (Viber / Messenger)'
-              }
-            >
-              <Share2 className="w-4 h-4 text-white" />
               <span>
-                {language === 'taglish'
-                  ? 'I-share (Viber/Messenger)'
-                  : 'Share (Viber/Messenger)'}
+                {isPrescriptionChecklist
+                  ? language === 'taglish'
+                    ? 'I-print ang Checklist'
+                    : language === 'cebuano'
+                      ? 'I-print ang Checklist'
+                      : language === 'ilocano'
+                        ? 'I-print ti Checklist'
+                        : 'Print checklist'
+                  : language === 'taglish' ? 'I-print ang Form' : 'Print Form'}
               </span>
             </button>
+            {!isPrescriptionChecklist && (
+              <>
+                <button
+                  onClick={handleDownload}
+                  disabled={isGenerating}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-4 rounded-xl bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-slate-600" />
+                  <span>{isGenerating ? (language === 'taglish' ? 'Ginagawa...' : 'Generating...') : (language === 'taglish' ? 'I-download ang PDF' : 'Download PDF')}</span>
+                </button>
+                <button
+                  onClick={handleShareToRelatives}
+                  disabled={isGenerating}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] h-11 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  title={language === 'taglish' ? 'I-share sa Kamag-anak (Viber / Messenger)' : 'Share to Relatives (Viber / Messenger)'}
+                >
+                  <Share2 className="w-4 h-4 text-white" />
+                  <span>{language === 'taglish' ? 'I-share (Viber/Messenger)' : 'Share (Viber/Messenger)'}</span>
+                </button>
+              </>
+            )}
           </div>
       }>
+        <GLCooldownTrackerCard
+          medicalCase={medicalCase}
+          applications={applications}
+          onSaveApplications={onSaveApplications}
+          language={language}
+        />
+
         {/* Printer Optimization & Public PC Advice */}
         <div className="mt-4 p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3 text-xs text-amber-950 leading-relaxed">
           <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
@@ -453,6 +500,8 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           </div>
         </div>
       </CivicViewHeader>
+
+      {!isPrescriptionChecklist && <TreatmentQuotaTrackerCard medicalCase={medicalCase} language={language} readOnly />}
 
       {/* Success Notification */}
       {successToast && (
@@ -511,6 +560,19 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           >
             <FileCheck className="w-4 h-4 shrink-0" />
             <span className="min-w-0 whitespace-normal break-words">{language === 'taglish' ? 'Checklist Cover Sheet' : 'Filing Checklist'}</span>
+          </button>
+          <button
+            onClick={() => setSelectedForm('prescription_checklist')}
+            className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              isPrescriptionChecklist
+                ? 'bg-blue-900 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <FileCheck className="w-4 h-4 shrink-0" />
+            <span className="min-w-0 whitespace-normal break-words">
+              {language === 'taglish' ? 'Checklist ng Reseta' : language === 'cebuano' ? 'Checklist sa Reseta' : language === 'ilocano' ? 'Checklist ti Reseta' : 'Prescription Checklist'}
+            </span>
           </button>
         </div>
       </div>
@@ -665,7 +727,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                         ) : (
                           <>
                             <Upload className="w-4 h-4 text-blue-700" />
-                            <span>{language === 'taglish' ? 'Pumili ng Larawan o PDF para I-compress' : 'Upload & Compress Photo / PDF'}</span>
+                            <span>{language === 'taglish' ? 'Pumili ng larawan para i-compress' : 'Upload and compress an image'}</span>
                           </>
                         )}
                         <input
@@ -673,7 +735,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
                           id={`print-upload-${req.type}`}
                           name={`upload-${req.type}`}
                           type="file"
-                          accept="image/*,application/pdf"
+                          accept="image/*"
                           aria-label={language === 'taglish' ? `I-upload ang ${req.labelTl}` : `Upload ${req.labelEn}`}
                           disabled={isProcessing}
                           onChange={(e) => handleFileUpload(req.type, e)}
@@ -848,14 +910,17 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           </form>
         )}
       </div>
+      </div>
 
       {/* LIVE PAPER PREVIEW CONTAINER */}
       <div className={`${civicPaperMat} flex flex-col items-center`}>
-        <div className="w-full max-w-3xl flex items-center justify-between mb-3 text-xs font-bold text-slate-600 px-1">
+        <div className={`w-full max-w-3xl flex items-center justify-between mb-3 text-xs font-bold text-slate-600 px-1 ${isPrescriptionChecklist ? 'print:hidden' : ''}`}>
           <div className="flex items-center gap-1.5">
             <FileText className="w-4 h-4 text-blue-600" />
             <span>
-              {selectedForm === 'complete_packet'
+              {isPrescriptionChecklist
+                ? language === 'taglish' ? 'Preview: Checklist ng Reseta' : language === 'cebuano' ? 'Preview: Checklist sa Reseta' : language === 'ilocano' ? 'Preview: Checklist ti Reseta' : 'Preview: Prescription Checklist'
+                : selectedForm === 'complete_packet'
                 ? 'Preview: Hospital Desk Submission Packet'
                 : selectedForm === 'malasakit'
                 ? 'Preview: Malasakit Center Unified Intake Sheet (RA 11463)'
@@ -870,26 +935,34 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
         </div>
 
         {/* Paper Sheet Preview */}
-        <div className={`${civicPaper} w-full text-slate-900 font-sans transition-all overflow-x-auto text-xs`}>
+        <div className={`${civicPaper} w-full text-slate-900 font-sans transition-all ${isPrescriptionChecklist ? 'overflow-visible' : 'overflow-x-auto'} text-xs`}>
           {/* Header */}
           <div className="text-center pb-3 border-b-2 border-slate-900 mb-4">
             <p className="text-xs font-semibold tracking-wider text-slate-700 uppercase">
-              Republika ng Pilipinas • Department of Health / DSWD
+              {isPrescriptionChecklist
+                ? 'TulongPH • Gabay sa Paghahanda'
+                : 'Republika ng Pilipinas • Department of Health / DSWD'}
             </p>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-900 mt-0.5">
-              {selectedForm === 'dswd'
+              {isPrescriptionChecklist
+                ? language === 'taglish' ? 'Para sa pag-uusap sa doktor at lisensyadong parmasyutiko' : language === 'cebuano' ? 'Alang sa pakig-istorya sa doktor ug lisensyadong pharmacist' : language === 'ilocano' ? 'Para iti pannakisarita iti doktor ken lisensiado a parmasista' : 'For discussion with a doctor and licensed pharmacist'
+                : selectedForm === 'dswd'
                 ? 'Department of Social Welfare and Development (DSWD)'
                 : 'Malasakit Center Operations Unit • Republic Act No. 11463'}
             </p>
             <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-950 mt-1">
-              {selectedForm === 'dswd'
+              {isPrescriptionChecklist
+                ? language === 'taglish' ? 'Kumpletong Reseta: 6 na Tsek' : language === 'cebuano' ? 'Kompletong Reseta: 6 ka Tsek' : language === 'ilocano' ? 'Kumpleto a Reseta: 6 a Panang-check' : 'Complete Prescription: Six Checks'
+                : selectedForm === 'dswd'
                 ? 'General Intake Sheet - Assistance to Individuals in Crisis (AICS)'
                 : selectedForm === 'checklist'
                 ? 'Hospital Desk Submission Checklist & Cover Sheet'
                 : 'Unified Intake Sheet / Application Form'}
             </h2>
             <p className="text-xs text-slate-600 italic">
-              {selectedForm === 'dswd'
+              {isPrescriptionChecklist
+                ? language === 'taglish' ? 'Hindi ito opisyal na reseta o kapalit ng payo ng doktor.' : language === 'cebuano' ? 'Dili kini opisyal nga reseta o kapuli sa tambag sa doktor.' : language === 'ilocano' ? 'Saan daytoy opisial a reseta wenno sukat ti balakad ti doktor.' : 'This is not an official prescription or a substitute for a doctor’s advice.'
+                : selectedForm === 'dswd'
                 ? 'Hospital Satellite Social Service Unit • AO No. 15 Series of 2022'
                 : selectedForm === 'checklist'
                 ? 'TulongPH Bayanihan Initiative • Official Hospital Desk Submission Guide'
@@ -898,7 +971,9 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
           </div>
 
           {/* Body Content based on active view */}
-          {selectedForm === 'checklist' ? (
+          {isPrescriptionChecklist ? (
+            <GenericPrescriptionChecklistPrintView language={language} />
+          ) : selectedForm === 'checklist' ? (
             <div className="space-y-4">
               <div className="bg-[#FAF9F5] border border-[#E2DFD6] p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div>
@@ -1119,13 +1194,15 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
 
           {/* Footer note */}
           <div className="mt-6 pt-3 border-t border-[#E2DFD6] text-center text-xs text-slate-500 italic">
-            TulongPH • RA 11463 & RA 10173 Compliant Document Engine • Libre ang tulong mula sa pamahalaan.
+            {isPrescriptionChecklist
+              ? language === 'taglish' ? 'TulongPH preparation guide. Ipa-confirm sa doktor at parmasyutiko ang lahat ng detalye.' : language === 'cebuano' ? 'TulongPH preparation guide. Ipakumpirma sa doktor ug pharmacist ang tanang detalye.' : language === 'ilocano' ? 'TulongPH preparation guide. Ipa-confirm iti doktor ken parmasista amin a detalye.' : 'TulongPH preparation guide. Confirm all details with a doctor and pharmacist.'
+              : 'TulongPH • RA 11463 & RA 10173 Compliant Document Engine • Libre ang tulong mula sa pamahalaan.'}
           </div>
         </div>
       </div>
 
       {/* Prominent Bottom Action Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-[#E2DFD6] shadow-xs">
+      {!isPrescriptionChecklist && <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-[#E2DFD6] shadow-xs">
         <div className="text-xs text-slate-700 font-medium">
           <strong className="text-slate-900 block font-bold text-sm">
             {language === 'taglish' ? 'Handa na bang mag-print ng dokumento?' : 'Ready to Print & Submit?'}
@@ -1171,7 +1248,7 @@ Paalala: 100% LIBRE ang tulong mula sa gobyerno (DOH-MAIP, PCSO, DSWD). Walang k
             </span>
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 };

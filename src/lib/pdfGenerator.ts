@@ -1,10 +1,16 @@
 import type { jsPDF } from 'jspdf';
-import {
+import type {
   PatientProfile,
   RepresentativeProfile,
   MedicalCase,
   StoredDocument,
-} from '@/types/assistance';
+} from '../types/assistance.ts';
+import type { EducationProgram, StudentEducationProfile } from '../types/education.ts';
+import type { WorkerProgram, WorkerProfileInput } from '../types/worker.ts';
+import type { WorkerWorksheetFields } from './storage.ts';
+import { evaluateEducationAssistance } from './educationEngine.ts';
+import { calculateWorkerBenefitsAndLoans } from './workerBenefitsCalculator.ts';
+import { getChecklistDocumentStatus, getDocumentAttachmentDataUrl, type DocumentPillar } from './documentVault.ts';
 
 /**
  * Standard A4 measurements in millimeters: 210 x 297
@@ -93,7 +99,7 @@ function drawFieldCell(
   doc.setFont('helvetica', isBoldValue ? 'bold' : 'normal');
   doc.setFontSize(8);
   doc.setTextColor(0, 0, 0);
-  const displayVal = value && value.trim() ? value : '—';
+  const displayVal = value && value.trim() ? value : '-';
   // Truncate or fit if necessary
   const maxChars = Math.floor(width / 2.1);
   const safeVal = displayVal.length > maxChars ? displayVal.substring(0, maxChars - 2) + '..' : displayVal;
@@ -643,10 +649,11 @@ export function buildChecklistCoverSheet(
  * Appends uploaded image/pdf documents from Vault as supplementary pages.
  */
 async function appendVaultAttachments(doc: jsPDF, documents: StoredDocument[]): Promise<void> {
-  const attachableDocs = documents.filter((d) => d.dataUrl && d.mimeType.startsWith('image/'));
+  const attachableDocs = documents.filter((document) => getDocumentAttachmentDataUrl(document));
 
   for (const docItem of attachableDocs) {
-    if (!docItem.dataUrl) continue;
+    const attachmentDataUrl = getDocumentAttachmentDataUrl(docItem);
+    if (!attachmentDataUrl) continue;
 
     try {
       doc.addPage();
@@ -672,7 +679,7 @@ async function appendVaultAttachments(doc: jsPDF, documents: StoredDocument[]): 
 
       // Load image to determine aspect ratio
       const img = new Image();
-      img.src = docItem.dataUrl;
+      img.src = attachmentDataUrl;
       await new Promise<void>((resolve, reject) => {
         if (img.complete) {
           resolve();
@@ -697,7 +704,7 @@ async function appendVaultAttachments(doc: jsPDF, documents: StoredDocument[]): 
       const drawX = MARGIN_LEFT + (maxAreaW - drawW) / 2;
       const drawY = 18 + (maxAreaH - drawH) / 2;
 
-      doc.addImage(docItem.dataUrl, 'JPEG', drawX, drawY, drawW, drawH, undefined, 'FAST');
+      doc.addImage(attachmentDataUrl, attachmentDataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG', drawX, drawY, drawW, drawH, undefined, 'FAST');
     } catch {
       // Continue gracefully if a single image fails
     }
@@ -824,4 +831,632 @@ export function printPdfDocument(doc: jsPDF): void {
       }, 60000);
     }, 500);
   };
+}
+
+const PACKET_FOOTER_Y = PAGE_HEIGHT - 8;
+const PACKET_CONTENT_BOTTOM = PACKET_FOOTER_Y - 14;
+const PACKET_LINE_HEIGHT = 4.2;
+const PACKET_TEXT_SIZE = 9;
+
+interface PacketLayoutContext { section: string }
+const packetLayoutContexts = new WeakMap<jsPDF, PacketLayoutContext>();
+
+function packetLayoutContext(doc: jsPDF): PacketLayoutContext {
+  let context = packetLayoutContexts.get(doc);
+  if (!context) {
+    context = { section: 'WORKSHEET' };
+    packetLayoutContexts.set(doc, context);
+  }
+  return context;
+}
+
+function startPacketContinuationPage(doc: jsPDF): number {
+  const context = packetLayoutContext(doc);
+  drawPacketFooter(doc, 'CONTINUED');
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(PACKET_TEXT_SIZE);
+  doc.setTextColor(0, 0, 0);
+  doc.text('TULONGPH WORKSHEET - CONTINUED', MARGIN_LEFT, 13);
+  const sectionLines = packetLines(doc, context.section, USABLE_WIDTH, PACKET_TEXT_SIZE);
+  doc.text(sectionLines, MARGIN_LEFT, 18);
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.3);
+  const ruleY = 21 + (sectionLines.length - 1) * PACKET_LINE_HEIGHT;
+  doc.line(MARGIN_LEFT, ruleY, PAGE_WIDTH - MARGIN_RIGHT, ruleY);
+  return ruleY + 5;
+}
+
+function ensurePacketSpace(doc: jsPDF, y: number, height: number): number {
+  if (y + height <= PACKET_CONTENT_BOTTOM || y <= 24) return y;
+  return startPacketContinuationPage(doc);
+}
+
+function packetAscii(value: unknown): string {
+  return String(value ?? '')
+    .replace(/₱/g, 'PHP ')
+    .replace(/[•·]/g, '/')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '');
+}
+
+function packetMoney(value: number): string {
+  const amount = Number.isFinite(value) ? Math.max(0, value) : 0;
+  return `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function packetLines(doc: jsPDF, text: string, width: number, fontSize: number): string[] {
+  doc.setFontSize(fontSize);
+  const lines = doc.splitTextToSize(packetAscii(text) || ' ', width);
+  return Array.isArray(lines) ? lines : [lines];
+}
+
+function drawPacketHeader(doc: jsPDF, agency: string, title: string, legal: string): number {
+  packetLayoutContexts.set(doc, { section: title });
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text('REPUBLIKA NG PILIPINAS', PAGE_WIDTH / 2, 12, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text(packetAscii(agency).toUpperCase(), PAGE_WIDTH / 2, 17, { align: 'center' });
+  doc.setFontSize(12);
+  const titleLines = packetLines(doc, title.toUpperCase(), USABLE_WIDTH, 12);
+  doc.text(titleLines, PAGE_WIDTH / 2, 24, { align: 'center' });
+  const titleEnd = 24 + (titleLines.length - 1) * 5;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(PACKET_TEXT_SIZE);
+  const legalLines = packetLines(doc, legal, USABLE_WIDTH, PACKET_TEXT_SIZE);
+  doc.text(legalLines, PAGE_WIDTH / 2, titleEnd + 5, { align: 'center' });
+  const ruleY = titleEnd + 9 + (legalLines.length - 1) * 3.5;
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN_LEFT, ruleY, PAGE_WIDTH - MARGIN_RIGHT, ruleY);
+  doc.setLineWidth(0.2);
+  return ruleY + 5;
+}
+
+function drawPacketMetadata(doc: jsPDF, prefix: string, y: number): number {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(PACKET_TEXT_SIZE);
+  doc.setTextColor(40, 40, 40);
+  const date = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(`Date: ${date}`, MARGIN_LEFT, y);
+  doc.text(`${prefix}-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase().slice(-6)}`, PAGE_WIDTH - MARGIN_RIGHT, y, { align: 'right' });
+  return y + 5;
+}
+
+function drawPacketSection(doc: jsPDF, title: string, y: number, followingHeight = 24): number {
+  packetLayoutContext(doc).section = title;
+  y = ensurePacketSpace(doc, y, 8 + followingHeight);
+  return drawSectionBanner(doc, title, y) + 2;
+}
+
+interface PacketField { label: string; value: string }
+
+function drawPacketFieldRow(doc: jsPDF, fields: PacketField[], y: number): number {
+  const gap = 2;
+  const width = (USABLE_WIDTH - gap * (fields.length - 1)) / fields.length;
+  const heights = fields.map((field) => {
+    const lines = packetLines(doc, field.value || '____________________', width - 4, PACKET_TEXT_SIZE);
+    return Math.max(12, 7 + lines.length * PACKET_LINE_HEIGHT);
+  });
+  const height = Math.max(...heights);
+  y = ensurePacketSpace(doc, y, height);
+  fields.forEach((field, index) => {
+    const x = MARGIN_LEFT + index * (width + gap);
+    doc.setDrawColor(165, 165, 165);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, width, height);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(70, 70, 70);
+    doc.text(packetAscii(field.label).toUpperCase(), x + 2, y + 3.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(0, 0, 0);
+    const lines = packetLines(doc, field.value || '____________________', width - 4, PACKET_TEXT_SIZE);
+    doc.text(lines, x + 2, y + 7.2);
+  });
+  return y + height + 1;
+}
+
+function drawPacketKeyValueRows(doc: jsPDF, rows: PacketField[], y: number, valueWidth = USABLE_WIDTH * 0.58): number {
+  const labelWidth = USABLE_WIDTH - valueWidth;
+  rows.forEach(({ label, value }) => {
+    const labelLines = packetLines(doc, label, labelWidth - 4, PACKET_TEXT_SIZE);
+    const valueLines = packetLines(doc, value || '____________________', valueWidth - 5, PACKET_TEXT_SIZE);
+    const height = Math.max(9, 4.5 + Math.max(labelLines.length, valueLines.length) * PACKET_LINE_HEIGHT);
+    y = ensurePacketSpace(doc, y, height);
+    doc.setDrawColor(170, 170, 170);
+    doc.setLineWidth(0.2);
+    doc.setFillColor(249, 249, 249);
+    doc.rect(MARGIN_LEFT, y, USABLE_WIDTH, height, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(30, 30, 30);
+    doc.text(labelLines, MARGIN_LEFT + 2, y + 4.4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.text(valueLines, MARGIN_LEFT + labelWidth + 2, y + 4.4);
+    y += height;
+  });
+  return y;
+}
+
+function drawPacketTable(doc: jsPDF, headers: string[], rows: string[][], y: number, widths: number[]): number {
+  const drawRow = (cells: string[][], isHeader: boolean, height: number, rowY: number) => {
+    let x = MARGIN_LEFT;
+    cells.forEach((lines, index) => {
+      doc.setDrawColor(155, 155, 155);
+      doc.setLineWidth(0.2);
+      if (isHeader) doc.setFillColor(232, 232, 232);
+      else doc.setFillColor(255, 255, 255);
+      doc.rect(x, rowY, widths[index], height, 'FD');
+      doc.setFont('helvetica', isHeader || index === 0 ? 'bold' : 'normal');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.setTextColor(0, 0, 0);
+      if (lines.length) doc.text(lines, x + 2, rowY + 4.3);
+      x += widths[index];
+    });
+  };
+  const headerLines = headers.map((cell, index) => packetLines(doc, cell, widths[index] - 4, PACKET_TEXT_SIZE));
+  const headerHeight = Math.max(8, 4 + Math.max(...headerLines.map((lines) => lines.length)) * PACKET_LINE_HEIGHT);
+  const drawHeader = () => {
+    drawRow(headerLines, true, headerHeight, y);
+    y += headerHeight;
+  };
+  let headerDrawn = false;
+
+  rows.forEach((row) => {
+    const rowLines = row.map((cell, index) => packetLines(doc, cell, widths[index] - 4, PACKET_TEXT_SIZE));
+    const lineCount = Math.max(...rowLines.map((lines) => lines.length));
+    const fullHeight = Math.max(8, 4 + lineCount * PACKET_LINE_HEIGHT);
+    const maxLinesPerPage = Math.floor((PACKET_CONTENT_BOTTOM - 28 - headerHeight - 4) / PACKET_LINE_HEIGHT);
+
+    if (lineCount <= maxLinesPerPage) {
+      const required = fullHeight + (headerDrawn ? 0 : headerHeight);
+      if (y + required > PACKET_CONTENT_BOTTOM) {
+        y = startPacketContinuationPage(doc);
+        headerDrawn = false;
+      }
+      if (!headerDrawn) {
+        drawHeader();
+        headerDrawn = true;
+      }
+      if (y + fullHeight > PACKET_CONTENT_BOTTOM) {
+        y = startPacketContinuationPage(doc);
+        drawHeader();
+      }
+      drawRow(rowLines, false, fullHeight, y);
+      y += fullHeight;
+      return;
+    }
+
+    if (!headerDrawn) {
+      y = ensurePacketSpace(doc, y, headerHeight + PACKET_LINE_HEIGHT + 4);
+      drawHeader();
+      headerDrawn = true;
+    }
+    let offset = 0;
+    while (offset < lineCount) {
+      let availableLines = Math.floor((PACKET_CONTENT_BOTTOM - y - 4) / PACKET_LINE_HEIGHT);
+      if (availableLines < 1) {
+        y = startPacketContinuationPage(doc);
+        drawHeader();
+        availableLines = Math.floor((PACKET_CONTENT_BOTTOM - y - 4) / PACKET_LINE_HEIGHT);
+      }
+      const count = Math.min(availableLines, lineCount - offset);
+      const chunk = rowLines.map((lines) => lines.slice(offset, offset + count));
+      const height = Math.max(8, 4 + count * PACKET_LINE_HEIGHT);
+      drawRow(chunk, false, height, y);
+      y += height;
+      offset += count;
+      if (offset < lineCount) {
+        y = startPacketContinuationPage(doc);
+        drawHeader();
+      }
+    }
+    headerDrawn = true;
+  });
+  return ensurePacketSpace(doc, y, 2) + 2;
+}
+
+function drawPacketParagraph(doc: jsPDF, label: string, text: string, y: number, box = true): number {
+  const lines = packetLines(doc, text, USABLE_WIDTH - 6, PACKET_TEXT_SIZE);
+  const labelLines = packetLines(doc, label.toUpperCase(), USABLE_WIDTH - 4, PACKET_TEXT_SIZE);
+  const labelHeight = Math.max(4.2, labelLines.length * PACKET_LINE_HEIGHT) + 3;
+  const maxSinglePageLines = Math.floor((PACKET_CONTENT_BOTTOM - 28 - labelHeight - 2) / PACKET_LINE_HEIGHT);
+  if (lines.length <= maxSinglePageLines) {
+    y = ensurePacketSpace(doc, y, labelHeight + lines.length * PACKET_LINE_HEIGHT + 2);
+    const height = Math.max(10, labelHeight + lines.length * PACKET_LINE_HEIGHT + 1);
+    if (box) {
+      doc.setDrawColor(175, 175, 175);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN_LEFT, y, USABLE_WIDTH, height);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(30, 30, 30);
+    doc.text(labelLines, MARGIN_LEFT + 2, y + 3.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(0, 0, 0);
+    doc.text(lines, MARGIN_LEFT + 2, y + labelHeight);
+    return y + height + 2;
+  }
+
+  let offset = 0;
+  while (offset < lines.length) {
+    const continuationLabel = packetLines(doc, `${label.toUpperCase()}${offset ? ' (CONTINUED)' : ''}`, USABLE_WIDTH - 4, PACKET_TEXT_SIZE);
+    const continuationLabelHeight = Math.max(4.2, continuationLabel.length * PACKET_LINE_HEIGHT) + 3;
+    const availableLines = Math.floor((PACKET_CONTENT_BOTTOM - y - continuationLabelHeight - 2) / PACKET_LINE_HEIGHT);
+    if (availableLines < 1) {
+      y = startPacketContinuationPage(doc);
+      continue;
+    }
+    const count = Math.min(availableLines, lines.length - offset);
+    const height = Math.max(10, continuationLabelHeight + count * PACKET_LINE_HEIGHT + 1);
+    if (box) {
+      doc.setDrawColor(175, 175, 175);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN_LEFT, y, USABLE_WIDTH, height);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(30, 30, 30);
+    doc.text(continuationLabel, MARGIN_LEFT + 2, y + 3.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(PACKET_TEXT_SIZE);
+    doc.setTextColor(0, 0, 0);
+    doc.text(lines.slice(offset, offset + count), MARGIN_LEFT + 2, y + continuationLabelHeight);
+    y += height + 2;
+    offset += count;
+    if (offset < lines.length) y = startPacketContinuationPage(doc);
+  }
+  return y;
+}
+
+function drawPacketChecklist(doc: jsPDF, items: string[], y: number, documents: StoredDocument[] = [], pillar?: DocumentPillar): number {
+  const list = items.length ? items : ['Ask the school or agency to confirm the current documentary requirements.'];
+  const gap = 5;
+  const columnWidth = (USABLE_WIDTH - gap) / 2;
+  for (let index = 0; index < list.length; index += 2) {
+    const pair = list.slice(index, index + 2);
+    const lines = pair.map((item) => {
+      const status = pillar ? getChecklistDocumentStatus(item, documents, pillar) : undefined;
+      const marker = status?.status === 'ready' ? '[x]' : '[ ]';
+      const attachmentState = status?.status === 'over-limit' ? ' (over 2 MB)'
+        : status?.status === 'download-only' ? ' (download separately)'
+          : '';
+      return packetLines(doc, `${marker} ${item}${attachmentState}`, columnWidth - 2, PACKET_TEXT_SIZE);
+    });
+    const rowHeight = Math.max(6, Math.max(...lines.map((itemLines) => itemLines.length)) * PACKET_LINE_HEIGHT + 0.6);
+    y = ensurePacketSpace(doc, y, rowHeight);
+    pair.forEach((item, column) => {
+      const x = MARGIN_LEFT + column * (columnWidth + gap);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.setTextColor(0, 0, 0);
+      doc.text(lines[column], x, y + 4);
+    });
+    y += rowHeight;
+  }
+  return y + 2;
+}
+
+interface PacketReference { name: string; details: string[] }
+
+function drawPacketReferenceCards(doc: jsPDF, references: PacketReference[], y: number): number {
+  const width = USABLE_WIDTH;
+  packetLayoutContext(doc).section = 'STATUTORY AND PROGRAM REFERENCES';
+  references.forEach((reference) => {
+    const title = packetLines(doc, reference.name, width - 6, PACKET_TEXT_SIZE);
+    const details = packetLines(doc, reference.details.join(' | '), width - 6, PACKET_TEXT_SIZE);
+    const height = Math.max(12, 4 + (title.length + details.length) * PACKET_LINE_HEIGHT);
+    const maxCardHeight = PACKET_CONTENT_BOTTOM - 28;
+    if (height <= maxCardHeight) {
+      y = ensurePacketSpace(doc, y, height);
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN_LEFT, y, width, height);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.setTextColor(0, 0, 0);
+      doc.text(title, MARGIN_LEFT + 3, y + 3.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.text(details, MARGIN_LEFT + 3, y + 3.5 + title.length * PACKET_LINE_HEIGHT);
+      y += height + 0.5;
+      return;
+    }
+
+    let offset = 0;
+    while (offset < details.length) {
+      const cardTitle = packetLines(doc, `${reference.name}${offset ? ' (CONTINUED)' : ''}`, width - 6, PACKET_TEXT_SIZE);
+      const availableLines = Math.floor((PACKET_CONTENT_BOTTOM - y - 4 - cardTitle.length * PACKET_LINE_HEIGHT) / PACKET_LINE_HEIGHT);
+      if (availableLines < 1) {
+        y = startPacketContinuationPage(doc);
+        continue;
+      }
+      const count = Math.min(availableLines, details.length - offset);
+      const cardHeight = Math.max(12, 4 + (cardTitle.length + count) * PACKET_LINE_HEIGHT);
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN_LEFT, y, width, cardHeight);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.setTextColor(0, 0, 0);
+      doc.text(cardTitle, MARGIN_LEFT + 3, y + 3.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(PACKET_TEXT_SIZE);
+      doc.text(details.slice(offset, offset + count), MARGIN_LEFT + 3, y + 3.5 + cardTitle.length * PACKET_LINE_HEIGHT);
+      y += cardHeight + 0.5;
+      offset += count;
+      if (offset < details.length) y = startPacketContinuationPage(doc);
+    }
+  });
+  return y;
+}
+
+function drawPacketFooter(doc: jsPDF, pageLabel: string): void {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(55, 55, 55);
+  doc.text('TulongPH is 100% free. Government assistance applications are free. Never pay fixers.', PAGE_WIDTH / 2, PACKET_FOOTER_Y - 4, { align: 'center' });
+  doc.text('After public computer use, wipe this device data. This worksheet is guidance, not an approval.', PAGE_WIDTH / 2, PACKET_FOOTER_Y, { align: 'center' });
+  doc.text(pageLabel, MARGIN_LEFT, PACKET_FOOTER_Y);
+}
+
+function educationReferences(profile: StudentEducationProfile): { programs: EducationProgram[]; result: ReturnType<typeof evaluateEducationAssistance> } {
+  const result = evaluateEducationAssistance(profile);
+  const programs = [...new Map([
+    ...(result.tuitionProgram ? [result.tuitionProgram] : []),
+    ...result.primaryPrograms.filter((match) => !result.selectedPrimary || match === result.selectedPrimary).map((match) => match.program),
+    ...result.supplementalPrograms.filter((match) => !match.requiresPrimaryProgram || match.requiresPrimaryProgram === result.selectedPrimary?.program.id).map((match) => match.program),
+  ].map((program) => [program.id, program])).values()];
+  return { programs, result };
+}
+
+export async function generateEducationPacketPdf(
+  profile: StudentEducationProfile,
+  recipient: string,
+  documents: StoredDocument[] = [],
+  includeVaultAttachments = false
+): Promise<jsPDF> {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
+  const located = profile as StudentEducationProfile & { province?: string; barangay?: string };
+  const { programs, result } = educationReferences(profile);
+
+  let y = drawPacketHeader(
+    doc,
+    'KOMISYON SA LALONG MATAAS NA EDUKASYON / DSWD',
+    'Unified Educational Assistance & Scholarship Worksheet',
+    'Under RA 10931 (Universal Access to Quality Tertiary Education) & CHED/DSWD Guidelines'
+  );
+  y = drawPacketMetadata(doc, 'EDU', y);
+  y = drawPacketSection(doc, 'PART I: STUDENT AND SCHOOL INFORMATION', y);
+  const schoolType = profile.schoolType === 'suc_luc' ? 'SUC / LUC' : profile.schoolType === 'public' ? 'Public' : 'Private';
+  const locationTier = profile.location === 'other' ? 'Other' : profile.location;
+  [
+    [{ label: 'Full name', value: profile.fullName }],
+    [{ label: 'School name', value: profile.schoolName }],
+    [{ label: 'Degree program', value: profile.degreeProgram }],
+    [{ label: 'School type', value: schoolType }, { label: 'Location tier', value: locationTier }],
+    [{ label: 'Province', value: located.province || '' }, { label: 'City / municipality', value: profile.cityMunicipality }],
+    [{ label: 'Barangay', value: located.barangay || '' }],
+  ].forEach((row) => { y = drawPacketFieldRow(doc, row, y); });
+
+  y = drawPacketSection(doc, 'PART II: TUITION AND FINANCIAL SUMMARY', y + 1);
+  const selectedAward = result.selectedPrimary
+    ? `${result.selectedPrimary.program.name} / ${packetMoney(result.selectedPrimary.annualCashAmount ?? 0)} possible annual cash`
+    : 'No primary award selected. Ask which single primary program is appropriate.';
+  y = drawPacketKeyValueRows(doc, [
+    { label: 'Covered annual tuition and fees', value: packetMoney(profile.annualTuitionAndFees) },
+    { label: 'Possible direct fee relief', value: packetMoney(result.directTuitionRelief) },
+    { label: 'Remaining covered tuition balance', value: packetMoney(result.netRemainingTuitionBalance) },
+    { label: 'Selected primary scholarship / program and potential cash', value: selectedAward },
+  ], y, USABLE_WIDTH * 0.57);
+
+  y = drawPacketSection(doc, 'FORMAL REQUEST LETTER', y + 1);
+  y = drawPacketParagraph(doc, 'To', recipient, y, false);
+  y = drawPacketParagraph(doc, 'Dear Sir / Madam', 'I respectfully request an assessment for educational assistance or a scholarship. Please advise me about the current application call, eligibility, available funds, and required documents.', y, false);
+  y = drawPacketParagraph(doc, 'Requested degree program', profile.degreeProgram || '____________________', y, false);
+  y = drawPacketParagraph(doc, 'Non-duplication pledge', 'I will disclose other scholarships and assistance and will not claim the same expense twice. I understand that this worksheet is for guidance and does not guarantee eligibility, funding, or approval.', y, true);
+  y = drawPacketParagraph(doc, 'Respectfully,', 'Applicant signature: ___________________________________________       Date: ____________________', y, false);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(`Printed name: ${packetAscii(profile.fullName || '________________________________')}`, MARGIN_LEFT + 2, y + 1);
+  drawPacketFooter(doc, 'EDU 1');
+
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text('EDUCATIONAL ASSISTANCE PACKET: DOCUMENTS AND REFERENCES', MARGIN_LEFT, 15);
+  let secondY = 21;
+  secondY = drawPacketSection(doc, 'PART III: DOCUMENTARY CHECKLIST', secondY);
+  secondY = drawPacketChecklist(doc, result.documentaryChecklist, secondY, documents, 'education');
+  secondY = drawPacketSection(doc, 'PART IV: STATUTORY AND PROGRAM REFERENCES', secondY + 1);
+  const referenceCards = programs.map((program) => ({
+    name: program.name,
+    details: [
+      `Statutory basis: ${program.statutoryBasis}`,
+      `Benefits: ${program.benefits}`,
+      `Stacking rules: ${program.stackingRule}`,
+      `Official reference: ${program.sourceUrl}`,
+    ],
+  }));
+  if (referenceCards.length === 0) {
+    referenceCards.push({ name: 'No matched program yet', details: ['Ask the school or agency about current application calls and official requirements.'] });
+  }
+  drawPacketReferenceCards(doc, referenceCards, secondY);
+  drawPacketFooter(doc, 'EDU REF');
+  if (includeVaultAttachments) await appendVaultAttachments(doc, documents);
+  return doc;
+}
+
+export type WorkerWorksheetSelection = 'all' | 'sena' | 'notice' | 'ecc' | 'livelihood';
+
+const WORKER_SHEETS: Exclude<WorkerWorksheetSelection, 'all'>[] = ['sena', 'notice', 'ecc', 'livelihood'];
+
+function workerBasics(doc: jsPDF, fields: WorkerWorksheetFields, y: number): number {
+  return [
+    [{ label: 'Worker / proponent', value: fields.worksheetName }],
+    [{ label: 'Employer / respondent', value: fields.worksheetEmployer }, { label: 'Employer address / contact', value: fields.worksheetEmployerAddress }],
+    [{ label: 'Employment start date', value: fields.worksheetStartDate }, { label: 'Employment end date', value: fields.worksheetEndDate }],
+  ].reduce((nextY, row) => drawPacketFieldRow(doc, row, nextY), y);
+}
+
+function drawWorkerSignature(doc: jsPDF, y: number): number {
+  return drawPacketParagraph(doc, 'Signature and date', 'Worker / proponent signature: ___________________________________________       Date: ____________________', y, false);
+}
+
+function drawWorkerSheet(
+  doc: jsPDF,
+  profile: WorkerProfileInput,
+  fields: WorkerWorksheetFields,
+  selection: Exclude<WorkerWorksheetSelection, 'all'>,
+  result: ReturnType<typeof calculateWorkerBenefitsAndLoans>,
+  documents: StoredDocument[]
+): void {
+  const config = {
+    sena: {
+      agency: 'DOLE NATIONAL CONCILIATION AND MEDIATION BOARD / SEnA RA 10396',
+      title: 'DOLE SEnA Request for Assistance Pre-Filing Worksheet',
+      legal: 'RA 10396 / Preparation worksheet, not an official filed request',
+    },
+    notice: {
+      agency: 'EMPLOYER / HR STATUTORY BENEFIT NOTICE',
+      title: 'Maternity / Sickness Benefit Notice',
+      legal: 'RA 11210 / RA 11199 / Benefit illustrations require agency and payroll verification',
+    },
+    ecc: {
+      agency: "EMPLOYEES' COMPENSATION COMMISSION / PD 626",
+      title: 'Work-Related Injury / Sickness Claim Checklist',
+      legal: 'Employees Compensation Program / Preparation worksheet',
+    },
+    livelihood: {
+      agency: 'DOLE INTEGRATED LIVELIHOOD PROGRAM / OWWA BPBH',
+      title: 'Livelihood Proposal Worksheet',
+      legal: 'DILP / Balik Pinas! Balik Hanapbuhay / For assessment by the program office',
+    },
+  }[selection];
+  let y = drawPacketHeader(doc, config.agency, config.title, config.legal);
+  y = drawPacketMetadata(doc, `WRK-${selection.toUpperCase()}`, y);
+
+  if (selection === 'sena') {
+    y = drawPacketSection(doc, 'PART I: WORKER AND EMPLOYER DETAILS', y);
+    y = workerBasics(doc, fields, y);
+    y = drawPacketSection(doc, 'PART II: ITEMIZED UNPAID WAGES AND AMOUNTS', y + 1);
+    const details = fields.worksheetUnpaidDetails.split('\n').map((line) => line.trim()).filter(Boolean);
+    const width = USABLE_WIDTH;
+    y = drawPacketTable(doc, ['Claim item / period / evidence', 'Amount due', 'Amount received', 'Balance'], [[details.join('; ') || 'Add dates, amounts due, amounts received, and evidence.', '', '', '']], y, [width * 0.58, width * 0.14, width * 0.14, width * 0.14]);
+    y = drawPacketParagraph(doc, 'Requested relief', 'Request a payroll reconciliation, payment of any verified unpaid amounts, and a certificate of employment where applicable.', y, true);
+    y = drawPacketParagraph(doc, 'Attached evidence', 'Contract, payslips, time records, bank records, termination notice, and relevant employer correspondence.', y, true);
+    drawWorkerSignature(doc, y + 1);
+  } else if (selection === 'notice') {
+    y = drawPacketSection(doc, 'PART I: WORKER, EMPLOYER, AND CONTINGENCY', y);
+    y = workerBasics(doc, fields, y);
+    y = drawPacketParagraph(doc, 'Contingency event', fields.worksheetEventDetails, y, true);
+    y = drawPacketSection(doc, 'PART II: BENEFIT ILLUSTRATION', y + 1);
+    y = drawPacketKeyValueRows(doc, [
+      { label: 'SSS maternity benefit estimate', value: packetMoney(result.maternity.sssBenefit) },
+      { label: 'Employer salary differential estimate', value: packetMoney(result.maternity.employerSalaryDifferential) },
+      { label: 'SSS sickness benefit estimate', value: packetMoney(result.sickness.sssBenefit) },
+      { label: 'EC temporary total disability estimate', value: packetMoney(result.sickness.ecBenefit) },
+    ], y, USABLE_WIDTH * 0.58);
+    y = drawPacketParagraph(doc, 'Employer action', 'Notify HR promptly. Request written confirmation of leave dates, payroll computation, SSS contributions, and any applicable employer salary differential.', y + 1, true);
+    y = drawPacketParagraph(doc, 'Estimate advisory', 'Amounts are illustrations only. SSS, the employer, or ECC determines eligibility and payable amounts.', y, false);
+    drawWorkerSignature(doc, y);
+  } else if (selection === 'ecc') {
+    y = drawPacketSection(doc, 'PART I: EVENT AND EMPLOYMENT DETAILS', y);
+    y = workerBasics(doc, fields, y);
+    y = drawPacketParagraph(doc, 'Event and work connection', fields.worksheetEventDetails, y, true);
+    y = drawPacketParagraph(doc, 'Employer EC logbook notice', 'Notify the employer promptly and ask that the injury or sickness be entered in the Employees Compensation logbook. Keep a copy or proof of notice.', y, true);
+    y = drawPacketParagraph(doc, 'Dual filing instructions', `File the regular claim with SSS or GSIS, as applicable, and the work-related EC claim through the employer for ECC assessment. Sector on this profile: ${profile.sector}.`, y, true);
+    y = drawPacketSection(doc, 'PART II: BENEFIT ILLUSTRATION', y + 1);
+    y = drawPacketKeyValueRows(doc, [
+      { label: 'Regular funeral benefit illustration', value: packetMoney(result.funeral.regularBenefit) },
+      { label: 'Work-related EC funeral illustration', value: packetMoney(result.funeral.ecBenefit) },
+      { label: 'Approved EC medical reimbursement entered', value: packetMoney(result.sickness.ecMedicalReimbursement) },
+      { label: 'EC carer allowance illustration per month', value: packetMoney(result.sickness.ecCarerMonthly) },
+    ], y, USABLE_WIDTH * 0.58);
+    y = drawPacketSection(doc, 'REQUIRED PROOFS CHECKLIST', y + 1);
+    drawPacketChecklist(doc, ['Accident / incident report and EC logbook entry', 'Medical certificate, clinical abstract, and prescriptions', 'Bills and official receipts for treatment', 'Employment and service record', 'SSS or GSIS claim documents', 'Employer notice and supporting correspondence'], y, documents, 'worker');
+  } else {
+    y = drawPacketSection(doc, 'PART I: PROPONENT AND PROJECT DETAILS', y);
+    y = drawPacketFieldRow(doc, [{ label: 'Proponent', value: fields.worksheetName }], y);
+    y = drawPacketFieldRow(doc, [{ label: 'Employer / organization, if applicable', value: fields.worksheetEmployer }], y);
+    y = drawPacketFieldRow(doc, [{ label: 'Project title / proposed location / customers', value: fields.worksheetProjectTitle }], y);
+    const budgetItems = fields.worksheetProposedBudget.split('\n').map((line) => line.trim()).filter(Boolean);
+    const budgetHeaders = ['Item / tool / equipment', 'Supplier', 'Quantity', 'Proposed cost'];
+    const budgetRow = budgetItems.join('; ') || 'Add each tool, equipment, and cost.';
+    const budgetWidths = [USABLE_WIDTH * 0.48, USABLE_WIDTH * 0.2, USABLE_WIDTH * 0.12, USABLE_WIDTH * 0.2];
+    const headerLineCount = Math.max(...budgetHeaders.map((header, index) => packetLines(doc, header, budgetWidths[index] - 4, PACKET_TEXT_SIZE).length));
+    const rowLineCount = packetLines(doc, budgetRow, budgetWidths[0] - 4, PACKET_TEXT_SIZE).length;
+    const tableHeight = Math.max(8, 4 + headerLineCount * PACKET_LINE_HEIGHT) + Math.max(8, 4 + rowLineCount * PACKET_LINE_HEIGHT);
+    y = drawPacketSection(doc, 'PART II: PROPOSED TOOLS AND EQUIPMENT BUDGET', y + 1, tableHeight);
+    y = drawPacketTable(doc, budgetHeaders, [[budgetRow, '', '', '']], y, budgetWidths);
+    y = drawPacketKeyValueRows(doc, [
+      { label: 'Proposed total budget', value: 'See itemized budget above.' },
+      { label: 'Potential OWWA BPBH tier illustration', value: packetMoney(result.livelihood.bpbhGrant) },
+      { label: 'Potential DOLE DILP assistance', value: 'Subject to assessment and approved livelihood inputs' },
+    ], y, USABLE_WIDTH * 0.58);
+    y = drawPacketParagraph(doc, 'Non-duplication pledge', 'I will disclose other livelihood assistance and will not claim the same project cost twice. I understand that DILP and BPBH require separate eligibility and program assessment and do not guarantee cash.', y + 1, true);
+    drawWorkerSignature(doc, y);
+  }
+  drawPacketFooter(doc, selection.toUpperCase());
+}
+
+function drawWorkerProgramReferences(doc: jsPDF, programs: WorkerProgram[], y: number): void {
+  const references = programs.map((program) => ({
+    name: program.name,
+    details: [
+      `Statutory basis: ${program.basis}`,
+      `Benefit: ${program.benefit}`,
+      `Eligibility: ${program.eligibility}`,
+      `Official reference: ${program.source}`,
+    ],
+  }));
+  drawPacketReferenceCards(doc, references.length ? references : [{ name: 'No matched program yet', details: ['Ask the appropriate agency about current requirements and application channels.'] }], y);
+}
+
+export async function generateWorkerWorksheetPdf(
+  profile: WorkerProfileInput,
+  fields: WorkerWorksheetFields,
+  selectedWorksheet: WorkerWorksheetSelection,
+  documents: StoredDocument[] = [],
+  includeVaultAttachments = false
+): Promise<jsPDF> {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: false });
+  const result = calculateWorkerBenefitsAndLoans(profile);
+  const selectedSheets = selectedWorksheet === 'all' ? WORKER_SHEETS : [selectedWorksheet];
+  selectedSheets.forEach((selection, index) => {
+    if (index > 0) doc.addPage();
+    drawWorkerSheet(doc, profile, fields, selection, result, documents);
+  });
+  if (selectedWorksheet === 'all') {
+    doc.addPage();
+    let y = drawPacketHeader(doc, 'DOLE / SSS / GSIS / ECC / OWWA', 'Consolidated Worker Documentary Checklist', 'Confirm requirements with the relevant agency before filing');
+    y = drawPacketMetadata(doc, 'WRK-CHECK', y);
+    y = drawPacketSection(doc, 'DOCUMENTARY CHECKLIST', y);
+    drawPacketChecklist(doc, result.consolidatedChecklist, y, documents, 'worker');
+    drawPacketFooter(doc, 'CHECKLIST');
+
+    doc.addPage();
+    y = drawPacketHeader(doc, 'DOLE / SSS / GSIS / ECC / OWWA', 'Worker Program References', 'Official links and benefit details for matched programs');
+    y = drawPacketMetadata(doc, 'WRK-REF', y);
+    y = drawPacketSection(doc, 'STATUTORY AND PROGRAM REFERENCES', y);
+    drawWorkerProgramReferences(doc, result.matchedPrograms, y);
+    drawPacketFooter(doc, 'REFERENCES');
+  }
+  if (includeVaultAttachments) await appendVaultAttachments(doc, documents);
+  return doc;
 }

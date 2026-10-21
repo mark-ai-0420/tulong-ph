@@ -24,8 +24,16 @@ import {
   X,
   History,
 } from 'lucide-react';
-import { Language } from '@/lib/i18n';
+import { getNextLanguage, isLanguage, supportedLanguages } from '@/lib/i18n';
+import type { Language } from '@/lib/i18n';
 import { clearAllUserData, loadDocuments } from '@/lib/storage';
+
+const compactLanguageNames: Record<Language, string> = {
+  taglish: 'Taglish',
+  cebuano: 'Bisaya',
+  ilocano: 'Ilocano',
+  en: 'English',
+};
 
 export default function PrivacyPage() {
   const [language, setLanguage] = useState<Language>('taglish');
@@ -33,20 +41,31 @@ export default function PrivacyPage() {
   const [wipeStatus, setWipeStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const savedLang = localStorage.getItem('tulong_lang') as Language;
-      if (savedLang === 'en' || savedLang === 'taglish') {
-        queueMicrotask(() => {
-          setLanguage(savedLang);
-        });
+    const readLanguage = () => {
+      try {
+        const savedLanguage = localStorage.getItem('tulong_lang');
+        return isLanguage(savedLanguage) ? savedLanguage : 'taglish';
+      } catch {
+        return 'taglish';
       }
-    } catch {
-      // LocalStorage access fallback
-    }
+    };
+    const syncLanguage = () => setLanguage(readLanguage());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'tulong_lang' || event.key === null) syncLanguage();
+    };
+    const onDataCleared = () => setLanguage('taglish');
+
+    queueMicrotask(syncLanguage);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('tulongph-data-cleared', onDataCleared);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('tulongph-data-cleared', onDataCleared);
+    };
   }, []);
 
   const handleToggleLanguage = () => {
-    const nextLang: Language = language === 'taglish' ? 'en' : 'taglish';
+    const nextLang = getNextLanguage(language);
     setLanguage(nextLang);
     try {
       localStorage.setItem('tulong_lang', nextLang);
@@ -76,6 +95,7 @@ export default function PrivacyPage() {
 
       // 3. Purge storage layers (IndexedDB, localStorage, sessionStorage, caches)
       await clearAllUserData();
+      setLanguage('taglish');
 
       // 4. Scrub browser history state so 'Back' cannot reload filled forms
       if (typeof window !== 'undefined' && window.history?.replaceState) {
@@ -104,6 +124,8 @@ export default function PrivacyPage() {
   };
 
   const isTaglish = language === 'taglish';
+  const currentLanguage = supportedLanguages.find(({ id }) => id === language) ?? supportedLanguages[0];
+  const nextLanguage = supportedLanguages.find(({ id }) => id === getNextLanguage(language)) ?? supportedLanguages[0];
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-900 flex flex-col font-sans">
@@ -143,11 +165,13 @@ export default function PrivacyPage() {
                 type="button"
                 onClick={handleToggleLanguage}
                 className="h-11 min-h-[44px] px-3.5 sm:px-4 py-2 rounded-xl border border-[#E2DFD6] bg-white hover:bg-stone-50 text-xs sm:text-sm font-bold text-slate-800 shadow-2xs transition-colors inline-flex items-center gap-2 focus-ring cursor-pointer"
-                title={isTaglish ? 'Palitan ang Wika' : 'Switch Language'}
-                aria-label="Toggle language between Taglish and English"
+                title={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
+                aria-label={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
               >
                 <Languages className="w-4 h-4 text-blue-900 shrink-0" />
-                <span>{isTaglish ? 'English' : 'Taglish'}</span>
+                <span>{currentLanguage.shortLabel}</span>
+                <span className="sm:hidden">{compactLanguageNames[language]}</span>
+                <span className="hidden sm:inline">{currentLanguage.label}</span>
               </button>
             </div>
           </div>

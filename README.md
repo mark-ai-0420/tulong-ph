@@ -106,3 +106,12 @@ pnpm build
 ## 📜 License
 
 Distributed under the [MIT License](LICENSE).
+
+## 📚 Project Context & Documentation
+
+- **Product Requirements**: [PRD.md](PRD.md)
+- **Architecture & System Design**: [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Civic Design System**: [DESIGN.md](DESIGN.md) & [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
+- **User Experience Flows**: [docs/UX_FLOWS.md](docs/UX_FLOWS.md)
+- **Architecture Decision Records**: [docs/adr/0001-template.md](docs/adr/0001-template.md)
+- **Agent Instructions & Guardrails**: [AGENTS.md](AGENTS.md)

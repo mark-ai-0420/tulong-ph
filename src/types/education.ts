@@ -5,6 +5,7 @@ export type EducationLocation = 'NCR' | 'HUC' | 'other';
 export interface StudentEducationProfile {
   fullName: string;
   schoolName: string;
+  degreeProgram: string;
   cityMunicipality: string;
   educationLevel: EducationLevel;
   schoolType: EducationSchoolType;
@@ -44,6 +45,7 @@ export interface StudentEducationProfile {
   hasNC3OrHigher: boolean;
   trainingDays: number;
   regionalDailyWage: number;
+  regionalDailyWageManual: boolean;
   willingReturnService: boolean;
   selectedPrimaryProgram: string;
   needsLicensureReimbursement: boolean;

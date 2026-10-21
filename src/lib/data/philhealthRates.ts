@@ -21,6 +21,18 @@ export interface CaseRateMatchResult {
 }
 
 export const PHILHEALTH_CIRCULAR_REF = 'PhilHealth Circular No. 2024-0037';
+export const PHILHEALTH_BENEFITS_URL = 'https://www.philhealth.gov.ph/benefits/';
+
+export interface PhilHealthZBenefitPackage {
+  id: string;
+  name: string;
+  amountLabel: string;
+  amountMinimum?: number;
+  amountMaximum?: number;
+  keywords: string[];
+  notes: string;
+  sourceUrl: string;
+}
 
 /**
  * Curated PhilHealth All Case Rates (ACR) updated per PhilHealth Circular No. 2024-0037.
@@ -226,8 +238,8 @@ export const PHILHEALTH_CASE_RATES: PhilHealthCaseRate[] = [
     id: 'hemodialysis_session',
     code: 'HEMO-01',
     name: 'Hemodialysis (per session)',
-    description: 'Outpatient or inpatient renal replacement hemodialysis (₱4,000/session)',
-    rate: 4000,
+    description: 'Outpatient or inpatient renal replacement hemodialysis (₱6,350/session)',
+    rate: 6350,
     category: 'dialysis',
     severity: 'standard',
     keywords: [
@@ -239,7 +251,7 @@ export const PHILHEALTH_CASE_RATES: PhilHealthCaseRate[] = [
       'hd session',
       'blood filtration dialysis',
     ],
-    notes: 'PhilHealth expanded hemodialysis rate (₱4,000/session up to 156 sessions/year)',
+    notes: 'PhilHealth Circular No. 2024-0023: ₱6,350 per session, up to 156 sessions/year',
   },
 
   // 10. Peritoneal Dialysis
@@ -861,6 +873,133 @@ export const PHILHEALTH_CASE_RATES: PhilHealthCaseRate[] = [
 ];
 
 /**
+ * Current Z Benefit package summaries. Rates depend on approved clinical criteria,
+ * treatment regimen, risk group, and contracted-provider pre-authorization.
+ */
+export const PHILHEALTH_Z_BENEFITS: PhilHealthZBenefitPackage[] = [
+  {
+    id: 'breast_cancer',
+    name: 'Breast Cancer',
+    amountLabel: 'Up to ₱1,400,000',
+    amountMaximum: 1400000,
+    keywords: ['breast cancer', 'breast carcinoma', 'mammary cancer'],
+    notes: 'Circular 2024-0007; stages 0 to IV, subject to the treatment and eligibility rules.',
+    sourceUrl: 'https://www.philhealth.gov.ph/circulars/2024/PC2024-0007.pdf',
+  },
+  {
+    id: 'cervical_cancer',
+    name: 'Cervical Cancer',
+    amountLabel: '₱120,000 to ₱175,000, based on treatment modality',
+    amountMinimum: 120000,
+    amountMaximum: 175000,
+    keywords: ['cervical cancer', 'cervix cancer'],
+    notes: 'Package rate varies by the approved chemoradiation or surgery pathway.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'colorectal_cancer',
+    name: 'Colon and Rectal Cancer',
+    amountLabel: '₱150,000 to ₱400,000, based on stage and treatment',
+    amountMinimum: 150000,
+    amountMaximum: 400000,
+    keywords: ['colorectal cancer', 'colon cancer', 'rectal cancer', 'rectum cancer'],
+    notes: 'Separate rates apply to colon and rectal cancer stages and treatment tranches.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'prostate_cancer',
+    name: 'Prostate Cancer',
+    amountLabel: '₱100,000',
+    amountMinimum: 100000,
+    amountMaximum: 100000,
+    keywords: ['prostate cancer', 'prostatic cancer'],
+    notes: 'Low to intermediate risk package with age, stage, PSA, and other criteria.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'pediatric_all',
+    name: 'Acute Lymphocytic / Lymphoblastic Leukemia in Children',
+    amountLabel: '₱500,000 for the complete course of treatment',
+    amountMinimum: 500000,
+    amountMaximum: 500000,
+    keywords: ['acute lymphocytic leukemia', 'acute lymphoblastic leukemia', 'pediatric all', 'childhood all', 'all leukemia'],
+    notes: 'Standard-risk pediatric package with age, laboratory, and clinical criteria.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'kidney_transplant',
+    name: 'Kidney Transplantation',
+    amountLabel: '₱865,000 to ₱2,146,000, based on donor type and regimen',
+    amountMinimum: 865000,
+    amountMaximum: 2146000,
+    keywords: ['kidney transplantation', 'kidney transplant', 'renal transplantation', 'renal transplant'],
+    notes: 'Rates vary by living or deceased donor, surgery, and immunosuppression regimen.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'cabg',
+    name: 'Coronary Artery Bypass Graft Surgery (CABG)',
+    amountLabel: '₱660,000 standard risk or ₱960,000 expanded risk',
+    amountMinimum: 660000,
+    amountMaximum: 960000,
+    keywords: ['coronary artery bypass graft', 'cabg', 'coronary bypass'],
+    notes: 'Risk group and eligibility are determined by the contracted cardiac team.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'tetralogy_of_fallot',
+    name: 'Total Correction of Tetralogy of Fallot',
+    amountLabel: '₱614,000',
+    amountMinimum: 614000,
+    amountMaximum: 614000,
+    keywords: ['tetralogy of fallot', 'tof', 'blue baby syndrome'],
+    notes: 'Pediatric package with age, cardiology, diagnostic, and procedure criteria.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'ventricular_septal_defect',
+    name: 'Closure of Ventricular Septal Defect (VSD)',
+    amountLabel: '₱498,000, or ₱614,000 with severe pulmonary stenosis',
+    amountMinimum: 498000,
+    amountMaximum: 614000,
+    keywords: ['ventricular septal defect', 'vsd', 'ventricular septal closure'],
+    notes: 'Pediatric package; amount varies when severe pulmonary stenosis is present.',
+    sourceUrl: PHILHEALTH_BENEFITS_URL,
+  },
+  {
+    id: 'peritoneal_dialysis',
+    name: 'Peritoneal Dialysis (updated PD Z Benefits)',
+    amountLabel: 'Adult ₱389,640 to ₱510,140; pediatric ₱510,140 to ₱1,269,000',
+    amountMinimum: 389640,
+    amountMaximum: 1269000,
+    keywords: ['peritoneal dialysis', 'pd first', 'capd', 'automated peritoneal dialysis', 'apd'],
+    notes: 'Circular 2024-0036 replaced the former PD First annual package with age- and regimen-based rates. Ancillary benefits may also apply.',
+    sourceUrl: 'https://www.philhealth.gov.ph/circulars/2024/PC2024-0036.pdf',
+  },
+];
+
+/** Return the most specific Z Benefit package named in a diagnosis. */
+export function matchPhilHealthZBenefit(diagnosis?: string): PhilHealthZBenefitPackage | undefined {
+  const cleanDiagnosis = (diagnosis || '').trim().toLowerCase();
+  if (!cleanDiagnosis) return undefined;
+
+  const matches = PHILHEALTH_Z_BENEFITS.flatMap((benefit) =>
+    benefit.keywords
+      .filter((keyword) => {
+        const cleanKeyword = keyword.toLowerCase();
+        if (cleanKeyword.length <= 3) {
+          return new RegExp(`\\b${escapeRegex(cleanKeyword)}\\b`, 'i').test(cleanDiagnosis);
+        }
+        return cleanDiagnosis.includes(cleanKeyword);
+      })
+      .map((keyword) => ({ benefit, keywordLength: keyword.length }))
+  );
+
+  matches.sort((a, b) => b.keywordLength - a.keywordLength);
+  return matches[0]?.benefit;
+}
+
+/**
  * Escapes characters for regular expressions.
  */
 function escapeRegex(str: string): string {
@@ -935,10 +1074,10 @@ export function matchPhilHealthCaseRate(
     switch (category) {
       case 'dialysis':
         return {
-          rate: 4000,
-          matchedName: 'Hemodialysis (Benchmark: ₱4,000/session)',
+          rate: 6350,
+          matchedName: 'Hemodialysis (Benchmark: ₱6,350/session)',
           isEstimated: true,
-          note: 'Benchmark rate per hemodialysis session under PhilHealth Circular 2024-0037',
+          note: 'Benchmark rate per hemodialysis session under PhilHealth Circular 2024-0023',
         };
 
       case 'chemotherapy':

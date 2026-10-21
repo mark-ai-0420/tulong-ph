@@ -54,13 +54,25 @@ import { Language, translations } from '@/lib/i18n';
 import { PCSOAssistant } from './PCSOAssistant';
 import { SenateAssistant } from './SenateAssistant';
 import { PACEAssistant } from './PACEAssistant';
+import { GLCooldownTrackerCard } from './triage/GLCooldownTrackerCard';
+import { TreatmentQuotaTrackerCard } from './triage/TreatmentQuotaTrackerCard';
+import { GenericPrescriptionGuideCard } from './triage/GenericPrescriptionGuideCard';
+import { CrossPillarBridgeCard } from './shared/CrossPillarBridgeCard';
+import { LGUAndCongressionalAssistant } from './LGUAndCongressionalAssistant';
 import { StackingInfographic } from './StackingInfographic';
 import { saveApplications, loadApplications } from '@/lib/storage';
 import { MALASAKIT_CENTERS_DIRECTORY, MalasakitCenterLocation } from '@/lib/data/malasakitCenters';
 import { parseDialableNumber } from '@/lib/phoneUtils';
 import { DOCUMENT_SLOTS } from './DocumentVault';
 import { computeStatutoryDeductions, DetailedBillBreakdown } from '@/lib/billingCalculator';
-import { matchPhilHealthCaseRate } from '@/lib/data/philhealthRates';
+import {
+  matchPhilHealthCaseRate,
+  matchPhilHealthZBenefit,
+} from '@/lib/data/philhealthRates';
+import {
+  CANCER_ASSISTANCE_FUND,
+  getCancerAssistanceFundSitesForLocation,
+} from '@/lib/data/cancerAssistanceFund';
 
 const quickChipClass = civicPill;
 const HOSPITAL_PRESETS: Record<HospitalType, readonly string[]> = {
@@ -91,6 +103,117 @@ const DIAGNOSIS_PRESETS = [
   { label: 'CS Delivery (Panganak)', condition: 'CS Delivery (Panganak)', category: 'surgery_implants' as EmergencyCategory },
   { label: 'Appendectomy', condition: 'Appendectomy', category: 'surgery_implants' as EmergencyCategory },
 ] as const;
+
+interface SpecialtyBenefitGuidanceCardsProps {
+  category: EmergencyCategory;
+  diagnosis: string;
+  region: string;
+  province: string;
+  language: Language;
+}
+
+function SpecialtyBenefitGuidanceCards({
+  category,
+  diagnosis,
+  region,
+  province,
+  language,
+}: SpecialtyBenefitGuidanceCardsProps) {
+  const cancerCase = category === 'chemotherapy' || /\b(cancer|carcinoma|neoplasm|leukemia|leukaemia|lymphoma)\b/i.test(diagnosis);
+  const dialysisCase = category === 'dialysis' || /\b(hemodialysis|haemodialysis|peritoneal dialysis|dialysis|capd|apd|pd first)\b/i.test(diagnosis);
+  const highCostTest = category === 'laboratory_diagnostics' || /\b(ct|mri|pet|imaging|diagnostic scan|diagnostic imaging)\b/i.test(diagnosis);
+  const matchedZBenefit = cancerCase || dialysisCase ? matchPhilHealthZBenefit(diagnosis) : undefined;
+  const accessSites = cancerCase
+    ? getCancerAssistanceFundSitesForLocation({ region, province }).slice(0, 3)
+    : [];
+
+  if (!cancerCase && !dialysisCase && !highCostTest) return null;
+
+  return (
+    <div className="grid min-w-0 gap-3 md:grid-cols-2" aria-label="Condition-specific assistance guidance">
+      {cancerCase && (
+        <section className="min-w-0 rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-2">
+          <h3 className="text-sm font-bold text-blue-950">PhilHealth Z-Benefit</h3>
+          <p className="text-xs leading-relaxed text-blue-950">
+            {language === 'taglish'
+              ? matchedZBenefit
+                ? `${matchedZBenefit.name}: ${matchedZBenefit.amountLabel}. Ipa-confirm sa contracted hospital ang eligibility at pre-authorization. Hindi cash grant ang package.`
+                : 'May Z Benefit packages para sa ilang cancer. Ipa-check sa treating team ang diagnosis, stage, contracted provider, at pre-authorization.'
+              : matchedZBenefit
+                ? `${matchedZBenefit.name}: ${matchedZBenefit.amountLabel}. Ask a contracted hospital to confirm eligibility and pre-authorization. This is not a cash grant.`
+                : 'PhilHealth has Z Benefit packages for selected cancers. Ask the treating team to check the diagnosis, stage, contracted provider, and pre-authorization.'}
+          </p>
+        </section>
+      )}
+
+      {cancerCase && (
+        <section className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-2">
+          <h3 className="text-sm font-bold text-emerald-950">DOH Cancer Assistance Fund (CAF)</h3>
+          <p className="text-xs leading-relaxed text-emerald-950">
+            {language === 'taglish'
+              ? `${CANCER_ASSISTANCE_FUND.annualAssistanceLimitLabel} para sa eligible na serbisyo. Ina-assess ito ng access site at nakadepende sa rules at pondong available.`
+              : `${CANCER_ASSISTANCE_FUND.annualAssistanceLimitLabel} for eligible services. An access site assesses each request under program rules and available funds.`}
+          </p>
+          {accessSites.length > 0 && (
+            <p className="text-xs leading-relaxed text-emerald-950">
+              {language === 'taglish' ? 'Mga site sa inyong rehiyon:' : 'Sites listed for your region:'}{' '}
+              {accessSites.map((site) => site.hospitalName).join(', ')}
+            </p>
+          )}
+          <a
+            href={CANCER_ASSISTANCE_FUND.accessSiteLocatorUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="min-h-[44px] w-fit inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-emerald-950 underline underline-offset-2 focus-ring"
+          >
+            {language === 'taglish' ? 'Buksan ang DOH site locator' : 'Open the DOH site locator'}
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+          {accessSites.length === 0 && (
+            <p className="text-xs leading-relaxed text-emerald-950">
+              {language === 'taglish'
+                ? 'Walang site sa napiling rehiyon sa snapshot na ito. I-confirm sa DOH locator ang pinakamalapit na kasalukuyang access site.'
+                : 'No site is listed for this region in this snapshot. Use the DOH locator to confirm the nearest current access site.'}
+            </p>
+          )}
+        </section>
+      )}
+
+      {dialysisCase && (
+        <section className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+          <h3 className="text-sm font-bold text-amber-950">{language === 'taglish' ? 'PhilHealth Dialysis Benefits' : 'PhilHealth Dialysis Benefits'}</h3>
+          <p className="text-xs leading-relaxed text-amber-950">
+            {/peritoneal dialysis|\bcapd\b|\bapd\b|\bpd first\b/i.test(diagnosis)
+              ? language === 'taglish'
+                ? `Nag-iiba ang peritoneal dialysis package ayon sa edad at daily bag regimen. ${matchedZBenefit?.amountLabel || 'Ipa-confirm sa accredited provider ang rate.'} Ipa-itemize ang anumang hindi sakop.`
+                : `Peritoneal dialysis package rates vary by age and daily bag regimen. ${matchedZBenefit?.amountLabel || 'Ask an accredited provider to confirm the rate.'} Request an itemized list of any uncovered items.`
+              : language === 'taglish'
+                ? '₱6,350 bawat hemodialysis session, hanggang 156 sessions kada taon sa ilalim ng Circular 2024-0023. Ipa-confirm sa dialysis unit ang aprubadong limit at ang mga supply na kasama.'
+                : '₱6,350 per hemodialysis session, up to 156 sessions a year under Circular 2024-0023. Ask the dialysis unit to confirm the approved limit and which supplies are included.'}
+          </p>
+          {!/peritoneal dialysis|\bcapd\b|\bapd\b|\bpd first\b/i.test(diagnosis) && (
+            <p className="text-xs leading-relaxed text-amber-950">
+              {language === 'taglish'
+                ? 'Ipa-check kung may dokumentadong kakulangan sa EPO, dialyzer, iron sucrose, o iba pang reseta. Itanong sa Malasakit, PCSO, o DSWD kung may tulong para rito.'
+                : 'Ask whether prescribed EPO, dialyzer, iron sucrose, or other items leave a documented gap. Ask Malasakit, PCSO, or DSWD about help for the uncovered amount.'}
+            </p>
+          )}
+        </section>
+      )}
+
+      {highCostTest && (
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+          <h3 className="text-sm font-bold text-slate-900">{language === 'taglish' ? 'Outpatient test quotation' : 'Outpatient test quotations'}</h3>
+          <p className="text-xs leading-relaxed text-slate-700">
+            {language === 'taglish'
+              ? 'Para sa mamahaling outpatient CT, MRI, PET scan, o laboratory, itanong muna kung kailangan ng assistance office ang tatlong kasalukuyang written quotation. Nag-iiba ang checklist kada ahensya.'
+              : 'For high-cost outpatient CT, MRI, PET, or laboratory tests, ask the assistance office whether it requires three current written quotations. Checklists vary by agency.'}
+          </p>
+        </section>
+      )}
+    </div>
+  );
+}
 
 const RELATIONSHIP_OPTIONS = [
   'Asawa / Spouse',
@@ -150,8 +273,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [bannerError, setBannerError] = useState<string | null>(null);
 
-  // Modal State for Embedded Full Assistants & Infographic (PCSO / Senate / PACe / Infographic / Transfer Rights)
-  const [activeModal, setActiveModal] = useState<'pcso' | 'senate' | 'pace' | 'infographic' | 'transfer_rights' | null>(null);
+  // Modal State for Embedded Full Assistants & Infographic (PCSO / Senate / PACe / LGU / Infographic / Transfer Rights)
+  const [activeModal, setActiveModal] = useState<'pcso' | 'senate' | 'pace' | 'lgu_congressional' | 'infographic' | 'transfer_rights' | null>(null);
   const [localApplications, setLocalApplications] = useState<ApplicationRecord[]>(applications || []);
   const [autoCalculationState, setAutoCalculationState] = useState<DetailedBillBreakdown | null>(null);
 
@@ -574,6 +697,21 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
       isPhilHealthActive ||
       isNbbEligible
   );
+  const sharedFamilyContext = {
+    province: patient.address.province,
+    cityMunicipality: patient.address.cityMunicipality,
+    barangay: patient.address.barangay,
+    region: patient.address.region,
+    is4Ps: patient.is4PsBeneficiary,
+    isPWD: patient.isPWD,
+    isOFW: patient.isOFWOrDependent,
+    isSoloParent: patient.isSoloParent ?? false,
+    isSeniorCitizen: patient.isSeniorCitizen,
+    monthlyIncome: patient.monthlyHouseholdIncome,
+    sourcePillar: 'medical' as const,
+  };
+  const isMedicalSicknessCase = ['hospitalization', 'surgery_implants', 'dialysis', 'chemotherapy'].includes(medicalCase.category);
+  const showEducationBridge = medicalCase.category === 'burial_funeral' || patient.is4PsBeneficiary || patient.isSoloParent || patient.socioeconomicClass === 'indigent';
 
   const calcVatExemptSales =
     medicalCase.totalHospitalBill > 0
@@ -1315,7 +1453,7 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   ? 'Mga Espesyal na Kwalipikasyon (Mag-check ng angkop):'
                   : 'Special Categories & Eligibility Boosters:'}
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <label
                   htmlFor="patient-is-senior"
                   className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
@@ -1426,6 +1564,28 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     </span>
                     <span className="text-xs text-slate-500 font-medium">
                       {language === 'taglish' ? 'May DMW/OWWA medical aid' : 'Eligible for DMW/OWWA aid'}
+                    </span>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="patient-is-solo-parent"
+                  className={`min-h-[52px] flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    patient.isSoloParent
+                      ? 'bg-blue-50/80 border-blue-900 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input autoComplete="off" id="patient-is-solo-parent" name="isSoloParent" type="checkbox"
+                    checked={Boolean(patient.isSoloParent)}
+                    onChange={(e) => onUpdatePatient({ ...patient, isSoloParent: e.target.checked })}
+                    className="w-5 h-5 rounded text-blue-900 focus:ring-blue-500 shrink-0" />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 block leading-tight">
+                      {language === 'taglish' ? 'Solo parent ang pasyente' : 'Patient is a solo parent'}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">
+                      {language === 'taglish' ? 'Maaaring may dagdag na education aid' : 'May help identify education aid'}
                     </span>
                   </div>
                 </label>
@@ -1652,6 +1812,14 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 </div>
               </div>
             </div>
+
+            <SpecialtyBenefitGuidanceCards
+              category={medicalCase.category}
+              diagnosis={medicalCase.diagnosis}
+              region={patient.address.region}
+              province={patient.address.province}
+              language={language}
+            />
 
             {/* Hospital Classification Selection: 3 clean, high-contrast selection cards */}
             <div className="space-y-2">
@@ -2319,7 +2487,15 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               type="submit"
               className="min-h-[44px] h-11 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer focus-ring press-feedback"
             >
-              <span>{t.calculateRoadmap}</span>
+              <span>
+                {language === 'taglish'
+                  ? 'Tingnan ang Roadmap at Gabay sa Reseta'
+                  : language === 'cebuano'
+                    ? 'Tan-awa ang Roadmap ug Giya sa Reseta'
+                    : language === 'ilocano'
+                      ? 'Kitaen ti Roadmap ken Giya iti Reseta'
+                      : 'View aid roadmap and prescription guide'}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -2344,6 +2520,14 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   >
                     <Layers className="w-3.5 h-3.5 text-blue-900" />
                     <span>{language === 'taglish' ? 'Tingnan ang Visual Infographic' : 'View Visual Infographic'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('lgu_congressional')}
+                    className="min-h-[44px] px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold text-xs border border-emerald-200 shadow-2xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-emerald-800" />
+                    <span>{language === 'taglish' ? 'Buksan ang LGU & Congressional Assistant' : 'Open LGU & Congressional Assistant'}</span>
                   </button>
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -2454,6 +2638,25 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                 </div>
               </div>
             </div>
+
+            <SpecialtyBenefitGuidanceCards
+              category={medicalCase.category}
+              diagnosis={medicalCase.diagnosis}
+              region={patient.address.region}
+              province={patient.address.province}
+              language={language}
+            />
+
+            <GenericPrescriptionGuideCard language={language} />
+
+            <GLCooldownTrackerCard
+              medicalCase={medicalCase}
+              applications={localApplications}
+              onSaveApplications={handleSaveApplications}
+              language={language}
+            />
+
+            <TreatmentQuotaTrackerCard medicalCase={medicalCase} language={language} />
 
             {/* Admission Status Operational Guidance Banner */}
             {triageResult.admissionStatusGuidance && (
@@ -3377,6 +3580,34 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
               </button>
             </div>
           </div>
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+            {medicalCase.category === 'burial_funeral' && <CrossPillarBridgeCard pillar="worker"
+              title={language === 'taglish' ? 'Tulong sa Libing (SSS / GSIS / ECC Funeral Aid)' : 'Funeral assistance (SSS / GSIS / ECC)'}
+              description={language === 'taglish' ? 'Suriin ang posibleng funeral claim ng miyembro o pensioner. Ang ECC benefit ay para lamang sa compensable na work-related death; ahensya ang magpapatunay ng claim.' : 'Review possible funeral claims for a member or pensioner. ECC funeral assistance requires a compensable work-related death; agencies confirm each claim.'}
+              benefit={language === 'taglish' ? 'SSS: ₱20k-₱60k kung may 36+ hulog; hiwalay na EC: ₱30k kung compensable' : 'SSS: ₱20k-₱60k with 36+ contributions; separate EC: ₱30k if compensable'}
+              href="/manggagawa?scenario=funeral&bridge=1" context={sharedFamilyContext} language={language} />}
+            {isMedicalSicknessCase && <CrossPillarBridgeCard pillar="worker"
+              title={language === 'taglish' ? 'SSS Sickness Benefit at ECC Medical Reimbursement' : 'SSS sickness benefit and EC medical reimbursement'}
+              description={language === 'taglish' ? 'Kung hindi makapagtrabaho dahil sa pagkakasakit o injury, maaaring magtanong tungkol sa SSS sickness claim. Ang EC reimbursement ay para sa kwalipikadong work-related na kaso at aprubadong gastos.' : 'If illness or injury prevents work, ask about an SSS sickness claim. EC medical reimbursement applies to qualifying work-related cases and approved expenses.'}
+              benefit={language === 'taglish' ? 'Hanggang 120 araw sa isang taon sa SSS; may qualifying rules' : 'Up to 120 days per calendar year under SSS rules'}
+              href="/manggagawa?scenario=sickness&bridge=1" context={sharedFamilyContext} language={language} />}
+            {patient.isOFWOrDependent && <CrossPillarBridgeCard pillar="worker"
+              title={language === 'taglish' ? 'OWWA Welfare Assistance Program (WAP)' : 'OWWA Welfare Assistance Program (WAP)'}
+              description={language === 'taglish' ? 'Magtanong sa OWWA Regional Welfare Office tungkol sa kasalukuyang tulong para sa kwalipikadong OFW member o dependent.' : 'Ask the OWWA Regional Welfare Office about current support for a qualified OFW member or dependent.'}
+              benefit={language === 'taglish' ? 'Assessment, membership, at kasalukuyang patakaran ng OWWA ang susundin' : 'OWWA assessment, membership, and current rules apply'}
+              href="/manggagawa?scenario=sickness&bridge=1" context={sharedFamilyContext} language={language} />}
+            {showEducationBridge && <CrossPillarBridgeCard pillar="education"
+              title={medicalCase.category === 'burial_funeral'
+                ? (language === 'taglish' ? 'Tulong sa Pag-aaral para sa mga Anak ng Pamilyang Nagluluksa' : 'Education support for children in a bereaved family')
+                : (language === 'taglish' ? 'Scholarship at Tuition Support para sa Pamilya' : 'Scholarships and tuition support for your family')}
+              description={medicalCase.category === 'burial_funeral'
+                ? (language === 'taglish' ? 'Kung aktibong OWWA member ang pumanaw, itanong ang ELAP para sa kwalipikadong dependent. Maaari ring magtanong sa DSWD tungkol sa educational assistance.' : 'If the deceased was an active OWWA member, ask about ELAP for qualified dependents. DSWD educational assistance may also be worth asking about.')
+                : (language === 'taglish' ? 'Suriin ang CHED TES, TDP, at Free Higher Education. May eligibility, school, funding, at slot requirements.' : 'Review CHED TES, TDP, and Free Higher Education. Eligibility, school, funding, and slot rules apply.')}
+              benefit={medicalCase.category === 'burial_funeral'
+                ? (language === 'taglish' ? 'OWWA ELAP: hanggang ₱10k bawat school year para sa qualified college dependent' : 'OWWA ELAP: up to ₱10k per school year for a qualified college dependent')
+                : (language === 'taglish' ? 'Posibleng tuition support o scholarship; ahensya at paaralan ang magkukumpirma' : 'Possible tuition support or scholarship; agencies and schools confirm eligibility')}
+              href="/edukasyon?bridge=1" context={sharedFamilyContext} language={language} />}
+          </div>
         </div>
       )}
 
@@ -3407,6 +3638,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                         ? 'bg-blue-100 text-blue-950 border-blue-300'
                         : activeModal === 'pace'
                         ? 'bg-amber-100 text-amber-950 border-amber-300'
+                        : activeModal === 'lgu_congressional'
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
                         : activeModal === 'transfer_rights'
                         ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
                         : 'bg-blue-50 text-blue-900 border-blue-200'
@@ -3418,6 +3651,8 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                       ? 'SENATE SPAO 90-DAY TRACKER'
                       : activeModal === 'pace'
                       ? 'PRESIDENTIAL ACTION CENTER (OP)'
+                      : activeModal === 'lgu_congressional'
+                      ? 'LGU & CONGRESSIONAL MEDICAL ASSISTANCE'
                       : activeModal === 'transfer_rights'
                       ? 'EMERGENCY TRANSFER PROTOCOL (RA 8344 / RA 10932)'
                       : 'OFFICIAL AID STACKING INFOGRAPHIC'}
@@ -3432,6 +3667,10 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     ? (language === 'taglish'
                         ? 'Presidential Action Center (PACe) - Malacañang'
                         : 'Presidential Action Center (PACe) - Malacañang')
+                    : activeModal === 'lgu_congressional'
+                    ? (language === 'taglish'
+                        ? 'Assistant para sa LGU at Congressional GL'
+                        : 'LGU and Congressional GL Assistant')
                     : activeModal === 'transfer_rights'
                     ? (language === 'taglish'
                         ? '5-Stage Inter-Hospital Transfer Playbook (Zero-Bankruptcy Route)'
@@ -3453,6 +3692,10 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                     ? (language === 'taglish'
                         ? 'Pre-formatted na liham sa Pangulo ng Pilipinas, opisyal na requirements, at PACe filing channels para sa malalaking bill.'
                         : 'Pre-formatted request letter to the President, documentary checklist, and direct PACe Malacañang submission channels.')
+                    : activeModal === 'lgu_congressional'
+                    ? (language === 'taglish'
+                        ? 'Gumawa ng pormal na liham para sa Mayor, Governor, o kinatawan at i-coordinate ang bawat GL sa ospital.'
+                        : 'Prepare a formal letter for a Mayor, Governor, or Representative and coordinate each GL with the hospital.')
                     : activeModal === 'transfer_rights'
                     ? (language === 'taglish'
                         ? 'Hakbang-hakbang na gabay para sa ligtas at legal na paglipat mula pribado patungo sa pampublikong specialty hospital upang maiwasan ang nakalulubog na utang sa ICU.'
@@ -3512,6 +3755,16 @@ export const TriageWizard: React.FC<TriageWizardProps> = ({
                   patient={patient}
                   representative={representative}
                   medicalCase={medicalCase}
+                  language={language}
+                />
+              )}
+              {activeModal === 'lgu_congressional' && (
+                <LGUAndCongressionalAssistant
+                  patient={patient}
+                  representative={representative}
+                  medicalCase={medicalCase}
+                  applications={localApplications}
+                  onSaveApplications={handleSaveApplications}
                   language={language}
                 />
               )}

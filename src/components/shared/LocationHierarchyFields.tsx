@@ -20,6 +20,10 @@ export function LocationHierarchyFields({ idPrefix, value, onChange, language = 
   const barangay = value.barangay ?? '';
   const tl = language === 'taglish';
   const hintId = `${idPrefix}-location-hint`;
+  const wageInfo = resolveLocationMetadata(province, cityMunicipality).wageInfo;
+  const wageRange = wageInfo?.minimumNonAgricultureDailyWage === wageInfo?.maximumNonAgricultureDailyWage
+    ? `₱${wageInfo?.minimumNonAgricultureDailyWage ?? 0}`
+    : `₱${wageInfo?.minimumNonAgricultureDailyWage ?? 0} to ₱${wageInfo?.maximumNonAgricultureDailyWage ?? 0}`;
   function emit(next: { province: string; cityMunicipality: string; barangay: string }, updateMetadata = true) {
     onChange({ ...next, ...resolveLocationMetadata(next.province, next.cityMunicipality) }, updateMetadata);
   }
@@ -36,6 +40,14 @@ export function LocationHierarchyFields({ idPrefix, value, onChange, language = 
       <datalist id={`${field.id}-options`}>{field.options.map(option => <option key={option} value={option} />)}</datalist>
     </div>)}</div>
     <div role="group" aria-label={tl ? 'Mabilis na pili ng lokasyon' : 'Location presets'} className="flex flex-wrap gap-2">{QUICK_LOCATIONS.map(preset => <button key={preset.label} type="button" onClick={() => emit(preset)} aria-pressed={getProvince(province)?.name === preset.province && cityMunicipality === preset.cityMunicipality && barangay === preset.barangay} className={getProvince(province)?.name === preset.province && cityMunicipality === preset.cityMunicipality && barangay === preset.barangay ? civicSelectedPill : civicPill}>{preset.label}</button>)}</div>
-    <p id={hintId} className="text-xs leading-relaxed text-slate-600">{tl ? 'Piliin mula sa listahan o i-type ang tamang address. Kapag binago ang probinsya o lungsod, piliin muli ang mga kasunod. Halimbawa lang ang wage estimate; kumpirmahin ang kasalukuyang rate sa ahensiya.' : 'Choose from the list or type your address. After changing province or city, choose the remaining fields again. Wage estimates are examples; confirm current rates with the agency.'}</p>
+    <p id={hintId} className="text-xs leading-relaxed text-slate-600">{tl ? 'Piliin mula sa listahan o i-type ang tamang address. Kapag binago ang probinsya o lungsod, piliin muli ang mga kasunod.' : 'Choose from the list or type your address. After changing province or city, choose the remaining fields again.'}</p>
+    {wageInfo && <div className="min-w-0 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" aria-label="Official regional wage reference">
+      <p className="font-bold">{wageInfo.minimumNonAgricultureDailyWage === null ? `NWPC: ${wageInfo.wageOrder}` : `NWPC Wage Order No. ${wageInfo.wageOrder}`}</p>
+      {wageInfo.minimumNonAgricultureDailyWage !== null && <p className="mt-1">Non-agriculture daily rates: {wageRange}. Auto-filled value uses the lower regional rate.</p>}
+      {wageInfo.effectiveDate && <p className="mt-1">Effective date: {wageInfo.effectiveDate}</p>}
+      {wageInfo.note && <p className="mt-1">{wageInfo.note}</p>}
+      <p className="mt-1">{tl ? 'Iba ang rate para sa agriculture at maliit na retail/service establishment. Maaari mong palitan ito at kumpirmahin ang tamang lokal na kategorya.' : 'Agriculture and small retail/service establishments use different rates. You can edit the amount and confirm the correct local category.'}</p>
+      <a className="mt-1 inline-flex min-h-[44px] items-center text-blue-900 underline focus-ring" href={wageInfo.sourceUrl} target="_blank" rel="noreferrer">View official NWPC rates</a>
+    </div>}
   </fieldset>;
 }

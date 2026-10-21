@@ -1,10 +1,12 @@
 export type WorkerSector = 'private' | 'government' | 'self_employed' | 'ofw' | 'displaced';
-export type WorkerScenario = 'loans' | 'maternity' | 'sickness' | 'unemployment' | 'wages' | 'livelihood' | 'funeral';
+export type WorkerScenario = 'loans' | 'maternity' | 'sickness' | 'unemployment' | 'wages' | 'livelihood' | 'funeral' | 'pension_savings';
+export type WorkerPayrollSchedule = 'six_day_week' | 'five_day_week' | 'monthly_paid';
 
 export interface WorkerProfileInput {
   sector: WorkerSector;
   scenario: WorkerScenario;
   monthlySalary: number;
+  payrollSchedule: WorkerPayrollSchedule;
   averageMonthlySalaryCredit: number;
   highestSixMonthlySalaryCredit: number;
   funeralAverageMonthlySalaryCredit: number;
@@ -44,9 +46,24 @@ export interface WorkerProfileInput {
   gsisEmergencyOutstanding: number;
   contingencyDate: string;
   regionalDailyWage: number;
+  regionalDailyWageManual: boolean;
   tupadDays: number;
   owwaMembership: 'active' | 'inactive_once' | 'inactive_multiple' | 'none';
   returnedWithinThreeYears: boolean;
+  unpaidDays?: number;
+  monthsWorkedInCurrentYear?: number;
+  unusedServiceIncentiveLeaveDays?: number;
+  separationCause?: 'none' | 'redundancy' | 'retrenchment_closure' | 'disease';
+  yearsOfService?: number;
+  unpaidOvertimeHours?: number;
+  unpaidHolidayDays?: number;
+  pensionType?: 'retirement' | 'disability_ptd' | 'disability_ppd';
+  disabilityDurationMonths?: number;
+  mp2ContributionMode?: 'monthly' | 'lump_sum';
+  mp2MonthlyContribution?: number;
+  mp2OneTimeDeposit?: number;
+  mp2DividendRatePercent?: number;
+  mp2PayoutType?: 'compounded' | 'annual';
 }
 
 export interface WorkerProgram {
@@ -95,6 +112,39 @@ export interface WorkerCalculationResult {
   unemploymentBenefit: number;
   funeral: { regularBenefit: number; ecBenefit: number; combinedBenefit: number };
   livelihood: { tupadEstimate: number; bpbhGrant: number };
+  wageClaims: {
+    dailyWage: number;
+    unpaidBasicPay: number;
+    thirteenthMonthPay: number;
+    monetizedSIL: number;
+    separationPay: number;
+    overtimePay: number;
+    holidayPay: number;
+    totalClaim: number;
+    formattedSummary: string;
+    breakdownItems: Array<{ label: string; amount: number; basis: string }>;
+  };
+  pension?: {
+    eligible: boolean;
+    formulaUsed: 'formula1' | 'formula2' | 'guaranteed_min' | 'lump_sum' | 'gsis_bmp';
+    baseMonthlyPension: number;
+    additionalBenefit: number;
+    supplementalAllowance: number;
+    totalMonthlyPension: number;
+    thirteenthMonthPension: number;
+    lumpSumEstimate: number;
+    gsisFiveYearLumpSum: number;
+    gsisCashPayment: number;
+    explanation: string;
+    formulaComparison: { formula1: number; formula2: number; guaranteedMin: number };
+  };
+  mp2?: {
+    totalPrincipal: number;
+    totalDividends: number;
+    totalValueAtMaturity: number;
+    payoutType: 'compounded' | 'annual';
+    yearlyBreakdown: Array<{ year: number; startingBalance: number; contributions: number; dividendEarned: number; endingBalance: number; annualPayout: number }>;
+  };
   matchedPrograms: WorkerProgram[];
   consolidatedChecklist: string[];
   advisories: string[];

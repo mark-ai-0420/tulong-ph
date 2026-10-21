@@ -265,16 +265,28 @@ test('privacy wipe rejects pending document uploads and permits fresh saves in t
   const { runInNewContext } = await import('node:vm');
   const { default: ts } = await import('typescript');
   const records = new Map();
+  const workerRecords = new Map();
+  const workerStore = {};
   const local = new Map();
-  const idb = { get: async key => records.get(key), set: async (key, value) => records.set(key, value),
-    del: async key => records.delete(key), clear: async () => records.clear() };
+  const recordsFor = store => store === workerStore ? workerRecords : records;
+  const idb = {
+    createStore: () => workerStore,
+    get: async (key, store) => recordsFor(store).get(key),
+    set: async (key, value, store) => recordsFor(store).set(key, value),
+    del: async (key, store) => recordsFor(store).delete(key),
+    clear: async store => recordsFor(store).clear(),
+  };
   const source = (await readFile(new URL('../src/lib/storage.ts', import.meta.url), 'utf8'))
     .replace("await import('idb-keyval')", "await Promise.resolve(require('idb-keyval'))");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   const module = { exports: {} };
   let privacyChannel;
+  let backupChannel;
   class MockBroadcastChannel {
-    constructor() { privacyChannel = this; }
+    constructor(name) {
+      if (name === 'tulongph-privacy') privacyChannel = this;
+      if (name === 'tulongph-backup') backupChannel = this;
+    }
     postMessage() {}
   }
   runInNewContext(code, { exports: module.exports, require: () => idb,
@@ -296,8 +308,10 @@ test('privacy wipe rejects pending document uploads and permits fresh saves in t
   assert.ok(storage.getWipeGeneration() > generation);
   finishCompression();
   await pendingUpload;
-  assert.equal(local.size, 0);
+  assert.equal(local.get('tulong_lang'), 'taglish');
+  assert.equal(local.size, 1);
   assert.equal(records.size, 0);
+  assert.equal(workerRecords.size, 0);
   await storage.saveWorkerSession({ ...defaultWorkerProfile, monthlySalary: 4321 });
   await storage.saveEducationSession({ tuition: 5678 });
   await storage.savePatientProfile({ ...storage.defaultPatientProfile, firstName: 'New synthetic' });
@@ -315,4 +329,7 @@ test('privacy wipe rejects pending document uploads and permits fresh saves in t
   assert.equal((await storage.loadDocuments())[0].fileName, 'New synthetic document');
   privacyChannel.onmessage({ data: 'wipe-complete' });
   assert.ok(storage.getWipeGeneration() > beforeBroadcast + 1);
+  const beforeRestoreBroadcast = storage.getWipeGeneration();
+  backupChannel.onmessage({ data: 'restore-complete' });
+  assert.ok(storage.getWipeGeneration() > beforeRestoreBroadcast);
 });

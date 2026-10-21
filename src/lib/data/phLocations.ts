@@ -4,7 +4,7 @@
  * https://psa.gov.ph/classification/psgc
  * Independent cities are grouped by geographic province for address entry, not political jurisdiction.
  * Indang names checked against https://psa.gov.ph/classification/psgc/barangays/0402110000.
- * Rates below are the approved plan's illustrative defaults, not current statutory wage orders.
+ * NWPC statutory wage references are listed below with the date in effect for each order.
  * Source SHA-256: df14fbd31f3eb5e1c21a811e1dd6e49036a3dbdf7b7321ef3aebd069c7f238fa
  *
  * MIT License
@@ -31,7 +31,20 @@
  */
 export interface PhilippineCity { name: string; barangays: string[]; huc?: boolean }
 export interface PhilippineProvince { name: string; region: string; cities: PhilippineCity[] }
-export interface LocationMetadata { locationTier: 'NCR' | 'HUC' | 'other'; regionalDailyWage: number }
+export interface RegionalWageInfo {
+  region: string;
+  wageOrder: string;
+  effectiveDate: string | null;
+  minimumNonAgricultureDailyWage: number | null;
+  maximumNonAgricultureDailyWage: number | null;
+  sourceUrl: string;
+  note?: string;
+}
+export interface LocationMetadata {
+  locationTier: 'NCR' | 'HUC' | 'other';
+  regionalDailyWage: number;
+  wageInfo: RegionalWageInfo | null;
+}
 export interface LocationSelection extends LocationMetadata { province: string; cityMunicipality: string; barangay: string }
 
 export const PH_LOCATIONS: PhilippineProvince[] = [
@@ -1874,13 +1887,58 @@ export function normalizeBarangay(province: string, city: string, barangay: stri
   }
   return getBarangays(province, city).find(name => key(name) === normalized) ?? barangay;
 }
+// NWPC non-agricultural private-sector rates in effect on 20 October 2026.
+// Ranges reflect statutory city, municipality, or establishment-size categories.
+// The autofill uses the lower bound as a planning baseline; verify the exact category with NWPC.
+export const REGIONAL_WAGE_INFO: RegionalWageInfo[] = [
+  { region: 'National Capital Region (NCR)', wageOrder: 'NCR-28', effectiveDate: '2026-09-26', minimumNonAgricultureDailyWage: 755, maximumNonAgricultureDailyWage: 755, sourceUrl: 'https://nwpc.dole.gov.ph/ncr/' },
+  { region: 'Cordillera Administrative Region (CAR)', wageOrder: 'CAR-24', effectiveDate: '2025-12-30', minimumNonAgricultureDailyWage: 505, maximumNonAgricultureDailyWage: 505, sourceUrl: 'https://nwpc.dole.gov.ph/car/' },
+  { region: 'Region I (Ilocos Region)', wageOrder: 'RB 1-24', effectiveDate: '2025-11-19', minimumNonAgricultureDailyWage: 480, maximumNonAgricultureDailyWage: 505, sourceUrl: 'https://nwpc.dole.gov.ph/region-i/', note: '₱480 applies to non-agriculture establishments with fewer than 10 employees; ₱505 applies to those with 10 or more.' },
+  { region: 'Region II (Cagayan Valley)', wageOrder: 'RTWPB 2-24', effectiveDate: '2025-11-05', minimumNonAgricultureDailyWage: 500, maximumNonAgricultureDailyWage: 500, sourceUrl: 'https://nwpc.dole.gov.ph/region-ii/' },
+  { region: 'Region III (Central Luzon)', wageOrder: 'RBIII-26', effectiveDate: '2026-04-16', minimumNonAgricultureDailyWage: 560, maximumNonAgricultureDailyWage: 600, sourceUrl: 'https://nwpc.dole.gov.ph/region-iii/', note: 'Aurora is ₱560; Bataan, Bulacan, Nueva Ecija, Pampanga, Tarlac, and Zambales are ₱600.' },
+  { region: 'Region IV-A (CALABARZON)', wageOrder: 'IVA-22', effectiveDate: '2026-04-01', minimumNonAgricultureDailyWage: 525, maximumNonAgricultureDailyWage: 600, sourceUrl: 'https://nwpc.dole.gov.ph/region-iva/', note: 'Wage Order IVA-23 has been published but takes effect on 26 October 2026, after this dataset date.' },
+  { region: 'MIMAROPA Region', wageOrder: 'RB-MIMAROPA-13', effectiveDate: '2026-01-01', minimumNonAgricultureDailyWage: 455, maximumNonAgricultureDailyWage: 455, sourceUrl: 'https://nwpc.dole.gov.ph/region-ivb/' },
+  { region: 'Region V (Bicol Region)', wageOrder: 'RBV-23', effectiveDate: '2026-04-08', minimumNonAgricultureDailyWage: 455, maximumNonAgricultureDailyWage: 455, sourceUrl: 'https://nwpc.dole.gov.ph/region-v/', note: 'The next tranche is scheduled for 1 December 2026.' },
+  { region: 'Region VI (Western Visayas)', wageOrder: 'RBVI-29', effectiveDate: '2025-11-19', minimumNonAgricultureDailyWage: 525, maximumNonAgricultureDailyWage: 550, sourceUrl: 'https://nwpc.dole.gov.ph/region-vi/', note: '₱525 applies to non-agriculture establishments with 10 or fewer workers; ₱550 applies to those with more than 10.' },
+  { region: 'Negros Island Region (NIR)', wageOrder: 'No separate NIR wage order published', effectiveDate: null, minimumNonAgricultureDailyWage: null, maximumNonAgricultureDailyWage: null, sourceUrl: 'https://nwpc.dole.gov.ph/region-nir/', note: 'Negros Occidental remains under RBVI-29. Negros Oriental and Siquijor remain under ROVII-27 while the NIR wage board is being constituted.' },
+  { region: 'Region VII (Central Visayas)', wageOrder: 'ROVII-27', effectiveDate: '2026-10-14', minimumNonAgricultureDailyWage: 542, maximumNonAgricultureDailyWage: 582, sourceUrl: 'https://nwpc.dole.gov.ph/wp-content/uploads/2026/09/Wage-Order-No.-ROVII-27.pdf', note: 'Class A areas receive ₱582; other cities and municipalities receive ₱542. Includes Negros Oriental and Siquijor pending a separate NIR wage board.' },
+  { region: 'Region VIII (Eastern Visayas)', wageOrder: 'RB VIII-25', effectiveDate: '2026-06-01', minimumNonAgricultureDailyWage: 440, maximumNonAgricultureDailyWage: 470, sourceUrl: 'https://nwpc.dole.gov.ph/region-viii/' },
+  { region: 'Region IX (Zamboanga Peninsula)', wageOrder: 'RIX-24', effectiveDate: '2026-06-01', minimumNonAgricultureDailyWage: 451, maximumNonAgricultureDailyWage: 464, sourceUrl: 'https://nwpc.dole.gov.ph/region-ix/' },
+  { region: 'Region X (Northern Mindanao)', wageOrder: 'RX-24', effectiveDate: '2026-05-01', minimumNonAgricultureDailyWage: 485, maximumNonAgricultureDailyWage: 500, sourceUrl: 'https://nwpc.dole.gov.ph/region-x/' },
+  { region: 'Region XI (Davao Region)', wageOrder: 'RB XI-24', effectiveDate: '2026-09-01', minimumNonAgricultureDailyWage: 540, maximumNonAgricultureDailyWage: 540, sourceUrl: 'https://nwpc.dole.gov.ph/region-xi/' },
+  { region: 'Region XII (SOCCSKSARGEN)', wageOrder: 'RXII-25', effectiveDate: '2025-12-15', minimumNonAgricultureDailyWage: 460, maximumNonAgricultureDailyWage: 460, sourceUrl: 'https://nwpc.dole.gov.ph/region-xii/' },
+  { region: 'Region XIII (Caraga)', wageOrder: 'RXIII-20', effectiveDate: '2026-05-01', minimumNonAgricultureDailyWage: 475, maximumNonAgricultureDailyWage: 475, sourceUrl: 'https://nwpc.dole.gov.ph/region-xiii/' },
+  { region: 'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)', wageOrder: 'BARMM-05', effectiveDate: '2026-08-06', minimumNonAgricultureDailyWage: 401, maximumNonAgricultureDailyWage: 436, sourceUrl: 'https://nwpc.dole.gov.ph/barmm/', note: '₱436 applies to Cotabato City; the applicable rate elsewhere varies by area.' },
+];
+
+export function getRegionalWageInfo(regionName: string, provinceName = ''): RegionalWageInfo | null {
+  const requestedRegion = key(regionName);
+  const region = ({
+    ncr: 'national capital region',
+    car: 'cordillera administrative region',
+    mimaropa: 'mimaropa region',
+    barmm: 'bangsamoro autonomous region in muslim mindanao',
+  } as Record<string, string>)[requestedRegion] ?? requestedRegion;
+  if (region.includes('negros island region') || region === 'nir') {
+    const province = key(provinceName);
+    const legacyRegion = province === 'negros occidental' ? 'region vi' : ['negros oriental', 'siquijor'].includes(province) ? 'region vii' : '';
+    return legacyRegion
+      ? REGIONAL_WAGE_INFO.find(info => key(info.region).startsWith(legacyRegion)) ?? null
+      : REGIONAL_WAGE_INFO.find(info => key(info.region).includes('negros island')) ?? null;
+  }
+  return REGIONAL_WAGE_INFO.find(info => key(info.region) === region || key(info.region).startsWith(`${region} `)) ?? null;
+}
+
 export function resolveLocationMetadata(province: string, city: string): LocationMetadata {
   const place = getProvince(province);
   const region = key(place?.region ?? province);
   const ncr = region.includes('national capital region') || region === 'ncr';
-  const central = region.includes('iv-a') || region.includes('calabarzon') || region.includes('central luzon') || region === 'region iii';
-  const cebuDavao = region.includes('central visayas') || region.includes('davao region') || ['region vii', 'region xi'].includes(region);
-  return { locationTier: ncr ? 'NCR' : getCity(province, city)?.huc ? 'HUC' : 'other', regionalDailyWage: ncr ? 645 : central ? 520 : cebuDavao ? 500 : 450 };
+  const wageInfo = getRegionalWageInfo(place?.region ?? region, place?.name ?? province);
+  return {
+    locationTier: ncr ? 'NCR' : getCity(province, city)?.huc ? 'HUC' : 'other',
+    regionalDailyWage: wageInfo?.minimumNonAgricultureDailyWage ?? 0,
+    wageInfo,
+  };
 }
 
 export const QUICK_LOCATIONS = [

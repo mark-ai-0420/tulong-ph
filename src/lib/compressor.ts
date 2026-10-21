@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { DocumentType } from '@/types/assistance';
+import type { DocumentType } from '@/types/assistance';
 
 export interface CompressionResult {
   fileName: string;
@@ -7,6 +7,7 @@ export interface CompressionResult {
   compressedSize: number;
   mimeType: string;
   dataUrl: string;
+  attachmentDataUrl: string;
   blob: Blob;
   isCompliantUnder2MB: boolean;
   reductionPercentage: number;
@@ -21,6 +22,10 @@ export async function convertAndCompressImageToPdf(
   file: File,
   targetFileName?: string
 ): Promise<CompressionResult> {
+  if (!file.type.startsWith('image/')) {
+    return Promise.reject(new Error('Choose an image file. PDF uploads are not supported yet.'));
+  }
+
   const originalSize = file.size;
   const fileName = targetFileName || file.name.replace(/\.[^/.]+$/, '') + '.pdf';
 
@@ -32,6 +37,7 @@ export async function convertAndCompressImageToPdf(
         const img = new Image();
         img.onerror = () => reject(new Error('Could not parse image data'));
         img.onload = async () => {
+          try {
           // Standard A4 dimensions in mm: 210 x 297
           // Let's create an off-screen canvas to scale and optimize contrast
           let width = img.width;
@@ -89,7 +95,7 @@ export async function convertAndCompressImageToPdf(
             0,
             Math.round(((originalSize - compressedSize) / originalSize) * 100)
           );
-          const pdfDataUrl = URL.createObjectURL(pdfBlob);
+          const pdfDataUrl = await blobToDataUrl(pdfBlob);
 
           resolve({
             fileName,
@@ -97,10 +103,14 @@ export async function convertAndCompressImageToPdf(
             compressedSize,
             mimeType: 'application/pdf',
             dataUrl: pdfDataUrl,
+            attachmentDataUrl: jpegDataUrl,
             blob: pdfBlob,
             isCompliantUnder2MB: compressedSize <= 2 * 1024 * 1024,
             reductionPercentage,
           });
+          } catch (err) {
+            reject(err);
+          }
         };
         img.src = e.target?.result as string;
       } catch (err) {
@@ -108,6 +118,17 @@ export async function convertAndCompressImageToPdf(
       }
     };
     reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to prepare the compressed document'));
+    reader.onload = () => typeof reader.result === 'string'
+      ? resolve(reader.result)
+      : reject(new Error('Failed to prepare the compressed document'));
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -175,6 +196,12 @@ export function getStandardizedDocFileName(
     social_case_study: 'SocialCaseStudy',
     doctor_prescription: 'DoctorPrescription',
     death_certificate: 'DeathCertificate',
+    certificate_of_enrollment: 'CertificateOfEnrollment',
+    academic_grades: 'AcademicGrades',
+    income_tax_return: 'IncomeTaxReturn',
+    payslip_payroll: 'PayslipPayroll',
+    certificate_of_employment: 'CertificateOfEmployment',
+    incident_logbook: 'IncidentLogbook',
   };
 
   const label = docLabels[docType] || 'Document';

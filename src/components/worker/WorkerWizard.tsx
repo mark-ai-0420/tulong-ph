@@ -8,9 +8,13 @@ import { useEffect, useRef, useState } from 'react';
 import { WizardStepper } from '@/components/shared/WizardStepper';
 import { LocationHierarchyFields } from '@/components/shared/LocationHierarchyFields';
 import { LiveReliefBreakdownBox, ActionRoadmapStepCard, PrintablePacketCallout } from '@/components/shared/CivicStepCards';
+import { CrossPillarBridgeCard } from '@/components/shared/CrossPillarBridgeCard';
+import { OFWCaseTrackerCard } from '@/components/worker/OFWCaseTrackerCard';
 import type { Language } from '@/lib/i18n';
 import type { WorkerProfileInput, WorkerScenario } from '@/types/worker';
 import { calculateWorkerBenefitsAndLoans, defaultWorkerProfile } from '@/lib/workerBenefitsCalculator';
+import { createDefaultOFWCaseRecord, type OFWCaseRecord } from '@/lib/ofwTracker';
+import { loadOFWCaseTracker, saveOFWCaseTracker, type WorkerWorksheetFields } from '@/lib/storage';
 
 const control = civicInput;
 const button = civicSecondary;
@@ -19,27 +23,181 @@ const peso = (n: number) => new Intl.NumberFormat('en-PH', { style: 'currency', 
 const scenarios: { id: WorkerScenario; title: string }[] = [
   { id: 'loans', title: 'Emergency cash / calamity loan' },
   { id: 'maternity', title: 'Maternity at salary differential' },
-  { id: 'sickness', title: 'Sakit / aksidente at EC claim' },
+  { id: 'sickness', title: "Sakit o aksidente sa trabaho (Employees' Compensation / EC claim)" },
   { id: 'unemployment', title: 'Natanggal / nagsara ang kompanya' },
   { id: 'wages', title: 'Hindi nabayarang sahod / final pay' },
   { id: 'livelihood', title: 'Puhunan at livelihood grant' },
   { id: 'funeral', title: 'Funeral at survivor claims' },
+  { id: 'pension_savings', title: 'Pensiyon at MP2 Savings' },
 ];
 
-type LocatedWorkerProfile = WorkerProfileInput & { province?: string; cityMunicipality?: string; barangay?: string };
+type LocatedWorkerProfile = WorkerProfileInput & { province?: string; cityMunicipality?: string; barangay?: string; hasDisabilityOrDependent?: boolean };
 
-export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' }: {
-  language?: Language; profile: LocatedWorkerProfile; onChange: (p: WorkerProfileInput) => void; onPrint: () => void;
+const sectorLabels: Record<WorkerProfileInput['sector'], Record<Language, string>> = {
+  private: {
+    taglish: 'Pribadong empleyado / SSS',
+    cebuano: 'Pribadong empleyado / SSS',
+    ilocano: 'Pribado a empleyado / SSS',
+    en: 'Private employee / SSS',
+  },
+  government: {
+    taglish: 'Kawani ng gobyerno / GSIS',
+    cebuano: 'Empleyado sa gobyerno / GSIS',
+    ilocano: 'Empleado ti gobyerno / GSIS',
+    en: 'Government employee / GSIS',
+  },
+  self_employed: {
+    taglish: 'Sariling hanapbuhay / freelancer / impormal na trabaho',
+    cebuano: 'Nagtatrabaho sa kaugalingon / freelancer / impormal nga trabaho',
+    ilocano: 'Bukod a nagtatrabaho / freelancer / di pormal a trabaho',
+    en: 'Self-employed / freelancer / informal worker',
+  },
+  ofw: {
+    taglish: 'OFW / nagbalik na manggagawa',
+    cebuano: 'OFW / mibalik nga manggagawa',
+    ilocano: 'OFW / nagsubli a mangmangged',
+    en: 'Overseas Filipino Worker (OFW) / returning worker',
+  },
+  displaced: {
+    taglish: 'Natanggal o nawalan ng trabaho',
+    cebuano: 'Nawad-an o natangtang sa trabaho',
+    ilocano: 'Nawanan iti trabaho wenno natanggal',
+    en: 'Displaced worker',
+  },
+};
+
+type PensionFormulaUsed = 'formula1' | 'formula2' | 'guaranteed_min' | 'lump_sum' | 'gsis_bmp';
+
+const pensionExplanationText: Record<Language, Record<PensionFormulaUsed, string>> = {
+  taglish: {
+    formula1: 'Tinatantiya ng SSS ang buwanang pensiyon gamit ang PHP 300 + 20% ng AMSC + 2% ng AMSC sa bawat credit year lampas sa 10 taon. Ihinahambing ito sa ibang formula at minimum; ang pinakamataas ang ginagamit.',
+    formula2: 'Kinukuha ng SSS ang 40% ng average monthly salary credit (AMSC) para sa formula na ito. Inihahambing ito sa Formula 1 at minimum; ang pinakamataas ang ginagamit.',
+    guaranteed_min: 'Ito ang minimum na buwanang pensiyon para sa inilagay na record. Ginagamit ito kapag hindi mas mataas ang ibang SSS formula; ahensiya ang magkukumpirma ng hulog at eligibility.',
+    lump_sum: 'One-time na tantiya ang ipinapakita dahil sa inilagay na hulog o disability schedule, hindi buwanang pensiyon. SSS ang nagkukumpirma ng aktuwal na halaga batay sa claim at records.',
+    gsis_bmp: 'Tinatantiya ng GSIS ang RAMC bilang AMC + PHP 700. Formula nito ang 37.5% ng RAMC hanggang 15 taon, dagdag na 2.5 percentage points bawat susunod na taon, at hanggang 90% ng AMC. GSIS ang nagkukumpirma ng minimum at eligibility.',
+  },
+  cebuano: {
+    formula1: 'Gibanabana sa SSS ang binulang pensyon gamit ang PHP 300 + 20% sa AMSC + 2% sa AMSC sa matag credit year nga molapas sa 10 ka tuig. Itandi kini sa ubang pormula ug minimum; pilion ang pinakataas.',
+    formula2: 'Kuhaon sa SSS ang 40% sa average monthly salary credit (AMSC) niini nga pormula. Itandi kini sa Formula 1 ug minimum; pilion ang pinakataas.',
+    guaranteed_min: 'Mao kini ang minimum nga binulang pensyon para sa imong rekord. Gamita kini kung dili mas taas ang ubang pormula sa SSS; kumpirmahon sa ahensiya ang mga hulog ug eligibility.',
+    lump_sum: 'Usa ka higayon nga banabana ang kantidad tungod sa imong mga hulog o disability schedule, imbis nga binulang pensyon. Kumpirmahon sa SSS ang aktuwal nga kantidad base sa claim ug mga rekord.',
+    gsis_bmp: 'Gibanabana sa GSIS ang RAMC isip AMC + PHP 700. Ang pormula niini kay 37.5% sa RAMC hangtod sa 15 ka tuig, dugang 2.5 percentage points sa matag sunod nga tuig, ug kutob sa 90% sa AMC. Kumpirmahon sa GSIS ang minimum ug eligibility.',
+  },
+  ilocano: {
+    formula1: 'Pagarupen ti SSS ti bulan a pension babaen iti PHP 300 + 20% ti AMSC + 2% ti AMSC iti tunggal credit year a nasurok iti 10 a tawen. Ikompara daytoy kadagiti sabali a pormula ken minimum; ti kangatuan ti usaren.',
+    formula2: 'Kalkularen ti SSS ti 40% ti average monthly salary credit (AMSC) iti daytoy a pormula. Ikompara daytoy iti Formula 1 ken minimum; ti kangatuan ti pilienna.',
+    guaranteed_min: 'Daytoy ti minimum a bulan a pension para iti rekordmo. Usaren no saan a nangatngato dagiti sabali a pormula ti SSS; ti ahensia ti mangpasingked kadagiti kontribusion ken eligibility.',
+    lump_sum: 'Maysa a bayad laeng ti pagarupen gapu kadagiti kontribusion wenno disability schedule, imbes a bulan a pension. SSS ti mangpasingked iti pudno a pateg a naibatay iti claim ken rekord.',
+    gsis_bmp: 'Pagarupen ti GSIS ti RAMC a kas AMC + PHP 700. Ti pormulana ket 37.5% ti RAMC agingga iti 15 a tawen, nayon a 2.5 percentage points iti tunggal sumaruno a tawen, ken agingga iti 90% ti AMC. GSIS ti mangpasingked iti minimum ken eligibility.',
+  },
+  en: {
+    formula1: 'SSS estimates the monthly pension as PHP 300 + 20% of AMSC + 2% of AMSC for each credited year above 10 years. It compares this with the other formula and minimum, then uses the highest amount.',
+    formula2: 'This SSS formula uses 40% of the average monthly salary credit (AMSC). SSS compares it with Formula 1 and the minimum, then uses the highest amount.',
+    guaranteed_min: 'This is the minimum monthly pension for the entered record. It applies when the other SSS formulas are lower; the agency confirms contributions and eligibility.',
+    lump_sum: 'The entered contribution or disability schedule produces a one-time estimate instead of a monthly pension. SSS confirms the actual amount from the claim and agency records.',
+    gsis_bmp: 'GSIS estimates RAMC as AMC + PHP 700. The formula uses 37.5% of RAMC through 15 years, adds 2.5 percentage points for each later year, and caps the BMP at 90% of AMC. GSIS confirms the minimum and eligibility.',
+  },
+};
+
+function localizedPensionExplanation(formulaUsed: PensionFormulaUsed, language: Language) {
+  return pensionExplanationText[language][formulaUsed];
+}
+
+export function WorkerWizard({ profile, onChange, onPrint, worksheet, onWorksheetChange, language = 'taglish' }: {
+  language?: Language; profile: LocatedWorkerProfile; onChange: (p: LocatedWorkerProfile) => void; onPrint: () => void;
+  worksheet: WorkerWorksheetFields; onWorksheetChange: (fields: WorkerWorksheetFields) => void;
 }) {
   const english = language === 'en';
+  const local = (taglish: string, en: string, cebuano: string, ilocano: string) =>
+    language === 'en' ? en : language === 'cebuano' ? cebuano : language === 'ilocano' ? ilocano : taglish;
+  const ageLabel = local('Edad', 'Age', 'Edad', 'Tawen');
+  const ageHint = local(
+    'Kailangan ng ahensiya ang assessment para sa age limit ng ilang trabaho.',
+    'Agency assessment is required for age limits that apply to some occupations.',
+    'Kinahanglan og assessment sa ahensiya para sa age limit sa pipila ka trabaho.',
+    'Kasapulan ti panangamiris ti ahensia para iti limit ti edad kadagiti sumagmamano a trabaho.',
+  );
+  const backLabel = local('Bumalik', 'Back', 'Balik', 'Subli');
+  const nextLabel = local('Susunod', 'Next', 'Sunod', 'Sumaruno');
+  const pensionText = {
+    title: local('Pensiyon at MP2 Savings', 'Pension and MP2 Savings', 'Pensyon ug MP2 Savings', 'Pension ken MP2 Savings'),
+    choose: local('Piliin ang sitwasyon', 'Choose your situation', 'Pilia ang imong sitwasyon', 'Pilien ti kasasaad'),
+    retirement: local('Pagreretiro', 'Retirement', 'Pagreretiro', 'Panag-retire'),
+    ptd: local('Permanenteng kabuuang kapansanan (PTD)', 'Permanent total disability (PTD)', 'Permanenteng kinatibuk-ang kakulangan (PTD)', 'Permanente a naan-anay a kapansanan (PTD)'),
+    ppd: local('Permanenteng bahagyang kapansanan (PPD)', 'Permanent partial disability (PPD)', 'Permanenteng bahin nga kakulangan (PPD)', 'Permanente a paset a kapansanan (PPD)'),
+    pensionType: local('Uri ng pensiyon o kapansanan', 'Pension or disability type', 'Matang sa pensyon o kakulangan', 'Kita ti pension wenno kapansanan'),
+    years: local('Taon ng hulog', 'Contribution years', 'Tuig sa kontribusyon', 'Tawen dagiti kontribusyon'),
+    months: local('Dagdag na buwan', 'Additional months', 'Dugang nga mga bulan', 'Nayon a bulan'),
+    amsc: local('Karaniwang buwanang salary credit ng SSS (AMSC, PHP)', 'SSS average monthly salary credit (AMSC, PHP)', 'Kasagarang binulan nga salary credit sa SSS (AMSC, PHP)', 'Average a bulan a salary credit ti SSS (AMSC, PHP)'),
+    amc: local('Karaniwang buwanang kompensasyon ng GSIS (AMC, PHP)', 'GSIS average monthly compensation (AMC, PHP)', 'Kasagarang binulan nga kompensasyon sa GSIS (AMC, PHP)', 'Average a bulan a kompensasion ti GSIS (AMC, PHP)'),
+    amcHint: local('Kinukuha ng GSIS ang RAMC mula sa AMC.', 'GSIS derives RAMC from AMC.', 'Kalkulahon sa GSIS ang RAMC gikan sa AMC.', 'Kalkularem ti GSIS ti RAMC manipud iti AMC.'),
+    amscHint: local('Hanggang PHP 20,000 ang regular SSS MSC para sa benepisyo.', 'Regular SSS benefit MSC is capped at PHP 20,000.', 'Kutob sa PHP 20,000 ang regular nga SSS MSC para sa benepisyo.', 'Agingga iti PHP 20,000 ti regular a SSS MSC para kadagiti benepisio.'),
+    duration: local('Tagal sa SSS schedule of loss (buwan)', 'SSS schedule-of-loss duration (months)', 'Gitas-on sa SSS schedule of loss (bulan)', 'Atiddog ti SSS schedule of loss (bulan)'),
+    mp2Title: local('Pag-IBIG MP2 savings', 'Pag-IBIG MP2 savings', 'Pag-IBIG MP2 savings', 'Pag-IBIG MP2 savings'),
+    mode: local('Paraan ng hulog', 'Contribution method', 'Paagi sa paghulog', 'Wagas ti panagbayad'),
+    monthlyMode: local('Buwan-buwan', 'Monthly', 'Matag bulan', 'Tunggal bulan'),
+    lumpMode: local('Isang bagsakan', 'One-time deposit', 'Usa ka deposito', 'Maysa a deposito'),
+    monthlyAmount: local('Buwanang hulog (PHP)', 'Monthly contribution (PHP)', 'Bulanan nga kontribusyon (PHP)', 'Bulanan a kontribusyon (PHP)'),
+    oneTimeAmount: local('Isang hulog (PHP)', 'One-time deposit (PHP)', 'Usa ka deposito (PHP)', 'Maysa a deposito (PHP)'),
+    rate: local('Tinatayang annual dividend rate (%)', 'Assumed annual dividend rate (%)', 'Gibanabana nga annual dividend rate (%)', 'Naipagarup a tawen a dividend rate (%)'),
+    payout: local('Paraan ng dividend', 'Dividend option', 'Kapilian sa dividend', 'Pagpilian ti dividend'),
+    compounded: local('Compounded sa account', 'Compounded', 'I-compound sa account', 'I-compound iti account'),
+    annual: local('Taunang payout', 'Annual payout', 'Matag-tuig nga payout', 'Tawen-tawen a payout'),
+    hint: local('PHP 500 minimum sa hulog. Gamit ang rate na inilagay; hindi garantisado ang future dividend rate.', 'PHP 500 minimum contribution. Uses your entered rate; future dividend rates are not guaranteed.', 'PHP 500 ang minimum nga hulog. Gigamit ang imong rate; dili garantisado ang umaabot nga dividend rate.', 'PHP 500 ti minimum a kontribusyon. Usarenna ti rate nga inyunay; saan a garantisado dagiti masakbayan a dividend rate.'),
+    mp2Method: local('Tantiya ito: ang buwanang hulog ay may average na 6.5 buwang kita bawat taon; taun-taon idinadagdag ang dividend sa compounded option.', 'Projection assumption: monthly deposits earn dividends for an average 6.5 months per year; compounded dividends are added once each year.', 'Banabana kini: ang binulan nga hulog makakuwenta og average 6.5 ka bulan nga kita matag-tuig; idugang matag-tuig ang dividend sa compounded option.', 'Pagarup daytoy: dagiti bulanan a kontribusyon ket agpaay iti average a 6.5 a bulan a kita iti tunggal tawen; maitap iti tunggal tawen dagiti dividend iti compounded option.'),
+    ptdHint: local('Para sa PPD, SSS ang magtatakda ng bahagi ng katawan at schedule duration.', 'For PPD, SSS determines the body-part percentage and scheduled duration.', 'Alang sa PPD, SSS ang motakda sa porsiyento ug gitas-on sa schedule.', 'Para iti PPD, SSS ti mangikeddeng iti porsiento ken kaatiddog ti schedule.'),
+    result: local('Pagtataya ng pensiyon at MP2', 'Pension and MP2 estimate', 'Banabana sa pensyon ug MP2', 'Pagarup ti pension ken MP2'),
+    formulaComparison: local('Paghahambing ng SSS formulas', 'SSS formula comparison', 'Pagtandi sa mga pormula sa SSS', 'Pagrikna dagiti pormula ti SSS'),
+    formula1: local('Formula 1', 'Formula 1', 'Pormula 1', 'Pormula 1'),
+    formula2: local('Formula 2', 'Formula 2', 'Pormula 2', 'Pormula 2'),
+    minimum: local('Guaranteed minimum', 'Guaranteed minimum', 'Gigarantiya nga minimum', 'Garantisado a minimum'),
+    base: local('Batayang buwanang pensiyon', 'Base monthly pension', 'Batakang binulan nga pensyon', 'Pangrugian a bulan a pension'),
+    monthlyPension: local('Kabuuang buwanang pensiyon', 'Total monthly pension', 'Kinatibuk-ang binulan nga pensyon', 'Dagup a bulan a pension'),
+    additional: local('Dagdag na benepisyo', 'Additional benefit', 'Dugang nga benepisyo', 'Nayon a benepisio'),
+    supplemental: local('Supplemental disability allowance', 'Supplemental disability allowance', 'Dugang nga allowance sa kakulangan', 'Nayon a allowance ti kapansanan'),
+    thirteenth: local('13th month pension', '13th month pension', '13th month nga pensyon', '13th month a pension'),
+    lumpEstimate: local('Tinatayang one-time benefit', 'Estimated one-time benefit', 'Gibanabana nga usa ka bayad nga benepisyo', 'Naipagarup a maysa a bayad a benepisio'),
+    gsisFiveYear: local('GSIS 5-taong lump sum (60 x BMP)', 'GSIS 5-year lump sum (60 x BMP)', 'GSIS 5-ka-tuig nga lump sum (60 x BMP)', 'GSIS 5 a tawen a lump sum (60 x BMP)'),
+    gsisCash: local('GSIS cash payment (18 x BMP)', 'GSIS cash payment (18 x BMP)', 'Bayad nga cash sa GSIS (18 x BMP)', 'Bayad a cash ti GSIS (18 x BMP)'),
+    gsisFiveYearTiming: local('Magsisimula ang panghabambuhay na BMP pagkatapos ng limang taon.', 'Lifetime BMP begins after the five-year period.', 'Magsugod ang tibuok-kinabuhi nga BMP human sa lima ka tuig.', 'Mangrugi ti BMP iti intero a biag kalpasan ti lima a tawen.'),
+    gsisCashTiming: local('Magsisimula agad ang panghabambuhay na BMP pagkatapos magretiro.', 'Lifetime BMP begins immediately after retirement.', 'Magsugod dayon ang tibuok-kinabuhi nga BMP human sa pagretiro.', 'Mangrugi a dagus ti BMP iti intero a biag kalpasan ti panag-retire.'),
+    gsisScopeNotice: local('Tantiya lamang ito para sa GSIS retirement. Magkakaiba ang tuntunin sa GSIS disability benefits.', 'This estimate covers GSIS retirement. GSIS disability benefits use separate rules.', 'Banabana lamang kini para sa pagretiro sa GSIS. Lahi ang mga lagda sa benepisyo sa kakulangan sa GSIS.', 'Pagarup laeng daytoy para iti panag-retire iti GSIS. Adda dagiti sabali a pagannurotan para kadagiti benepisio ti kapansanan iti GSIS.'),
+    gsisIneligibleTitle: local('Hindi pa natutugunan ang minimum na GSIS retirement requirements', 'Minimum GSIS retirement requirements not met', 'Wala pa matuman ang minimum nga kinahanglanon sa pagretiro sa GSIS', 'Saan pay a naabot dagiti kangrunaan a kasapulan ti panag-retire iti GSIS'),
+    gsisIneligibleMessage: local('Kailangan ang hindi bababa sa 15 taon ng serbisyo at edad 60. Mga hinuha lamang para sa posibleng pagreretiro sa hinaharap ang mga halaga sa ibaba; hindi ito kasalukuyang benepisyo o aprubadong halaga.', 'GSIS retirement generally requires at least 15 years of service and age 60. The amounts below are hypothetical future projections, not current benefits or approved amounts.', 'Kinahanglan ang labing menos 15 ka tuig nga serbisyo ug edad 60. Mga banabana lamang alang sa posibleng pagretiro sa umaabot ang mga kantidad sa ubos; dili kini kasamtangang benepisyo o giaprobahang kantidad.', 'Kasapulan ti saan a nababbaba ngem 15 a tawen a serbisyo ken edad 60. Dagiti pateg iti baba ket pagarup laeng para iti mabalin a panag-retire iti masakbayan; saan dagitoy a benepisio ita wenno naaprubaran a pateg.'),
+    tableYear: local('Taon', 'Year', 'Tuig', 'Tawen'),
+    starting: local('Simulang balanse', 'Starting balance', 'Sinugdanang balanse', 'Rugian a balanse'),
+    contributions: local('Mga hulog', 'Contributions', 'Mga kontribusyon', 'Dagiti kontribusyon'),
+    dividend: local('Dividend', 'Dividend', 'Dividend', 'Dividend'),
+    ending: local('Balanse sa katapusan', 'Ending balance', 'Katapusang balanse', 'Pangserraan a balanse'),
+    annualPayout: local('Taunang payout', 'Annual payout', 'Matag-tuig nga payout', 'Tawen-tawen a payout'),
+    principal: local('Kabuuang principal', 'Total principal', 'Kinatibuk-ang principal', 'Dagup a principal'),
+    totalDividends: local('Kabuuang dividends', 'Total dividends', 'Kinatibuk-ang dividends', 'Dagup a dividends'),
+    maturity: local('Kabuuang halaga pagkalipas ng 5 taon', 'Total value after 5 years', 'Kinatibuk-ang kantidad human sa 5 ka tuig', 'Dagup a pateg kalpasan ti 5 a tawen'),
+    pensionNote: profile.sector === 'government'
+      ? local('Tantiya ito ng GSIS BMP at dalawang pagpipilian sa bayad. Karaniwang kailangan ang 15 taon sa serbisyo at edad 60; ahensiya ang magkukumpirma ng AMC, RAMC at eligibility.', 'This estimates GSIS BMP and both payment options. Retirement generally requires 15 years of service and age 60; GSIS confirms AMC, RAMC and eligibility.', 'Banabana kini sa GSIS BMP ug duha ka paagi sa bayad. Kasagaran gikinahanglan ang 15 ka tuig sa serbisyo ug edad 60; kumpirmahon sa ahensiya ang AMC, RAMC ug eligibility.', 'Pagarup daytoy ti GSIS BMP ken dua a pagpilian a panagbayad. Kadawyan a kasapulan ti 15 a tawen a serbisyo ken edad 60; GSIS ti mangpasingked iti AMC, RAMC ken eligibility.')
+      : (profile.pensionType ?? 'retirement') === 'retirement' && profile.contributionMonths < 120
+        ? local('Sa kulang sa 120 hulog, one-time benefit ang SSS batay sa hulog at interes. Approximation ito gamit ang kasalukuyang 15% rate; hindi kasama ang dating rate at interes.', 'Below 120 contributions, SSS pays a one-time benefit based on contributions plus interest. This approximation uses the current 15% rate and excludes historical rates and interest.', 'Ubos sa 120 ka kontribusyon, usa ka bayad ang SSS base sa kontribusyon ug interes. Banabana kini gamit ang kasamtangang 15% rate ug wala giapil ang karaang rate ug interes.', 'No mababa iti 120 a kontribusyon, maysa a bayad ti SSS a naibatay kadagiti kontribusyon ken interes. Pagarup daytoy a mangusar iti agdama a 15% rate ken saan a pakairamanan dagiti napalabas a rate ken interes.')
+        : (profile.pensionType ?? 'retirement') === 'retirement'
+          ? local('SSS pension formula ay pinipili sa pinakamataas sa tatlong formula. May dagdag na PHP 1,000 at 13th month para sa kwalipikadong pensioner; edad at records ay kinukumpirma ng SSS.', 'The SSS pension uses the highest of three formulas. Eligible pensioners receive an additional PHP 1,000 and 13th month; SSS confirms age and records.', 'Ang SSS pension mopili sa pinakataas sa tulo ka pormula. Ang kwalipikadong pensioner makadawat og dugang PHP 1,000 ug 13th month; kumpirmahon sa SSS ang edad ug rekord.', 'Ti SSS pension ket pilienda ti kangatuan kadagiti tallo a pormula. Dagiti kwalipikado a pensioner ket umawat iti nayon a PHP 1,000 ken 13th month; SSS ti mangpasingked iti edad ken rekord.')
+          : local('Sa SSS disability, kailangan ang medical assessment at contribution record. PTD ay karaniwang may buwanang pension sa 36 hulog pataas; SSS ang nagtatakda ng PPD schedule at duration.', 'SSS disability depends on medical assessment and contribution records. PTD generally needs 36 contributions for a monthly pension; SSS sets the PPD schedule and duration.', 'Ang SSS disability magdepende sa medical assessment ug rekord sa kontribusyon. Kasagaran nagkinahanglan og 36 ka kontribusyon ang PTD para sa binulan nga pension; SSS ang motakda sa PPD schedule ug gidugayon.', 'Ti SSS disability ket naibatay iti panangamiris ti doktor ken rekord ti kontribusyon. Kadawyan a kasapulan ti 36 a kontribusyon para iti bulan a pension ti PTD; SSS ti mangikeddeng iti PPD schedule ken kaatiddog.'),
+    calculationBasis: local('Teknikal na batayan (English)', 'Technical calculation basis', 'Teknikal nga basihan (English)', 'Teknikal a pamuon (English)'),
+    estimateOnly: local('Tantiya lamang. Iba-iba ang aktwal na SSS/GSIS record at deklaradong Pag-IBIG dividends. Kumpirmahin sa ahensiya bago magpasya.', 'Illustration only. Actual SSS/GSIS records and declared Pag-IBIG dividends vary. Confirm with the agency before deciding.', 'Banabana lamang. Lahi-lahi ang aktuwal nga rekord sa SSS/GSIS ug gideklarang dividends sa Pag-IBIG. Kumpirmaha sa ahensiya una magdesisyon.', 'Pagarup laeng. Agduduma dagiti pudno a rekord ti SSS/GSIS ken dagiti naideklara a dividend ti Pag-IBIG. Pasingkedan iti ahensia sakbay ti pangngeddeng.'),
+  };
   const labels: Record<string, string> = {
     'Sektor at Kontribusyon': 'Sector and Contributions', 'Pangangailangan': 'Current Need', 'Resulta at Hakbang': 'Results and Next Steps',
     'Sektor': 'Worker sector', 'Buwanang regular na sahod (PHP)': 'Regular monthly wage (PHP)', 'Edad': 'Age',
+    'Araw na hindi nabayaran (Unpaid days worked)': 'Unpaid days worked',
+    'Buwan na naipasok ngayong taon para sa 13th Month Pay': 'Months worked this year for 13th month pay',
+    'Hindi nagamit na Service Incentive Leave (SIL) days': 'Unused Service Incentive Leave (SIL) days',
+    'Dahilan ng Pagkatanggal / Separation': 'Reason for separation',
+    'Haba ng serbisyo (Years of service)': 'Years of service',
+    'Unpaid Overtime (oras)': 'Unpaid overtime (hours)',
+    'Unpaid Regular Holiday (araw)': 'Unpaid regular holiday (days)',
     'Kabuuang GSIS paid premium months': 'Total GSIS paid premium months', 'Kabuuang posted SSS contribution months': 'Total posted SSS contribution months',
-    'Average ng huling 12 regular MSC (PHP)': 'Average of latest 12 regular MSC (PHP)', 'Average ng 6 pinakamataas na MSC (PHP)': 'Average of 6 highest regular MSC (PHP)',
-    'Pag-IBIG posted savings months': 'Pag-IBIG posted savings months', 'Actual total accumulated value / TAV (PHP)': 'Actual total accumulated value / TAV (PHP)',
+    'Batayang sahod sa SSS para sa Loan (Average ng huling 12 buwan, PHP)': 'SSS salary bracket for Loans (Average of last 12 months, PHP)', 'Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)': 'SSS salary bracket for Maternity or Sickness (Average of 6 highest months, PHP)',
+    'Ilang buwan na ang hulog sa Pag-IBIG?': 'Total months contributed to Pag-IBIG', 'Kabuuang ipon sa Pag-IBIG (Total Accumulated Value / TAV, PHP)': 'Total Pag-IBIG savings (Total Accumulated Value / TAV, PHP)',
     'Emergency cash / calamity loan': 'Emergency cash / calamity loan', 'Maternity at salary differential': 'Maternity and salary differential',
-    'Sakit / aksidente at EC claim': 'Sickness / accident and EC claim', 'Natanggal / nagsara ang kompanya': 'Involuntary separation / company closure',
+    "Sakit o aksidente sa trabaho (Employees' Compensation / EC claim)": "Work-related sickness or accident (Employees' Compensation / EC claim)", 'Natanggal / nagsara ang kompanya': 'Involuntary separation / company closure',
     'Hindi nabayarang sahod / final pay': 'Unpaid wages / final pay', 'Puhunan at livelihood grant': 'Capital and livelihood grant', 'Funeral at survivor claims': 'Funeral and survivor claims',
     'May Pag-IBIG savings payment sa huling 6 months': 'Pag-IBIG payment within the last 6 months',
     'SSS contributions sa huling 12 months': 'SSS contributions in last 12 months', 'Posted GSIS premiums sa huling 6 months': 'GSIS premiums in last 6 months',
@@ -47,27 +205,34 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
     'Applicable prior loan balance / offset (PHP)': 'Applicable prior loan balance / offset (PHP)',
     'SSS Salary Loan balance / offset (PHP)': 'SSS Salary Loan balance / offset (PHP)',
     'SSS Calamity Loan balance / offset (PHP)': 'SSS Calamity Loan balance / offset (PHP)',
-    'Sea-based OFW / seafarer na may SSS EC coverage': 'Sea-based OFW / seafarer with SSS EC coverage',
+    'Sea-based OFW / seafarer na may SSS Employees’ Compensation (EC) coverage': 'Sea-based Overseas Filipino Worker (OFW) / seafarer with SSS Employees’ Compensation (EC) coverage',
     'Posted contributions bago contingency semester': 'Posted contributions before contingency semester',
     'Approved compensable sickness days': 'Approved compensable sickness days', 'Naubos ang paid sick leave': 'Paid sick leave is exhausted',
-    'Work-related ang sakit / injury at may EC coverage': 'Work-related sickness / injury with EC coverage',
+    'Work-related ang sakit / injury at may SSS Employees’ Compensation (EC) coverage': 'Work-related sickness / injury with SSS Employees’ Compensation (EC) coverage',
     'May approved permanent disability para sa carer allowance': 'Approved permanent disability for carer allowance',
     'SSS contributions sa huling 18 months': 'SSS contributions in last 18 months',
     'Involuntary separation, hindi resignation / just-cause dismissal': 'Involuntary separation, not resignation / just-cause dismissal',
     'Nakakuha ng unemployment benefit sa nakaraang 3 years': 'Received unemployment benefit in previous 3 years',
-    'Funeral AMSC (PHP)': 'Funeral AMSC (PHP)', 'Work-related ang pagkamatay at may EC coverage': 'Work-related death with EC coverage',
+    'Funeral AMSC (PHP)': 'Funeral AMSC (PHP)', 'Work-related ang pagkamatay at may SSS Employees’ Compensation (EC) coverage': 'Work-related death with SSS Employees’ Compensation (EC) coverage',
+    'Ilang taon babayaran ang GSIS Multi-Purpose Loan (MPL Flex)?': 'GSIS Multi-Purpose Loan (MPL Flex) term (years)',
+    'Average Monthly Salary Credit (AMSC) ng SSS para sa Unemployment (PHP)': 'SSS Average Monthly Salary Credit (AMSC) for unemployment (PHP)',
+    'Average Monthly Salary Credit (AMSC) ng SSS para sa Funeral (PHP)': 'SSS Average Monthly Salary Credit (AMSC) for funeral benefits (PHP)',
+    "Approved na Employees' Compensation (EC) medical reimbursement (PHP)": "Approved Employees' Compensation (EC) medical reimbursement (PHP)",
     'Approved TUPAD days': 'Approved TUPAD days', 'Approved regional daily minimum wage (PHP)': 'Approved regional daily minimum wage (PHP)',
   };
   const plainLabels: Record<string, string> = {
     'Kabuuang GSIS paid premium months': 'Ilang buwan ang hulog sa GSIS?',
     'Kabuuang posted SSS contribution months': 'Ilang buwan ang hulog sa SSS?',
-    'Average ng huling 12 regular MSC (PHP)': 'Average na SSS salary credit para sa loan (PHP)',
-    'Average ng 6 pinakamataas na MSC (PHP)': 'Average na SSS salary credit para sa benepisyo (PHP)',
-    'Pag-IBIG posted savings months': 'Ilang buwan ang hulog sa Pag-IBIG?',
-    'Actual total accumulated value / TAV (PHP)': 'Kabuuang ipon sa Pag-IBIG / TAV (PHP)',
+    'Batayang sahod sa SSS para sa Loan (Average ng huling 12 buwan, PHP)': 'Batayang sahod sa SSS para sa Loan (Average ng huling 12 buwan, PHP)',
+    'Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)': 'Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)',
+    'Ilang buwan na ang hulog sa Pag-IBIG?': 'Ilang buwan na ang hulog sa Pag-IBIG?',
+    'Kabuuang ipon sa Pag-IBIG (Total Accumulated Value / TAV, PHP)': 'Kabuuang ipon sa Pag-IBIG (Total Accumulated Value / TAV, PHP)',
+    'Average Monthly Salary Credit (AMSC) ng SSS para sa Unemployment (PHP)': 'Average Monthly Salary Credit (AMSC) ng SSS para sa Unemployment (PHP)',
+    'Average Monthly Salary Credit (AMSC) ng SSS para sa Funeral (PHP)': 'Average Monthly Salary Credit (AMSC) ng SSS para sa Funeral (PHP)',
+    "Approved na Employees' Compensation (EC) medical reimbursement (PHP)": "Approved na Employees' Compensation (EC) medical reimbursement (PHP)",
     'Posted contributions bago contingency semester': 'Hulog bago ang semester ng panganganak / pagkakasakit',
     'Approved compensable sickness days': 'Ilang araw ang approved na sick leave?',
-    'Work-related ang sakit / injury at may EC coverage': 'Dahil sa trabaho ang sakit / aksidente at may EC coverage',
+    'Work-related ang sakit / injury at may SSS Employees’ Compensation (EC) coverage': 'Dahil sa trabaho ang sakit / aksidente at may SSS Employees’ Compensation (EC) coverage',
     'Approved regional daily minimum wage (PHP)': 'Approved na minimum wage bawat araw (PHP)',
     'Approved TUPAD days': 'Ilang araw ang approved na TUPAD?',
     'Current ang remittances / membership coverage; walang final benefit o disqualification': 'Updated ang hulog at walang membership disqualification',
@@ -82,27 +247,71 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
   const [step, setStep] = useState(1);
   const [backward, setBackward] = useState(false);
   const [moving, setMoving] = useState(true);
+  const [ofwCase, setOFWCase] = useState<OFWCaseRecord | null>(null);
+  const [ofwCaseLoaded, setOFWCaseLoaded] = useState(false);
+  const [ofwCaseLoadFailed, setOFWCaseLoadFailed] = useState(false);
+  const [ofwCaseStorageError, setOFWCaseStorageError] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, [step]);
+  useEffect(() => {
+    let active = true;
+    void loadOFWCaseTracker().then(saved => {
+      if (!active) return;
+      setOFWCase(saved);
+      setOFWCaseLoaded(true);
+    }).catch(() => {
+      if (!active) return;
+      setOFWCaseLoadFailed(true);
+      setOFWCaseLoaded(true);
+      setOFWCaseStorageError(true);
+    });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!ofwCaseLoaded || ofwCaseLoadFailed || ofwCase || step !== 3 || profile.sector !== 'ofw') return;
+    const timer = window.setTimeout(() => {
+      const initial = createDefaultOFWCaseRecord();
+      setOFWCase(initial);
+      void saveOFWCaseTracker(initial).catch(() => setOFWCaseStorageError(true));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [ofwCase, ofwCaseLoadFailed, ofwCaseLoaded, profile.sector, step]);
   const result = calculateWorkerBenefitsAndLoans(profile);
+  const payrollSchedule = profile.payrollSchedule === 'five_day_week' || profile.payrollSchedule === 'monthly_paid'
+    ? profile.payrollSchedule : 'six_day_week';
+  const sharedContext = {
+    province: profile.province,
+    cityMunicipality: profile.cityMunicipality,
+    barangay: profile.barangay,
+    regionalDailyWage: profile.regionalDailyWage,
+    isPWD: profile.hasDisabilityOrDependent,
+    ...(profile.sector === 'ofw' ? { isOFW: true } : {}),
+    sourcePillar: 'worker' as const,
+  };
   const query = roadmapQuery.trim().toLowerCase();
   const roadmapAgencies = [...new Set(result.matchedPrograms.map(program => program.agency))];
   const matchedPrograms = result.matchedPrograms.filter(program => (roadmapAgency === 'all' || program.agency === roadmapAgency) && `${program.name} ${program.agency}`.toLowerCase().includes(query));
   const visibleLoans = profile.scenario === 'loans' ? result.loans.filter(loan => (!query || loan.name.toLowerCase().includes(query)) && (roadmapAgency === 'all' || loan.name.toLowerCase().includes(roadmapAgency.split(' ')[0].toLowerCase()))) : [];
   function update<K extends keyof WorkerProfileInput>(key: K, value: WorkerProfileInput[K]) {
-    onChange({ ...profile, [key]: value });
+    onChange({ ...profile, [key]: value, ...(key === 'regionalDailyWage' ? { regionalDailyWageManual: true } : {}) });
+  }
+  function updateOFWCase(record: OFWCaseRecord) {
+    setOFWCase(record);
+    setOFWCaseStorageError(false);
+    void saveOFWCaseTracker(record).catch(() => setOFWCaseStorageError(true));
   }
   function go(next: number) { if (next === step) return; setMoving(true); setBackward(next < step); setStep(next); }
   function loadSample(scenario: WorkerScenario) {
     const sample: LocatedWorkerProfile = {
-      ...defaultWorkerProfile, province: 'Metro Manila (NCR)', cityMunicipality: 'Quezon City', barangay: '', regionalDailyWage: 645, age: profile.age, contingencyDate: profile.contingencyDate,
+      ...defaultWorkerProfile, province: 'Metro Manila (NCR)', cityMunicipality: 'Quezon City', barangay: '', regionalDailyWage: 755, regionalDailyWageManual: false, age: profile.age, contingencyDate: profile.contingencyDate,
       scenario, monthlySalary: 25000, averageMonthlySalaryCredit: 20000, highestSixMonthlySalaryCredit: 20000,
       contributionMonths: 72, recentContributionMonths: 6, qualifyingBenefitContributions: 3,
       pagibigContributionMonths: 72, pagibigRecentContribution: true, pagibigTAV: 28800,
       employerRemittancesCurrent: true,
     };
     if (scenario === 'sickness') Object.assign(sample, { sicknessDays: 10, sickLeaveExhausted: true, isWorkRelated: true });
-    if (scenario === 'wages') Object.assign(sample, { sector: 'displaced', regionalDailyWage: 645, tupadDays: 10 });
+    if (scenario === 'pension_savings') Object.assign(sample, { contributionMonths: 240, averageMonthlySalaryCredit: 20000, mp2MonthlyContribution: 500, mp2DividendRatePercent: 7, mp2PayoutType: 'compounded' });
+    if (scenario === 'wages') Object.assign(sample, { sector: 'displaced', regionalDailyWage: 755, regionalDailyWageManual: false, tupadDays: 10 });
     onChange(sample);
   }
   function applyPreset(key: keyof WorkerProfileInput, value: number) {
@@ -122,10 +331,6 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
     ],
     pagibigTAV: [10000, 25000, 50000, 100000].map(value => ({ value, label: `₱${value.toLocaleString('en-PH')}` })),
     sicknessDays: [4, 7, 10, 15, 30, 60].map(value => ({ value, label: `${value} ${english ? 'days' : 'araw'}` })),
-    regionalDailyWage: [
-      { value: 645, label: 'NCR ₱645' }, { value: 520, label: 'CALABARZON / Central Luzon ₱520' },
-      { value: 500, label: 'Visayas / Davao ₱500' }, { value: 450, label: 'Ibang Rehiyon ₱450' },
-    ],
     tupadDays: [10, 15, 30].map(value => ({ value, label: `${value} ${english ? 'days' : 'araw'}` })),
   };
   function numeric(key: keyof WorkerProfileInput, label: string, hint?: string, max?: number) {
@@ -141,6 +346,30 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
       {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
     </div>;
   }
+  function wageNumeric(key: keyof WorkerProfileInput, label: string, hint: string, max?: number, step = 'any') {
+    return <div key={key}>
+      <label htmlFor={`worker-${key}`} className={civicLabel}>{labelText(label)}</label>
+      <input id={`worker-${key}`} type="number" min="0" max={max} step={step} autoComplete="off"
+        className={control} value={Number(profile[key] ?? 0)} onChange={event => {
+          const entered = Number(event.target.value);
+          const bounded = Number.isFinite(entered) ? Math.max(0, max === undefined ? entered : Math.min(max, entered)) : 0;
+          update(key, bounded as never);
+        }} />
+      <p className="mt-1 text-xs text-slate-600">{hint}</p>
+    </div>;
+  }
+  function pensionNumeric(id: string, label: string, value: number, min: number, max: number | undefined,
+    step: string, setValue: (value: number) => void, hint?: string) {
+    return <div key={id}>
+      <label htmlFor={id} className={civicLabel}>{label}</label>
+      <input id={id} type="number" min={min} max={max} step={step} autoComplete="off" className={control} value={value}
+        onChange={event => {
+          const entered = Number(event.target.value);
+          setValue(Number.isFinite(entered) ? Math.max(0, max === undefined ? entered : Math.min(max, entered)) : 0);
+        }} />
+      {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
+    </div>;
+  }
   function check(key: keyof WorkerProfileInput, label: string) {
     return <label key={key} htmlFor={`worker-${key}`} className={`flex items-center gap-3 min-h-[44px] rounded-xl border p-3 text-sm ${profile[key] ? 'border-blue-600 bg-blue-50/50 text-blue-900' : 'border-[#E2DFD6] bg-white'}`}>
       <input id={`worker-${key}`} type="checkbox" autoComplete="off" checked={Boolean(profile[key])}
@@ -153,12 +382,26 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
       ? [{ label: 'Government paid leave equivalent', amount: result.maternity.governmentPaidLeave, isResult: true }]
       : [{ label: 'SSS maternity', amount: result.maternity.sssBenefit }, { label: 'Employer salary differential', amount: result.maternity.employerSalaryDifferential }]
     : profile.scenario === 'sickness'
-      ? [{ label: 'Regular SSS claim', amount: result.sickness.sssBenefit }, { label: 'Separate EC claim', amount: result.sickness.ecBenefit }, { label: 'Approved EC medical reimbursement', amount: result.sickness.ecMedicalReimbursement }, { label: 'Total separate claims', amount: result.sickness.combinedBenefit, isResult: true }]
+        ? [{ label: 'Regular SSS claim', amount: result.sickness.sssBenefit }, { label: "Separate Employees' Compensation (EC) claim", amount: result.sickness.ecBenefit }, { label: "Approved Employees' Compensation (EC) medical reimbursement", amount: result.sickness.ecMedicalReimbursement }, { label: 'Total separate claims', amount: result.sickness.combinedBenefit, isResult: true }]
     : profile.scenario === 'funeral'
-      ? [{ label: 'Regular funeral', amount: result.funeral.regularBenefit }, { label: 'Separate EC funeral', amount: result.funeral.ecBenefit }, { label: 'Total separate claims', amount: result.funeral.combinedBenefit, isResult: true }]
+      ? [{ label: 'Regular funeral', amount: result.funeral.regularBenefit }, { label: "Separate Employees' Compensation (EC) funeral benefit", amount: result.funeral.ecBenefit }, { label: 'Total separate claims', amount: result.funeral.combinedBenefit, isResult: true }]
     : profile.scenario === 'loans'
       ? result.loans.map(loan => ({ label: `${loan.name}: estimated proceeds`, amount: loan.netProceeds }))
       : [{ label: 'TUPAD work-pay illustration', amount: result.livelihood.tupadEstimate }, { label: 'OWWA BPBH candidate grant', amount: result.livelihood.bpbhGrant }, ...(profile.scenario === 'unemployment' ? [{ label: 'SSS unemployment', amount: result.unemploymentBenefit }] : [])];
+  function wageClaimsTable() {
+    return <div className="min-w-0 overflow-hidden rounded-lg border border-[#E2DFD6] bg-white">
+      <table className="w-full table-fixed text-xs tabular-nums">
+        <caption className="sr-only">{english ? 'Estimated itemized SEnA wage claims and legal bases' : 'Tinatayang itemized SEnA wage claim at legal na batayan'}</caption>
+        <colgroup><col className="w-2/3" /><col className="w-1/3" /></colgroup>
+        <thead><tr className="border-b border-[#E2DFD6] text-left"><th scope="col" className="p-2">{english ? 'Claim and basis' : 'Claim at batayan'}</th><th scope="col" className="p-2 text-right">{english ? 'Amount' : 'Halaga'}</th></tr></thead>
+        <tbody>{result.wageClaims.breakdownItems.map(item => <tr key={item.label} className="border-b border-[#E2DFD6] last:border-0">
+          <th scope="row" className="break-words p-2 text-left font-semibold">{item.label}<span className="mt-1 block font-normal text-slate-600">{item.basis}</span></th>
+          <td className="break-words p-2 text-right">{peso(item.amount)}</td>
+        </tr>)}</tbody>
+        <tfoot><tr className="bg-[#FAF9F5] font-bold"><th scope="row" className="break-words p-2 text-left">{english ? 'Total estimated SEnA claim' : 'Kabuuang tantiya sa SEnA claim'}</th><td className="break-words p-2 text-right">{peso(result.wageClaims.totalClaim)}</td></tr></tfoot>
+      </table>
+    </div>;
+  }
   const stepHeader = <div className="space-y-4">
     <div>
       <h2 ref={heading} className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 focus:outline-none" tabIndex={-1}><BriefcaseBusiness aria-hidden="true" className="mr-2 inline h-5 w-5 text-blue-900" />{english ? 'Step' : 'Hakbang'} <span className="tabular-nums">{step}</span>: {english ? ['Sector and contributions', 'Current needs', 'Calculation and guide'][step - 1] : step === 1 ? 'Sektor at kontribusyon' : step === 2 ? 'Pangangailangan ngayon' : 'Kompyutasyon at gabay'}</h2>
@@ -168,9 +411,10 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
       <div className="flex flex-wrap gap-2">
         {([
           ['maternity', 'Sample: Maternity + Differential'], ['sickness', 'Sample: Sakit + ECC Work Claim'],
-          ['loans', 'Sample: SSS at Pag-IBIG Loan'], ['wages', 'Sample: Unpaid Sahod / SEnA'],
+          ['loans', 'Sample: SSS at Pag-IBIG Loan'], ['wages', 'Sample: Unpaid Sahod / SEnA'], ['pension_savings', pensionText.title],
         ] as const).map(([scenario, label]) => <button key={scenario} type="button" className={`${chip} bg-white border-[#E2DFD6]`} onClick={() => loadSample(scenario)}>{label}</button>)}
       </div>
+      <p className="text-xs text-slate-600">{english ? "Employees' Compensation (EC) covers qualifying work-related injury or illness. DOLE Single Entry Approach (SEnA) is an early conciliation process for labor concerns." : "Ang Employees' Compensation (EC) ay para sa kwalipikadong sakit o pinsalang dulot ng trabaho. Ang Single Entry Approach (SEnA) ng DOLE ay maagang pag-uusap para sa alitan sa trabaho."}</p>
     </SampleDataBanner>
   </div>;
   return <section aria-label="Worker benefits simulator" className="space-y-6">
@@ -184,41 +428,98 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
       <div key={step} onAnimationEnd={e => { if (e.target === e.currentTarget) setMoving(false); }} className={`${step === 3 ? 'space-y-6' : civicCard} ${backward ? 'animate-step-enter-back step-enter-backward' : 'animate-step-enter step-enter-forward'}`}>
         {step < 3 && stepHeader}
         {step === 1 && <>
+          <fieldset className="m-0 min-w-0 border-0 p-0 space-y-3">
+            <legend className="text-xs font-bold uppercase tracking-wider text-slate-700">{pensionText.choose}</legend>
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2" role="radiogroup" aria-label={pensionText.choose}>
+              {scenarios.map(s => <label key={s.id} className={`flex min-h-[44px] min-w-0 items-center gap-3 rounded-xl border p-3 text-sm ${profile.scenario === s.id ? 'border-blue-600 bg-blue-50/50 text-blue-900' : 'border-[#E2DFD6] bg-white'}`}>
+                <input type="radio" name="worker-scenario" value={s.id} autoComplete="off" checked={profile.scenario === s.id} onChange={() => update('scenario', s.id)} className="h-5 w-5 shrink-0 accent-blue-900 focus-ring" />
+                <span className="break-words">{s.id === 'pension_savings' ? pensionText.title : labelText(s.title)}</span>
+              </label>)}
+            </div>
+          </fieldset>
           <div className="grid sm:grid-cols-2 gap-4">
             <div><label htmlFor="worker-sector" className={civicLabel}>{labelText('Sektor')}</label>
-              <select id="worker-sector" autoComplete="off" className={control} value={profile.sector} onChange={e => update('sector', e.target.value as WorkerProfileInput['sector'])}>
-                <option value="private">Pribadong empleyado / SSS</option><option value="government">Kawani ng gobyerno / GSIS</option>
-                <option value="self_employed">Self-employed / freelancer / informal</option><option value="ofw">OFW / balik-manggagawa</option><option value="displaced">Nawalan ng trabaho</option>
+              <select id="worker-sector" autoComplete="off" className={control} value={profile.sector} onChange={event => {
+                const sector = event.target.value as WorkerProfileInput['sector'];
+                onChange({ ...profile, sector, ...(sector === 'government' ? { pensionType: 'retirement' as const } : {}) });
+              }}>
+                {(['private', 'government', 'self_employed', 'ofw', 'displaced'] as const).map(sector =>
+                  <option key={sector} value={sector}>{sectorLabels[sector][language]}</option>)}
               </select></div>
-            {numeric('monthlySalary', 'Buwanang regular na sahod (PHP)')}
-            {numeric('age', 'Edad', 'Special occupation unemployment age limits require agency assessment.', 100)}
-            {numeric('contributionMonths', government ? 'Kabuuang GSIS paid premium months' : 'Kabuuang posted SSS contribution months')}
+            {profile.scenario !== 'pension_savings' && numeric('monthlySalary', 'Buwanang regular na sahod (PHP)')}
+            {numeric('age', ageLabel, ageHint, 100)}
+            {profile.scenario !== 'pension_savings' && numeric('contributionMonths', government ? 'Kabuuang GSIS paid premium months' : 'Kabuuang posted SSS contribution months')}
           </div>
-          <LocationHierarchyFields idPrefix="worker" value={profile} language={language} onChange={(location, updateMetadata) => onChange({ ...profile, province: location.province, cityMunicipality: location.cityMunicipality, barangay: location.barangay, ...(updateMetadata ? { regionalDailyWage: location.regionalDailyWage } : {}) } as LocatedWorkerProfile)} />
-          {!government && <div className="border-t border-[#E2DFD6] pt-6"><fieldset className="m-0 min-w-0 border-0 p-0 space-y-4"><legend className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-3">SSS salary credit / MSC sa My.SSS record</legend>
+          {profile.scenario !== 'pension_savings' && <LocationHierarchyFields idPrefix="worker" value={profile} language={language} onChange={(location, updateMetadata) => onChange({ ...profile, province: location.province, cityMunicipality: location.cityMunicipality, barangay: location.barangay, ...(updateMetadata ? { regionalDailyWage: profile.regionalDailyWageManual ? profile.regionalDailyWage : location.regionalDailyWage } : {}) } as LocatedWorkerProfile)} />}
+          {profile.scenario !== 'pension_savings' && <label htmlFor="worker-disability-context" className={`flex min-h-[44px] items-center gap-3 rounded-xl border p-3 text-sm ${profile.hasDisabilityOrDependent ? 'border-blue-600 bg-blue-50/50 text-blue-900' : 'border-[#E2DFD6] bg-white text-slate-800'}`}>
+            <input id="worker-disability-context" type="checkbox" autoComplete="off" checked={Boolean(profile.hasDisabilityOrDependent)}
+              onChange={event => onChange({ ...profile, hasDisabilityOrDependent: event.target.checked })}
+              className="h-5 w-5 shrink-0 accent-blue-900 focus-ring" />
+            <span>{english ? 'Family has a PWD member or dependent (shared context only; this does not establish benefit eligibility).' : 'May miyembro ng pamilyang PWD o dependent (shared context lang; hindi ito patunay ng eligibility sa benepisyo).'}</span>
+          </label>}
+          {!government && profile.scenario !== 'pension_savings' && <div className="border-t border-[#E2DFD6] pt-6"><fieldset className="m-0 min-w-0 border-0 p-0 space-y-4"><legend className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-3">{english ? 'SSS Salary Bracket (Monthly Salary Credit / MSC)' : 'Batayang Sahod sa SSS (Monthly Salary Credit / MSC)'}</legend>
+            <p className="text-sm text-slate-600">{english ? 'SSS computes loans and benefits using your SSS salary bracket (MSC), which is capped at ₱20,000 for regular claims even if your actual pay is higher.' : 'Kinokompyut ng SSS ang loan at benepisyo base sa iyong SSS salary bracket (MSC). Hanggang ₱20,000 ang regular MSC cap kahit mas mataas pa ang aktwal mong sahod.'}</p>
             <div className="grid sm:grid-cols-2 gap-4">
-              {numeric('averageMonthlySalaryCredit', 'Average ng huling 12 regular MSC (PHP)', 'Para sa salary / calamity loan. Regular MSC cap: PHP 20,000.', 20000)}
-              {numeric('highestSixMonthlySalaryCredit', 'Average ng 6 pinakamataas na MSC (PHP)', 'Sa 12 months bago ang contingency semester; hindi kasalukuyang sahod.', 20000)}
+              {numeric('averageMonthlySalaryCredit', 'Batayang sahod sa SSS para sa Loan (Average ng huling 12 buwan, PHP)', english ? 'Used for SSS Salary and Calamity Loans (up to ₱20,000 max).' : 'Ginagamit sa SSS Salary at Calamity Loan (hanggang ₱20,000 max).', 20000)}
+              {numeric('highestSixMonthlySalaryCredit', 'Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)', english ? 'Based on the 12 months before the 6-month semester of childbirth or illness (excluding that 6-month semester; up to ₱20,000 max).' : 'Base sa 12 buwan bago ang 6-buwang semester ng panganganak o pagkakasakit (hindi kasama ang mismong semester; hanggang ₱20,000 max).', 20000)}
             </div>
+            <button type="button" className={`${button} text-sm`} onClick={() => { const credit = Math.min(20000, Math.round(profile.monthlySalary / 500) * 500); onChange({ ...profile, averageMonthlySalaryCredit: credit, highestSixMonthlySalaryCredit: credit }); }}>{english ? 'Estimate SSS bracket from monthly wage' : 'Tantiyahin ang SSS bracket mula sa buwanang sahod'}</button>
           </fieldset></div>}
-          <div className="border-t border-[#E2DFD6] pt-6"><fieldset className="m-0 min-w-0 border-0 p-0 space-y-4"><legend className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-3">Pag-IBIG savings</legend>
+          {profile.scenario !== 'pension_savings' && <div className="border-t border-[#E2DFD6] pt-6"><fieldset className="m-0 min-w-0 border-0 p-0 space-y-4"><legend className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-3">{english ? 'Pag-IBIG Regular Savings (Total Accumulated Value / TAV)' : 'Ipon at Hulog sa Pag-IBIG (Kabuuang Naipong Halaga / Total Accumulated Value / TAV)'}</legend>
             <div className="grid sm:grid-cols-2 gap-4">
-              {numeric('pagibigContributionMonths', 'Pag-IBIG posted savings months')}
-              {numeric('pagibigTAV', 'Actual total accumulated value / TAV (PHP)', 'Gamitin ang Virtual Pag-IBIG record; estimate lang ang preset.')}
+              {numeric('pagibigContributionMonths', 'Ilang buwan na ang hulog sa Pag-IBIG?', english ? 'At least 24 monthly contributions are required for a Pag-IBIG cash loan.' : 'Kailangan ng hindi bababa sa 24 buwang hulog para makapag-loan sa Pag-IBIG.')}
+              {numeric('pagibigTAV', 'Kabuuang ipon sa Pag-IBIG (Total Accumulated Value / TAV, PHP)', english ? 'Combined employee share, employer share, and dividends in the Virtual Pag-IBIG app.' : 'Pinagsamang hulog mo, hulog ng employer, at dibidendo sa Virtual Pag-IBIG app.')}
             </div>
-            <button type="button" className={`${button} text-sm mt-3`} onClick={() => update('pagibigTAV', profile.pagibigContributionMonths * 400)}>Gamitin ang rough TAV baseline</button>
+            <button type="button" className={`${button} text-sm mt-3`} onClick={() => update('pagibigTAV', profile.pagibigContributionMonths * 400)}>{english ? 'Estimate total savings from months contributed (× ₱400/month)' : 'Tantiyahin ang ipon base sa buwan ng hulog (× ₱400/buwan)'}</button>
             <details className="mt-2 text-sm text-slate-600"><summary className="min-h-[44px] py-3 cursor-pointer focus-ring font-bold">{english ? 'How are the presets estimated?' : 'Paano tinantiya ang presets?'}</summary>
-              <p>Salary chips use a rounded salary credit capped at PHP 20,000; contribution chips use PHP 400 times paid months for rough Pag-IBIG savings, excluding dividends and historical rates. Confirm actual records before applying.</p>
+              <p>{english ? 'SSS brackets round your monthly wage to the nearest PHP 500 up to the PHP 20,000 regular cap. Pag-IBIG presets multiply paid months by PHP 400 (PHP 200 employee + PHP 200 employer standard share), excluding annual dividends. Confirm your actual My.SSS and Virtual Pag-IBIG records before applying.' : 'Nire-round ng SSS bracket ang buwanang sahod sa pinakamalapit na PHP 500 hanggang sa PHP 20,000 regular cap. Ang Pag-IBIG preset ay buwan ng hulog times PHP 400 (PHP 200 employee + PHP 200 employer standard share), hindi pa kasama ang dibidendo. Kumpirmahin sa My.SSS at Virtual Pag-IBIG bago mag-apply.'}</p>
             </details>
             {check('pagibigRecentContribution', 'May Pag-IBIG savings payment sa huling 6 months')}
-          </fieldset></div>
+          </fieldset></div>}
         </>}
         {step === 2 && <>
-          <fieldset className="m-0 min-w-0 border-0 p-0 space-y-4"><legend className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-3">{english ? 'Choose your main situation' : 'Piliin ang pangunahing sitwasyon'}</legend><div className="grid sm:grid-cols-2 gap-2">
-            {scenarios.map(s => <label key={s.id} className={`flex min-h-[44px] gap-3 items-center rounded-xl border p-3 ${profile.scenario === s.id ? 'border-blue-600 bg-blue-50/50' : 'border-[#E2DFD6]'}`}>
-              <input type="radio" name="worker-scenario" value={s.id} autoComplete="off" checked={profile.scenario === s.id} onChange={() => update('scenario', s.id)} className="h-5 w-5 shrink-0 accent-blue-900 focus-ring" />{labelText(s.title)}
-            </label>)}
-          </div></fieldset>
+          {profile.scenario === 'pension_savings' && <section aria-labelledby="worker-pension-inputs" className="min-w-0 space-y-4 rounded-xl border border-[#E2DFD6] bg-white p-4">
+            <h3 id="worker-pension-inputs" className="text-base font-bold text-slate-900">{pensionText.title}</h3>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="worker-pensionType" className={civicLabel}>{pensionText.pensionType}</label>
+                <select id="worker-pensionType" autoComplete="off" className={control} value={profile.pensionType ?? 'retirement'} onChange={event => update('pensionType', event.target.value as WorkerProfileInput['pensionType'])}>
+                  <option value="retirement">{government ? 'GSIS ' : 'SSS '}{pensionText.retirement}</option>
+                  {!government && <>
+                    <option value="disability_ptd">SSS {pensionText.ptd}</option>
+                    <option value="disability_ppd">SSS {pensionText.ppd}</option>
+                  </>}
+                </select>
+              </div>
+              {pensionNumeric('worker-contribution-years', pensionText.years, Math.floor(profile.contributionMonths / 12), 0, 100, '1', value => update('contributionMonths', value * 12 + profile.contributionMonths % 12))}
+              {pensionNumeric('worker-contribution-remainder', pensionText.months, profile.contributionMonths % 12, 0, 11, '1', value => update('contributionMonths', Math.floor(profile.contributionMonths / 12) * 12 + value))}
+              {government
+                ? pensionNumeric('worker-monthlySalary', pensionText.amc, profile.monthlySalary, 0, undefined, 'any', value => update('monthlySalary', value), pensionText.amcHint)
+                : pensionNumeric('worker-averageMonthlySalaryCredit', pensionText.amsc, profile.averageMonthlySalaryCredit, 0, 20_000, 'any', value => update('averageMonthlySalaryCredit', value), pensionText.amscHint)}
+              {!government && profile.pensionType === 'disability_ppd' && pensionNumeric('worker-disabilityDurationMonths', pensionText.duration, profile.disabilityDurationMonths ?? 0, 1, 120, '1', value => update('disabilityDurationMonths', value), pensionText.ptdHint)}
+            </div>
+            {government && <p className="text-xs text-slate-600">{pensionText.gsisScopeNotice}</p>}
+            <div className="border-t border-[#E2DFD6] pt-4">
+              <h4 className="mb-3 text-sm font-bold text-slate-900">{pensionText.mp2Title}</h4>
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div><label htmlFor="worker-mp2ContributionMode" className={civicLabel}>{pensionText.mode}</label>
+                  <select id="worker-mp2ContributionMode" autoComplete="off" className={control} value={profile.mp2ContributionMode ?? 'monthly'} onChange={event => update('mp2ContributionMode', event.target.value as WorkerProfileInput['mp2ContributionMode'])}>
+                    <option value="monthly">{pensionText.monthlyMode}</option><option value="lump_sum">{pensionText.lumpMode}</option>
+                  </select>
+                </div>
+                {profile.mp2ContributionMode === 'lump_sum'
+                  ? pensionNumeric('worker-mp2OneTimeDeposit', pensionText.oneTimeAmount, profile.mp2OneTimeDeposit ?? 0, 500, undefined, '100', value => update('mp2OneTimeDeposit', value))
+                  : pensionNumeric('worker-mp2MonthlyContribution', pensionText.monthlyAmount, profile.mp2MonthlyContribution ?? 500, 500, undefined, '100', value => update('mp2MonthlyContribution', value))}
+                {pensionNumeric('worker-mp2DividendRatePercent', pensionText.rate, profile.mp2DividendRatePercent ?? 7, 0, 100, '0.1', value => update('mp2DividendRatePercent', value))}
+                <div><label htmlFor="worker-mp2PayoutType" className={civicLabel}>{pensionText.payout}</label>
+                  <select id="worker-mp2PayoutType" autoComplete="off" className={control} value={profile.mp2PayoutType ?? 'compounded'} onChange={event => update('mp2PayoutType', event.target.value as WorkerProfileInput['mp2PayoutType'])}>
+                    <option value="compounded">{pensionText.compounded}</option><option value="annual">{pensionText.annual}</option>
+                  </select>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-600">{pensionText.hint}</p>
+            </div>
+          </section>}
           {profile.scenario === 'loans' && <>
             <div className="grid sm:grid-cols-2 gap-4">
               {numeric('recentContributionMonths', government ? 'Posted GSIS premiums sa huling 6 months' : 'SSS contributions sa huling 12 months')}
@@ -233,8 +534,8 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
             {!government && check('hadRecentCondonation', 'Renewal matapos ang penalty condonation sa huling 5 years')}
             {government && <div className="grid sm:grid-cols-2 gap-4">
               {numeric('gsisNetTakeHomePay', 'Net take-home pay bago bagong loan (PHP)')}
-              {numeric('gsisLoanTermYears', 'MPL Flex requested term (years)', 'Automatic limit batay sa tenure / employment status.', 15)}
-              <div><label htmlFor="worker-gsisAdvanceInsuranceMonths" className={civicLabel}>Advance RI premium</label>
+              {numeric('gsisLoanTermYears', 'Ilang taon babayaran ang GSIS Multi-Purpose Loan (MPL Flex)?', 'Automatic limit batay sa tenure / employment status.', 15)}
+              <div><label htmlFor="worker-gsisAdvanceInsuranceMonths" className={civicLabel}>{english ? 'Advance GSIS loan insurance (Redemption Insurance / RI)' : 'Paunang kaltas sa GSIS Loan Insurance (Redemption Insurance / RI)'}</label>
                 <select id="worker-gsisAdvanceInsuranceMonths" autoComplete="off" className={control} value={profile.gsisAdvanceInsuranceMonths ?? 1} onChange={e => update('gsisAdvanceInsuranceMonths', Number(e.target.value))}>
                   <option value="1">1 month: loan granted on / before the 23rd</option>
                   <option value="2">2 months: loan granted after the 23rd</option>
@@ -249,33 +550,33 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
             {profile.scenario === 'maternity' && <>
               <label htmlFor="worker-maternityType" className="block font-bold">Maternity leave category</label>
               <select id="worker-maternityType" autoComplete="off" value={profile.maternityType} onChange={e => update('maternityType', e.target.value as WorkerProfileInput['maternityType'])} className={control}>
-                <option value="live_birth">Live birth: 105 days</option><option value="solo_parent">Qualified solo parent: 120 days</option><option value="miscarriage">Miscarriage / ETP: 60 days</option>
+                <option value="live_birth">Live birth: 105 days</option><option value="solo_parent">Qualified solo parent: 120 days</option><option value="miscarriage">{english ? 'Miscarriage, stillbirth, or Emergency Termination of Pregnancy (ETP): 60 days' : 'Nakunan, Stillbirth, o Emergency Termination of Pregnancy (Miscarriage / ETP): 60 days'}</option>
               </select>
               {check('employerDifferentialExempt', 'May valid DOLE-approved salary differential exemption ang employer')}
             </>}
             {profile.scenario === 'sickness' && <>
               {numeric('sicknessDays', 'Approved compensable sickness days', 'Illustration up to 120 days. Extension to 240 needs separate agency assessment.', 120)}
               {check('sickLeaveExhausted', 'Naubos ang paid sick leave')}
-              {check('isWorkRelated', 'Work-related ang sakit / injury at may EC coverage')}
+              {check('isWorkRelated', 'Work-related ang sakit / injury at may SSS Employees’ Compensation (EC) coverage')}
               {check('hasPermanentDisability', 'May approved permanent disability para sa carer allowance')}
-              {numeric('approvedECMedicalReimbursement', 'Approved EC medical reimbursement (PHP)', '0 hangga’t walang approved amount; hindi ito total hospital bill.')}
+              {numeric('approvedECMedicalReimbursement', "Approved na Employees' Compensation (EC) medical reimbursement (PHP)", '0 hangga’t walang approved amount; hindi ito total hospital bill.')}
             </>}
           </>}
           {profile.scenario === 'unemployment' && <>
-            {numeric('unemploymentAverageMonthlySalaryCredit', 'Unemployment AMSC (PHP)', 'Average ng 12 regular MSC bago ang contingency semester, hindi latest loan MSC.', 20000)}
+              {numeric('unemploymentAverageMonthlySalaryCredit', 'Average Monthly Salary Credit (AMSC) ng SSS para sa Unemployment (PHP)', english ? 'Average of 12 regular Monthly Salary Credits (MSCs) before the 6-month contingency semester, not the latest loan credit.' : 'Average ng 12 regular Monthly Salary Credits (MSC) bago ang 6-buwang semester ng contingency, hindi latest loan MSC.', 20000)}
             {numeric('unemploymentRecentContributions', 'SSS contributions sa huling 18 months', 'Minimum 12 sa 18 months bago separation.')}
             {check('involuntarilySeparated', 'Involuntary separation, hindi resignation / just-cause dismissal')}
             {check('unemploymentClaimWithinThreeYears', 'Nakakuha ng unemployment benefit sa nakaraang 3 years')}
           </>}
           {profile.scenario === 'funeral' && <>
-            {numeric('funeralAverageMonthlySalaryCredit', 'Funeral AMSC (PHP)', 'Higher of last-60-month or lifetime average bago contingency semester.', 20000)}
+            {numeric('funeralAverageMonthlySalaryCredit', 'Average Monthly Salary Credit (AMSC) ng SSS para sa Funeral (PHP)', english ? 'Higher of the last-60-month or lifetime average before the 6-month contingency semester.' : 'Mas mataas sa average ng huling 60 buwan o buong panahon bago ang 6-buwang semester ng contingency.', 20000)}
             <div><label htmlFor="worker-contingencyDate" className="block font-bold mb-1.5">Contingency / funeral claim reference date</label>
               <input id="worker-contingencyDate" type="date" autoComplete="off" value={profile.contingencyDate} onChange={e => update('contingencyDate', e.target.value)} className={control} /></div>
-            {check('isWorkRelated', 'Work-related ang pagkamatay at may EC coverage')}
+            {check('isWorkRelated', 'Work-related ang pagkamatay at may SSS Employees’ Compensation (EC) coverage')}
           </>}
           {profile.sector === 'ofw' && ['sickness', 'funeral'].includes(profile.scenario) && <>
-            {check('ofwSeaBased', 'Sea-based OFW / seafarer na may SSS EC coverage')}
-            <p className="text-sm text-slate-600">Sea-based workers have compulsory SSS EC coverage. Land-based workers should confirm EC coverage with SSS and ask OWWA / DMW AKSYON or their foreign employer insurer about separate support.</p>
+            {check('ofwSeaBased', 'Sea-based OFW / seafarer na may SSS Employees’ Compensation (EC) coverage')}
+            <p className="text-sm text-slate-600">{english ? 'Sea-based Overseas Filipino Workers (OFWs) have compulsory SSS Employees’ Compensation (EC) coverage. Land-based workers should confirm coverage with SSS and ask the Overseas Workers Welfare Administration (OWWA), Department of Migrant Workers (DMW) AKSYON Center, or foreign employer insurer about separate support.' : 'May sapilitang SSS Employees’ Compensation (EC) coverage ang sea-based Overseas Filipino Workers (OFWs). Kumpirmahin ng land-based workers ang coverage sa SSS at magtanong sa Overseas Workers Welfare Administration (OWWA), AKSYON Center ng Department of Migrant Workers (DMW), o insurer ng foreign employer tungkol sa hiwalay na tulong.'}</p>
           </>}
           {['livelihood', 'unemployment'].includes(profile.scenario) && <div className="grid sm:grid-cols-2 gap-4">
             {numeric('regionalDailyWage', 'Approved regional daily minimum wage (PHP)', 'Kunin sa kasalukuyang regional wage order / PESO.')}
@@ -287,17 +588,124 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
                 </select></div>{check('returnedWithinThreeYears', 'Distressed / displaced returnee sa huling 3 years')}
             </>}
           </div>}
-          {profile.scenario === 'wages' && <p className="text-slate-700">Ihanda ang employment dates, employer address, payslips at itemized unpaid wages. Libre ang SEnA; tumawag sa <span className="tabular-nums">1349</span>. Nasa printable packet ang worksheet.</p>}
-          {profile.scenario === 'wages' ? <div className="rounded-xl border border-[#E2DFD6] bg-[#FAF9F5] p-4"><h3 className="font-bold">{english ? 'Live filing preview' : 'Live na gabay sa filing'}</h3><p className="mt-2 text-sm">{english ? 'Unpaid wages require an itemized claim. The printable SEnA worksheet helps you prepare the amounts and records.' : 'I-itemize ang unpaid sahod. Gamitin ang printable SEnA worksheet para ihanda ang halaga at records.'}</p></div> : <LiveReliefBreakdownBox title={english ? 'Live benefit / loan preview' : 'Live na benefit / loan preview'} rows={previewRows} note={profile.scenario === 'loans' && result.loans.length === 0 ? (english ? 'No loan illustration for the current record. Confirm contributions and remittances.' : 'Walang loan illustration sa record ngayon. Kumpirmahin ang hulog at remittances.') : (english ? 'Estimates only. Separate loans and grants are not added into one entitlement; agencies verify records and approval.' : 'Tantiya lamang. Hiwalay ang mga loan at grant; ahensya ang magkukumpirma ng records at approval.')} />}
+          {profile.scenario === 'wages' && <p className="text-slate-700">{english ? 'Prepare employment dates, employer address, payslips and itemized unpaid wages. The DOLE Single Entry Approach (SEnA) is free; call ' : 'Ihanda ang employment dates, employer address, payslips at itemized unpaid wages. Libre ang Single Entry Approach (SEnA) ng DOLE; tumawag sa '}<span className="tabular-nums">1349</span>{english ? '. The worksheet is in the printable packet.' : '. Nasa printable packet ang worksheet.'}</p>}
+          {profile.scenario === 'wages' && <>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="worker-payrollSchedule" className={civicLabel}>{english ? 'Payroll schedule / divisor' : 'Iskedyul ng payroll / divisor'}</label>
+                <select id="worker-payrollSchedule" autoComplete="off" className={control} value={payrollSchedule}
+                  onChange={event => update('payrollSchedule', event.target.value as WorkerProfileInput['payrollSchedule'])}>
+                  <option value="six_day_week">{english ? '6-day week: 26 days/month (factor 313)' : '6-araw na linggo: 26 araw/buwan (factor 313)'}</option>
+                  <option value="five_day_week">{english ? '5-day week: 21.75 days/month (factor 261)' : '5-araw na linggo: 21.75 araw/buwan (factor 261)'}</option>
+                  <option value="monthly_paid">{english ? 'Monthly-paid: 30.42 days/month (factor 365)' : 'Monthly-paid: 30.42 araw/buwan (factor 365)'}</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-600">{english ? 'Used to convert between monthly and daily pay for this estimate.' : 'Ginagamit para magpalit sa pagitan ng buwanan at arawang sahod sa tantiyang ito.'}</p>
+              </div>
+              {numeric('regionalDailyWage', english ? 'Daily wage used for this estimate (PHP)' : 'Arawang sahod para sa tantiya (PHP)', english ? 'For daily-paid workers, enter the actual daily basic wage; the regional minimum may be prefilled.' : 'Para sa daily-paid worker, ilagay ang aktwal na arawang basic wage; maaaring naka-fill ang regional minimum wage.')}
+              {wageNumeric('unpaidDays', 'Araw na hindi nabayaran (Unpaid days worked)', english ? 'Enter regular workdays with unpaid basic wages.' : 'Ilagay ang bilang ng araw na nagtrabaho ngunit hindi nabayaran ang regular na sahod.')}
+              {wageNumeric('monthsWorkedInCurrentYear', 'Buwan na naipasok ngayong taon para sa 13th Month Pay', english ? '0 to 12 months in the current calendar year under PD 851.' : '0 hanggang 12 buwan sa kasalukuyang taon sa ilalim ng PD 851.', 12, '1')}
+              {wageNumeric('unusedServiceIncentiveLeaveDays', 'Hindi nagamit na Service Incentive Leave (SIL) days', english ? '0 to 5 unused days under Labor Code Art. 95; eligibility depends on coverage and service.' : '0 hanggang 5 araw sa ilalim ng Art. 95; nakadepende ang eligibility sa coverage at haba ng serbisyo.', 5, '1')}
+              <div>
+                <label htmlFor="worker-separationCause" className={civicLabel}>{labelText('Dahilan ng Pagkatanggal / Separation')}</label>
+                <select id="worker-separationCause" autoComplete="off" className={control} value={profile.separationCause ?? 'none'} onChange={event => update('separationCause', event.target.value as WorkerProfileInput['separationCause'])}>
+                  <option value="none">{english ? 'No separation pay claim / Voluntary resignation' : 'Walang claim sa separation pay / Nag-resign nang kusa'}</option>
+                  <option value="redundancy">{english ? 'Redundancy / labor-saving devices (1 month per year, Art. 298)' : 'Redundancy / labor-saving devices (1 buwan bawat taon, Art. 298)'}</option>
+                  <option value="retrenchment_closure">{english ? 'Retrenchment / losses / closure / disease (1/2 month per year, Arts. 298/299)' : 'Retrenchment / pagkalugi / nagsara / sakit (1/2 buwan bawat taon, Arts. 298/299)'}</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-600">{english ? 'Statutory estimates use at least one month salary; confirm the authorized cause and payroll basis.' : 'Tantiya lamang: may minimum na isang buwang sahod; kumpirmahin ang authorized cause at batayan ng payroll.'}</p>
+              </div>
+              {profile.separationCause && profile.separationCause !== 'none' && wageNumeric('yearsOfService', 'Haba ng serbisyo (Years of service)', english ? 'Enter completed years and any fraction; at least 6 months is counted as one year.' : 'Ilagay ang taon at bahagi nito; binibilang na isang taon ang hindi bababa sa 6 na buwan.')}
+              {wageNumeric('unpaidOvertimeHours', 'Unpaid Overtime (oras)', english ? 'Optional. Estimated at 125% of hourly rate for regular-day overtime.' : 'Opsyonal. Tinataya sa 125% ng hourly rate para sa overtime sa regular na araw.')}
+              {wageNumeric('unpaidHolidayDays', 'Unpaid Regular Holiday (araw)', english ? 'Optional. Estimated at 100% of daily wage for unpaid regular-holiday pay.' : 'Opsyonal. Tinataya sa 100% ng daily wage para sa hindi nabayarang regular holiday.')}
+            </div>
+            <div aria-live="polite" aria-atomic="true" className="min-w-0 space-y-3 rounded-xl border border-[#E2DFD6] bg-[#FAF9F5] p-4">
+              <h3 className="font-bold">{english ? 'Live SEnA claim estimate' : 'Live na tantiya ng SEnA claim'}</h3>
+              {wageClaimsTable()}
+              <p className="text-xs text-slate-600">{english ? 'Estimate only. Actual 13th-month pay uses basic salary earned in the year; coverage, work schedule, deductions and records affect final claims.' : 'Tantiya lamang. Ang aktwal na 13th-month pay ay base sa basic salary na kinita sa taon; nakaaapekto ang coverage, iskedyul, kaltas at records sa pinal na claim.'}</p>
+            </div>
+          </>}
+          {profile.scenario !== 'wages' && <LiveReliefBreakdownBox title={english ? 'Live benefit / loan preview' : 'Live na benefit / loan preview'} rows={previewRows} note={profile.scenario === 'loans' && result.loans.length === 0 ? (english ? 'No loan illustration for the current record. Confirm contributions and remittances.' : 'Walang loan illustration sa record ngayon. Kumpirmahin ang hulog at remittances.') : (english ? 'Estimates only. Separate loans and grants are not added into one entitlement; agencies verify records and approval.' : 'Tantiya lamang. Hiwalay ang mga loan at grant; ahensya ang magkukumpirma ng records at approval.')} />}
         </>}
         {step === 3 && <>
+          {ofwCase && <OFWCaseTrackerCard record={ofwCase} onChange={updateOFWCase} language={language} />}
+          {ofwCaseStorageError && (profile.sector === 'ofw' || ofwCase) && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-slate-800">{english ? 'The OFW case could not be loaded or saved in this browser. Check local storage before leaving this page.' : 'Hindi na-load o na-save ang OFW case sa browser na ito. Suriin ang local storage bago umalis sa page.'}</p>}
           <section className={civicCard}>
             {stepHeader}
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{english ? 'Your guide is ready' : 'Handa na ang inyong gabay'}</span>
             <p className="text-sm leading-relaxed text-slate-600">{english ? 'Estimates only; agencies confirm records, eligibility and approval. Loans, grants and monthly allowances remain separate.' : 'Tantiya lamang; ahensya ang magkukumpirma ng records at approval. Hiwalay ang loans, grants at monthly allowance.'}</p>
-            <p className="text-sm font-semibold">{labelText(scenarios.find(scenario => scenario.id === profile.scenario)?.title ?? '')}</p>
+            <p className="text-sm font-semibold">{profile.scenario === 'pension_savings' ? pensionText.title : labelText(scenarios.find(scenario => scenario.id === profile.scenario)?.title ?? '')}</p>
             <p className="text-sm tabular-nums">{result.matchedPrograms.length} {english ? 'programs to ask about' : 'programang maaaring itanong'}</p>
           </section>
+          {profile.scenario === 'pension_savings' && result.pension && result.mp2 && <section role="region" aria-labelledby="worker-pension-result" className={`${civicCard} min-w-0 space-y-4`}>
+            <h3 id="worker-pension-result" className="text-lg font-bold text-slate-900">{pensionText.result}</h3>
+            <p role="status" aria-atomic="true" className="sr-only">{pensionText.monthlyPension}: {peso(result.pension.totalMonthlyPension)}. {pensionText.maturity}: {peso(result.mp2.totalValueAtMaturity)}.</p>
+            {government && !result.pension.eligible && <div role="alert" className="rounded-xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-950">
+              <span className="inline-flex rounded-full border border-amber-500 bg-white px-3 py-1.5 font-bold">{pensionText.gsisIneligibleTitle}</span>
+              <p className="mt-2 font-semibold">{pensionText.gsisIneligibleMessage}</p>
+            </div>}
+            <p className="text-sm text-slate-600">{pensionText.pensionNote}</p>
+            <details className="rounded-lg border border-[#E2DFD6] p-3 text-xs text-slate-600">
+              <summary className="min-h-[44px] cursor-pointer py-3 font-semibold focus-ring">{pensionText.calculationBasis}</summary>
+              <p>{localizedPensionExplanation(result.pension.formulaUsed, language)}</p>
+            </details>
+            <dl className="grid min-w-0 gap-x-4 gap-y-2 rounded-xl border border-[#E2DFD6] bg-[#FAF9F5] p-4 sm:grid-cols-2">
+              <dt className="text-sm font-semibold">{pensionText.base}</dt><dd className="text-sm font-bold tabular-nums sm:text-right">{peso(result.pension.baseMonthlyPension)}</dd>
+              <dt className="text-sm font-semibold">{pensionText.additional}</dt><dd className="text-sm tabular-nums sm:text-right">{peso(result.pension.additionalBenefit)}</dd>
+              {result.pension.supplementalAllowance > 0 && <><dt className="text-sm font-semibold">{pensionText.supplemental}</dt><dd className="text-sm tabular-nums sm:text-right">{peso(result.pension.supplementalAllowance)}</dd></>}
+              <dt className="text-sm font-bold">{pensionText.monthlyPension}</dt><dd className="text-base font-extrabold tabular-nums text-blue-900 sm:text-right">{peso(result.pension.totalMonthlyPension)}</dd>
+              {result.pension.thirteenthMonthPension > 0 && <><dt className="text-sm font-semibold">{pensionText.thirteenth}</dt><dd className="text-sm tabular-nums sm:text-right">{peso(result.pension.thirteenthMonthPension)}</dd></>}
+              {result.pension.lumpSumEstimate > 0 && <><dt className="text-sm font-semibold">{pensionText.lumpEstimate}</dt><dd className="text-sm font-bold tabular-nums sm:text-right">{peso(result.pension.lumpSumEstimate)}</dd></>}
+            </dl>
+            {!government && <div className="min-w-0 rounded-xl border border-[#E2DFD6] p-4">
+              <h4 className="mb-2 text-sm font-bold">{pensionText.formulaComparison}</h4>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums">
+                <dt>{pensionText.formula1}</dt><dd className="text-right">{peso(result.pension.formulaComparison.formula1)}</dd>
+                <dt>{pensionText.formula2}</dt><dd className="text-right">{peso(result.pension.formulaComparison.formula2)}</dd>
+                <dt>{pensionText.minimum}</dt><dd className="text-right">{peso(result.pension.formulaComparison.guaranteedMin)}</dd>
+              </dl>
+            </div>}
+            {government && <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <article className="rounded-xl border border-[#E2DFD6] p-4">
+                <h4 className="text-sm font-bold">{pensionText.gsisFiveYear}</h4>
+                <p className="mt-2 text-lg font-extrabold tabular-nums text-blue-900">{peso(result.pension.gsisFiveYearLumpSum)}</p>
+                <p className="text-xs text-slate-600">{pensionText.gsisFiveYearTiming}</p>
+              </article>
+              <article className="rounded-xl border border-[#E2DFD6] p-4">
+                <h4 className="text-sm font-bold">{pensionText.gsisCash}</h4>
+                <p className="mt-2 text-lg font-extrabold tabular-nums text-blue-900">{peso(result.pension.gsisCashPayment)}</p>
+                <p className="text-xs text-slate-600">{pensionText.gsisCashTiming}</p>
+              </article>
+            </div>}
+            <div className="min-w-0 space-y-3">
+              <div>
+                <h4 className="text-base font-bold">{pensionText.mp2Title}</h4>
+                <p className="text-sm font-semibold">{pensionText.payout}: {result.mp2.payoutType === 'annual' ? pensionText.annual : pensionText.compounded}</p>
+                <p className="text-sm text-slate-600">{pensionText.hint}</p>
+                <p className="text-xs text-slate-600">{pensionText.mp2Method}</p>
+              </div>
+              <div tabIndex={0} role="region" aria-label={pensionText.maturity} className="min-w-0 overflow-x-auto rounded-lg border border-[#E2DFD6] focus-ring">
+                <table className="w-full min-w-[640px] text-xs tabular-nums">
+                  <caption className="sr-only">{pensionText.maturity}</caption>
+                  <thead className="bg-[#FAF9F5] text-left"><tr>
+                    <th scope="col" className="p-2">{pensionText.tableYear}</th><th scope="col" className="p-2 text-right">{pensionText.starting}</th>
+                    <th scope="col" className="p-2 text-right">{pensionText.contributions}</th><th scope="col" className="p-2 text-right">{pensionText.dividend}</th>
+                    <th scope="col" className="p-2 text-right">{pensionText.ending}</th><th scope="col" className="p-2 text-right">{pensionText.annualPayout}</th>
+                  </tr></thead>
+                  <tbody>{result.mp2.yearlyBreakdown.map(row => <tr key={row.year} className="border-t border-[#E2DFD6]">
+                    <th scope="row" className="p-2 text-left">{row.year}</th><td className="p-2 text-right">{peso(row.startingBalance)}</td>
+                    <td className="p-2 text-right">{peso(row.contributions)}</td><td className="p-2 text-right">{peso(row.dividendEarned)}</td>
+                    <td className="p-2 text-right">{peso(row.endingBalance)}</td><td className="p-2 text-right">{peso(row.annualPayout)}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums">
+                <dt className="font-semibold">{pensionText.principal}</dt><dd className="text-right">{peso(result.mp2.totalPrincipal)}</dd>
+                <dt className="font-semibold">{pensionText.totalDividends}</dt><dd className="text-right">{peso(result.mp2.totalDividends)}</dd>
+                <dt className="font-bold">{pensionText.maturity}</dt><dd className="text-right font-bold">{peso(result.mp2.totalValueAtMaturity)}</dd>
+              </dl>
+            </div>
+            <p className="text-xs text-slate-600">{pensionText.estimateOnly}</p>
+          </section>}
           <div className={civicCard}>
             <label htmlFor="worker-roadmap-search" className={civicLabel}>{english ? 'Find a loan or program' : 'Hanapin ang loan o programa'}</label>
             <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-500" /><input autoComplete="off" id="worker-roadmap-search" type="search" className={`${civicInput} pl-10`} value={roadmapQuery} onChange={event => setRoadmapQuery(event.target.value)} /></div>
@@ -316,15 +724,23 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
             </>}
             {profile.scenario === 'sickness' && <>
               <p>Regular SSS: <strong>{peso(result.sickness.sssBenefit)}</strong> ({peso(result.sickness.sssDaily)} / day)</p>
-              <p>Separate EC TTD: <strong>{peso(result.sickness.ecBenefit)}</strong> ({peso(result.sickness.ecDaily)} / day)</p>
-              <p>Approved EC medical: {peso(result.sickness.ecMedicalReimbursement)}</p>
+              <p>Employees’ Compensation (EC) temporary total disability (TTD): <strong>{peso(result.sickness.ecBenefit)}</strong> ({peso(result.sickness.ecDaily)} / day)</p>
+              <p>Approved Employees’ Compensation (EC) medical reimbursement: {peso(result.sickness.ecMedicalReimbursement)}</p>
               <p>Total separate claims: <strong data-testid="worker-sickness-total">{peso(result.sickness.combinedBenefit)}</strong></p>
               <p>Permanent disability carer allowance: {peso(result.sickness.ecCarerMonthly)} / month (separate from one-time total)</p>
             </>}
             {profile.scenario === 'unemployment' && <p>SSS unemployment: <strong data-testid="worker-unemployment-total">{peso(result.unemploymentBenefit)}</strong></p>}
-            {profile.scenario === 'funeral' && <><p>Regular funeral: {peso(result.funeral.regularBenefit)}</p><p>Separate EC funeral: {peso(result.funeral.ecBenefit)}</p><p>Total: <strong>{peso(result.funeral.combinedBenefit)}</strong></p><p className="text-sm">Survivor pension requires separate agency assessment; hindi kasama sa funeral total.</p></>}
+            {profile.scenario === 'funeral' && <><p>Regular funeral: {peso(result.funeral.regularBenefit)}</p><p>Separate Employees’ Compensation (EC) funeral benefit: {peso(result.funeral.ecBenefit)}</p><p>Total: <strong>{peso(result.funeral.combinedBenefit)}</strong></p><p className="text-sm">Survivor pension requires separate agency assessment; hindi kasama sa funeral total.</p></>}
             {['livelihood', 'unemployment'].includes(profile.scenario) && <><p>TUPAD work-pay illustration: {peso(result.livelihood.tupadEstimate)}</p><p>OWWA BPBH candidate grant: {peso(result.livelihood.bpbhGrant)}</p><p className="text-sm">Hindi automatic grant o job placement. DILP tools / materials require approved proposal.</p></>}
-            {profile.scenario === 'wages' && <p>Para sa unpaid sahod o final pay, buksan ang printable packet at ihanda ang SEnA worksheet.</p>}
+            {profile.scenario === 'wages' && <div className="min-w-0 space-y-3">
+              <p>{english ? `Estimated SEnA claim: ${peso(result.wageClaims.totalClaim)}. Review each item and confirm it against your records.` : `Tinatayang SEnA claim: ${peso(result.wageClaims.totalClaim)}. Suriin ang bawat item at ikumpara sa iyong records.`}</p>
+              {wageClaimsTable()}
+              <p className="text-xs text-slate-600">{english ? 'Amounts are preparation estimates, not an agency determination. Separation pay requires an authorized cause; 13th-month and SIL eligibility depend on applicable rules.' : 'Panghanda lamang ang mga halaga at hindi pinal na pasya ng ahensya. Kailangan ng authorized cause sa separation pay; nakadepende sa tuntunin ang 13th-month at SIL eligibility.'}</p>
+              <button type="button" className={civicPrimary} onClick={() => {
+                onWorksheetChange({ ...worksheet, worksheetUnpaidDetails: result.wageClaims.formattedSummary });
+                onPrint();
+              }}>{english ? 'Transfer estimate to SEnA Worksheet' : 'Ilipat ang Kuwenta sa SEnA Worksheet'}</button>
+            </div>}
             {profile.scenario === 'loans' && <p>{result.loans.length} candidate loan illustrations. Hindi pinagsasama ang magkakaibang loan entitlement.</p>}
           </div>
           {profile.scenario === 'loans' && <div className="space-y-4">
@@ -364,10 +780,20 @@ export function WorkerWizard({ profile, onChange, onPrint, language = 'taglish' 
           <ActionRoadmapStepCard step={3} title={english ? 'Bring Your Printable Worker Packet' : 'Dalhin ang Printable Worker Packet'} open>
           <PrintablePacketCallout language={language} buttonLabel={english ? 'Open Printable Worker Packet' : 'Buksan ang Printable Worker Packet'} onPrint={onPrint} />
           </ActionRoadmapStepCard>
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+            <CrossPillarBridgeCard pillar="medical" title={english ? 'Hospital Guarantee Letter while your SSS or EC claim is pending' : 'Guarantee Letter sa ospital habang naghihintay ng SSS o EC claim'}
+              description={english ? 'Review Malasakit Centers and PCSO MAP for possible hospital assistance. Ask the hospital social service desk about current requirements.' : 'Suriin ang Malasakit Centers at PCSO MAP para sa posibleng tulong sa ospital. Itanong sa Medical Social Service ang kasalukuyang requirements.'}
+              benefit={english ? 'Hospital assistance is assessed separately from worker claims' : 'Hiwalay ang assessment ng tulong sa ospital at worker claims'}
+              href="/" context={sharedContext} language={language} />
+            <CrossPillarBridgeCard pillar="education" title={english ? 'Education support for children in school' : 'Tulong-edukasyon para sa mga anak na nag-aaral'}
+              description={english ? 'Explore CHED / UniFAST TES, Free Higher Education, or OWWA EDSP, subject to program rules and available slots.' : 'Tingnan ang CHED / UniFAST TES, Free Higher Education, o OWWA EDSP ayon sa requirements at available slots.'}
+              benefit={english ? 'Tuition support or scholarship; eligibility and funding apply' : 'Tulong-tuition o scholarship; may eligibility at funding requirements'}
+              href="/edukasyon?bridge=1" context={sharedContext} language={language} />
+          </div>
         </>}
         <div className="flex justify-between gap-3 border-t border-[#E2DFD6] pt-4">
-          <button type="button" disabled={step === 1} onClick={() => go(step - 1)} className={`${button} disabled:opacity-40`}><ArrowLeft aria-hidden="true" className="h-4 w-4" />{english ? 'Back' : 'Bumalik'}</button>
-          {step < 3 && <button type="submit" className={civicPrimary}>{english ? 'Next' : 'Susunod'}<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>}
+          <button type="button" disabled={step === 1} onClick={() => go(step - 1)} className={`${button} disabled:opacity-40`}><ArrowLeft aria-hidden="true" className="h-4 w-4" />{backLabel}</button>
+          {step < 3 && <button type="submit" className={civicPrimary}>{nextLabel}<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>}
         </div>
       </div>
     </form>
