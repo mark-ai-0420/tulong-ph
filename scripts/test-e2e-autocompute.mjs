@@ -156,14 +156,15 @@ async function assertStepCardLayout(page, route, step) {
   const layout = await page.evaluate(({ expectedRoute, expectedStep }) => {
     const form = document.querySelector('form');
     const headings = [...(form?.querySelectorAll('h2') ?? [])];
-    const heading = headings.find(item => item.tabIndex === -1 && !item.textContent?.includes('sample profile'))
+    const heading = headings.find(item => new RegExp(`(?:Step|Hakbang)\\s*${expectedStep}\\b`).test(item.textContent ?? ''))
+      ?? headings.find(item => item.tabIndex === -1 && !item.textContent?.includes('sample profile'))
       ?? headings.find(item => !item.textContent?.includes('sample profile'));
     const banners = [...(document.querySelector('main')?.querySelectorAll('section') ?? [])].filter(section =>
       [...section.querySelectorAll('h2')].some(title => title.closest('section') === section && /Subukan ang sample profile|Try a sample profile/.test(title.textContent ?? '')));
     if (expectedRoute === '/' && expectedStep === 3) {
       const search = document.querySelector('#roadmap-search');
       const roadmapContainer = search?.closest('div.space-y-6');
-      const heading = roadmapContainer?.querySelector('h2');
+      const heading = [...(roadmapContainer?.querySelectorAll('h2') ?? [])].find(item => /Roadmap/.test(item.textContent ?? ''));
       const subtitle = heading?.nextElementSibling;
       const reductionSummary = [...(roadmapContainer?.querySelectorAll('*') ?? [])]
         .find(node => node.children.length === 0 && node.textContent?.trim() === 'Estimated Bill Reduction');
@@ -301,6 +302,13 @@ async function assertSchoolQuestionFilter(page) {
   for (const id of ['edu-income', 'edu-age', 'edu-other-award', 'edu-4ps', 'edu-pwd', 'edu-solo-parent', 'edu-owwa', 'edu-coconut', 'edu-gsis', 'edu-crisis']) assert.ok(await page.locator(`#${id}`).isVisible());
 }
 
+async function openOptionalDetails(page, selector) {
+  const details = page.locator('details').filter({ has: page.locator(selector) }).first();
+  assert.equal(await details.count(), 1, `An optional drawer contains ${selector}`);
+  if (await details.getAttribute('open') === null) await details.locator(':scope > summary').click();
+  assert.ok(await page.locator(selector).isVisible(), `${selector} is visible after opening its optional drawer`);
+}
+
 async function checkPacket(page, kind) {
   await assertPrivacyControls(page);
   await assertNoOverflow(page);
@@ -373,7 +381,7 @@ async function runCivicPillarTests(browser, baseUrl) {
   assert.equal(await page.inputValue('#edu-year'), '7');
   await page.getByRole('button', { name: 'SHS', exact: true }).click();
   assert.equal(await page.inputValue('#edu-year'), '11');
-  await page.getByRole('button', { name: 'Private', exact: true }).click();
+  await page.getByRole('button', { name: 'Pribadong paaralan, kolehiyo, o unibersidad', exact: true }).click();
   assert.equal(await page.inputValue('#edu-school-type'), 'private');
   await assertLocationHierarchy(page, 'edu');
   assert.equal(await page.inputValue('#edu-location'), 'other');
@@ -385,6 +393,7 @@ async function runCivicPillarTests(browser, baseUrl) {
   await assertNoOverflow(page);
   await page.selectOption('#edu-level', 'shs');
   await page.selectOption('#edu-school-type', 'private');
+  await openOptionalDetails(page, '#edu-location');
   await page.selectOption('#edu-location', 'NCR');
   await page.fill('#edu-tuition', '30000');
   await page.check('#edu-school-participates');
@@ -395,10 +404,11 @@ async function runCivicPillarTests(browser, baseUrl) {
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await assertSchoolQuestionFilter(page);
   await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
+  await openOptionalDetails(page, '#edu-daily-wage');
   assert.ok(await page.locator('#edu-daily-wage').isVisible(), 'Sample on Step 2 stays on Step 2');
-  assert.equal(await page.getByLabel('Pamilyang kasama sa Pantawid Pamilya o talaan ng DSWD (4Ps / Listahanan)', { exact: true }).count(), 1);
+  assert.equal(await page.getByLabel('May 4Ps o Listahanan record ang pamilya', { exact: true }).count(), 1);
   await switchToLanguage(page, 'en');
-  assert.equal(await page.getByLabel('Household in Pantawid Pamilya or low-income registry (DSWD 4Ps / Listahanan)', { exact: true }).count(), 1);
+  assert.equal(await page.getByLabel('Family has a 4Ps or Listahanan record', { exact: true }).count(), 1);
   await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
   assert.ok(await page.locator('#edu-training-days').isVisible());
@@ -408,8 +418,10 @@ async function runCivicPillarTests(browser, baseUrl) {
   await assertSchoolQuestionFilter(page);
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
   await page.selectOption('#edu-level', 'college');
+  await openOptionalDetails(page, '#edu-location');
   await page.selectOption('#edu-location', 'HUC');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+  await openOptionalDetails(page, '#edu-daily-wage');
   await page.fill('#edu-daily-wage', '777');
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
   await page.fill('#edu-barangay', 'Daine II');
@@ -442,9 +454,11 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
   await page.selectOption('#edu-level', 'college');
+  await openOptionalDetails(page, '#edu-location');
   await page.selectOption('#edu-location', 'HUC');
   assert.equal(await page.inputValue('#edu-location'), 'HUC', 'Manual location override is set before opening the print tab');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+  await openOptionalDetails(page, '#edu-daily-wage');
   await page.fill('#edu-daily-wage', '777');
   await page.getByRole('button', { name: 'Tingnan ang mga programa', exact: true }).click();
   await page.waitForFunction(() => {
@@ -500,28 +514,89 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.waitForSelector('#worker-sector');
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await assertLocationHierarchy(page, 'worker');
-  assert.equal(await page.getByLabel('Batayang sahod sa SSS para sa Maternity o Sakit (Average ng 6 pinakamataas, PHP)', { exact: true }).count(), 1);
-  assert.equal(await page.getByText('Base sa 12 buwan bago ang 6-buwang semester ng panganganak o pagkakasakit (hindi kasama ang mismong semester; hanggang ₱20,000 max).', { exact: true }).count(), 1);
+  await page.getByLabel('Pensiyon at MP2 Savings', { exact: true }).check();
+  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.ok(await page.locator('#worker-averageMonthlySalaryCredit').isVisible(), 'Private pension step shows the SSS salary credit input');
+  assert.equal(await page.locator('#worker-averageMonthlySalaryCredit').evaluate(element => element.closest('details')), null, 'Private pension salary credit is outside optional drawers');
+  assert.equal(await page.locator('#worker-monthlySalary').count(), 0, 'Private pension step does not rely on the hidden Step 1 salary input');
+  await page.fill('#worker-contribution-years', '20');
+  await page.fill('#worker-averageMonthlySalaryCredit', '5000');
+  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.ok(await page.locator('#worker-pension-result').isVisible(), 'Pension result uses the visible Step 2 salary credit');
+  await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
+  await page.getByLabel('Emergency cash / calamity loan', { exact: true }).check();
+  await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
+  assert.equal(await page.getByLabel('SSS salary bracket para sa maternity o sakit (PHP)', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('Base sa pinakamataas na 6 sa 12 buwang pasok sa claim.', { exact: true }).count(), 1);
   await switchToLanguage(page, 'en');
-  assert.equal(await page.getByText('Based on the 12 months before the 6-month semester of childbirth or illness (excluding that 6-month semester; up to ₱20,000 max).', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('Based on the highest 6 of 12 months that count for the claim.', { exact: true }).count(), 1);
   await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Sample: Maternity + Differential', exact: true }).click();
   assert.equal(await page.inputValue('#worker-monthlySalary'), '25000');
-  await page.getByRole('button', { name: '₱15,000', exact: true }).click();
-  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '15000');
-  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '15000');
-  await page.getByRole('button', { name: '₱50,000', exact: true }).first().click();
-  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '20000');
-  await page.getByRole('button', { name: '72 buwan (6 yrs - 2-Mo Loan)', exact: true }).click();
+  await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '20000', 'SSS salary estimate is populated from monthly pay by default');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '20000', 'Maternity and sickness estimate is populated by default');
+  await page.fill('#worker-monthlySalary', '1000');
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '5000', 'SSS benefit estimate uses the current PHP 5,000 minimum MSC');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '5000');
+  await page.fill('#worker-monthlySalary', '15000');
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '15000', 'Changing monthly pay updates the SSS loan estimate');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '15000', 'Changing monthly pay updates the benefit estimate');
+  await page.fill('#worker-averageMonthlySalaryCredit', '12000');
+  await page.fill('#worker-monthlySalary', '18000');
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '12000', 'Manual SSS loan bracket is kept when monthly pay changes');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '18000', 'Unedited benefit bracket continues to follow monthly pay');
+  await page.getByRole('button', { name: 'Ibalik ang tantiya ng SSS mula sa sahod', exact: true }).click();
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '18000', 'SSS estimate button clears the manual override');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '18000');
+  await page.getByRole('button', { name: 'Sample: SSS at Pag-IBIG Loan', exact: true }).click();
+  await openOptionalDetails(page, '#worker-pagibigTAV');
   assert.equal(await page.inputValue('#worker-pagibigContributionMonths'), '72');
-  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800');
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Pag-IBIG estimate is populated from contribution months by default');
+  await page.fill('#worker-pagibigContributionMonths', '36');
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '14400', 'Changing Pag-IBIG months updates the savings estimate');
   await page.fill('#worker-pagibigTAV', '0');
-  await page.getByRole('button', { name: 'Tantiyahin ang ipon base sa buwan ng hulog (× ₱400/buwan)', exact: true }).click();
-  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Pag-IBIG savings estimate uses paid months times PHP 400');
+  await page.fill('#worker-pagibigContributionMonths', '72');
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '0', 'Manual Pag-IBIG total is kept when contribution months change');
+  await page.getByRole('button', { name: 'Tantiyahin mula sa buwan ng hulog (× ₱400/buwan)', exact: true }).click();
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Estimate button resets manual Pag-IBIG total');
+  await page.fill('#worker-monthlySalary', '15000');
+  await page.fill('#worker-averageMonthlySalaryCredit', '14500');
+  await page.fill('#worker-averageMonthlySalaryCredit', '15000');
+  await page.fill('#worker-highestSixMonthlySalaryCredit', '14500');
+  await page.fill('#worker-highestSixMonthlySalaryCredit', '15000');
+  await page.fill('#worker-pagibigTAV', '28000');
+  await page.fill('#worker-pagibigTAV', '28800');
+  assert.deepEqual(await page.evaluate(() => [
+    sessionStorage.getItem('tulongph_worker_average_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_highest_six_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_pagibig_tav_manual'),
+  ]), ['true', 'true', 'true'], 'Manual flags persist even when each entered value equals its current estimate');
+  await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
+  await page.locator('header button:visible').filter({ hasText: /Gabay|Navigator/ }).first().click();
+  await page.waitForSelector('#worker-monthlySalary');
+  await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
+  await page.fill('#worker-monthlySalary', '18000');
+  assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '15000', 'Manual SSS loan bracket survives Forms remount');
+  assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '15000', 'Manual SSS benefit bracket survives Forms remount');
+  await page.fill('#worker-pagibigContributionMonths', '80');
+  assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Manual Pag-IBIG total survives Forms remount');
+  await page.getByRole('button', { name: 'Ibalik ang tantiya ng SSS mula sa sahod', exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => [
+    sessionStorage.getItem('tulongph_worker_average_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_highest_six_salary_credit_manual'),
+  ]), [null, null], 'SSS estimate reset clears manual flags');
+  await page.getByRole('button', { name: 'Tantiyahin mula sa buwan ng hulog (× ₱400/buwan)', exact: true }).click();
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('tulongph_worker_pagibig_tav_manual')), null, 'Pag-IBIG estimate reset clears its manual flag');
   await assertNoOverflow(page);
   await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.fill('#worker-barangay', 'Daine II');
   assert.equal(await page.inputValue('#worker-barangay'), 'Daine II');
+  await page.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
+  assert.equal(await page.locator('#worker-contributionMonths').count(), 0, 'Contribution months are hidden for livelihood');
+  assert.equal(await page.locator('#worker-pagibigContributionMonths').count(), 0, 'Pag-IBIG months appear only for loans');
+  await page.getByLabel('Hindi nabayarang sahod / final pay', { exact: true }).check();
+  assert.equal(await page.locator('#worker-contributionMonths').count(), 0, 'Contribution months are hidden for wages');
   await page.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await page.fill('#worker-regionalDailyWage', '777');
@@ -531,12 +606,13 @@ async function runCivicPillarTests(browser, baseUrl) {
   assert.equal(await page.inputValue('#worker-regionalDailyWage'), '777', 'Barangay-only edit preserves manual regional wage');
   await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
   await page.fill('#worker-monthlySalary', '30000');
+  await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
   await page.fill('#worker-averageMonthlySalaryCredit', '0');
   await page.fill('#worker-highestSixMonthlySalaryCredit', '0');
-  await page.getByRole('button', { name: 'Tantiyahin ang SSS bracket mula sa buwanang sahod', exact: true }).click();
+  await page.getByRole('button', { name: 'Ibalik ang tantiya ng SSS mula sa sahod', exact: true }).click();
   assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '20000', 'SSS wage estimate is capped at PHP 20,000');
   assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '20000', 'SSS wage estimate updates both salary brackets');
-  await page.fill('#worker-contributionMonths', '72');
+  assert.equal(await page.locator('#worker-contributionMonths').count(), 0, 'Contribution months stay hidden for livelihood');
   await assertLocationHierarchy(page, 'worker');
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   assert.equal(await page.inputValue('#worker-regionalDailyWage'), '777', 'Manual wage override survives province and city edits');
@@ -636,10 +712,50 @@ async function runCivicPillarTests(browser, baseUrl) {
   const savedWorkerSession = await readWorkerSession(page);
   assert.ok(savedWorkerSession, 'Worker session is stored in IndexedDB');
   assert.equal(savedWorkerSession.worksheetName, 'Synthetic Worker', 'Worksheet survives page reload');
+  const guideContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const guidePage = await guideContext.newPage();
+  await guidePage.goto(`${baseUrl}/manggagawa`);
+  await guidePage.waitForSelector('#worker-sector');
+  await guidePage.getByLabel('Hindi nabayarang sahod / final pay', { exact: true }).check();
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.match(await guidePage.locator('#worker-separationCause option[value="retrenchment_closure"]').innerText(), /sakit na saklaw ng batas/);
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.ok(await guidePage.getByText('Hindi pa po bayad ang sahod o final pay ko. Paano po magsimula sa libreng SEnA?', { exact: true }).isVisible());
+  assert.ok(await guidePage.getByText('Nakasulat na listahan ng hindi nabayarang sahod o final pay', { exact: true }).isVisible());
+  await guidePage.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
+  await guidePage.getByLabel('Puhunan at livelihood grant', { exact: true }).check();
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.ok(await guidePage.getByText('Anong tulong pangkabuhayan ang mayroon dito, at ano ang ihahanda ko para mag-apply?', { exact: true }).isVisible());
+  assert.ok(await guidePage.getByText('Tantiyang gastos o presyo ng kailangang gamit kung mayroon', { exact: true }).isVisible());
+  await guidePage.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
+  await guidePage.getByLabel('Pensiyon at MP2 Savings', { exact: true }).check();
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  await guidePage.getByRole('button', { name: 'Susunod', exact: true }).click();
+  assert.ok(await guidePage.getByText('Itanong sa SSS ang pension record at sa Pag-IBIG ang MP2 savings', { exact: true }).isVisible());
+  assert.equal(await guidePage.getByText('Ask SSS about the claim and the records it needs', { exact: true }).count(), 0, 'Pension and MP2 directions are not replaced by generic claim guidance');
+  await guideContext.close();
   await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
   assert.equal(await page.inputValue('#worker-print-name'), 'Synthetic Worker');
   assert.equal(await page.inputValue('#worker-print-address'), 'Synthetic Employer Address');
   assert.equal(await page.inputValue('#worker-print-unpaid'), 'Hindi nabayarang sahod\nHindi nabayarang 13th Month Pay');
+  await page.locator('header button:visible').filter({ hasText: /Gabay|Navigator/ }).first().click();
+  await page.waitForSelector('#worker-sector');
+  await page.getByLabel('Emergency cash / calamity loan', { exact: true }).check();
+  await page.getByRole('button', { name: 'Sample: SSS at Pag-IBIG Loan', exact: true }).click();
+  await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
+  await page.fill('#worker-monthlySalary', '10000');
+  await page.fill('#worker-averageMonthlySalaryCredit', '9000');
+  await page.fill('#worker-averageMonthlySalaryCredit', '10000');
+  await page.fill('#worker-highestSixMonthlySalaryCredit', '9000');
+  await page.fill('#worker-highestSixMonthlySalaryCredit', '10000');
+  await page.fill('#worker-pagibigTAV', '28000');
+  await page.fill('#worker-pagibigTAV', '28800');
+  assert.deepEqual(await page.evaluate(() => [
+    sessionStorage.getItem('tulongph_worker_average_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_highest_six_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_pagibig_tav_manual'),
+  ]), ['true', 'true', 'true'], 'Privacy wipe setup has all three manual flags set');
   await page.evaluate(async () => {
     sessionStorage.setItem('synthetic-private-record', 'wipe-me');
     const database = await new Promise((resolve, reject) => {
@@ -663,6 +779,11 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Oo, Burahin Lahat', exact: true }).click();
   await page.waitForSelector('#worker-monthlySalary');
   await page.waitForFunction(() => document.querySelector('#worker-monthlySalary')?.value === '0');
+  assert.deepEqual(await page.evaluate(() => [
+    sessionStorage.getItem('tulongph_worker_average_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_highest_six_salary_credit_manual'),
+    sessionStorage.getItem('tulongph_worker_pagibig_tav_manual'),
+  ]), [null, null, null], 'Privacy wipe clears all worker manual override flags');
   assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(key => !['tulongph-last-activity', 'tulong_lang'].includes(key))), [], 'Both civic sessions and every private local key wiped; mount records fresh nonpersonal activity');
   assert.equal(await page.evaluate(() => localStorage.getItem('tulong_lang')), 'taglish', 'Privacy wipe restores the default language');
   assert.equal(await page.evaluate(() => sessionStorage.length), 0, 'Session records wiped');
@@ -709,10 +830,15 @@ async function runCrossTabIdleTests(browser, baseUrl) {
       await active.goto(`${baseUrl}/manggagawa`);
       await active.waitForSelector('#worker-monthlySalary');
       await waitForPageConditionWithNodePolling(idle, () => localStorage.getItem('tulongph-last-activity') === String(Date.parse('2026-10-12T00:14:00Z')));
+      // Drain compositor scroll events on real Node time while the browser clock is paused.
+      await active.locator('#worker-monthlySalary').scrollIntoViewIfNeeded();
+      await new Promise(resolve => setTimeout(resolve, 100));
       await context.clock.fastForward(61 * 1000);
       assert.equal(await idle.inputValue('#edu-tuition'), '1234', 'Opening a second tab at minute 14 extends the first tab deadline without further interaction');
       await active.fill('#worker-monthlySalary', '5678');
       await waitForPageConditionWithNodePolling(idle, () => localStorage.getItem('tulongph-last-activity') === String(Date.parse('2026-10-12T00:15:01Z')));
+      await active.locator('#worker-monthlySalary').scrollIntoViewIfNeeded();
+      await new Promise(resolve => setTimeout(resolve, 100));
       await context.clock.fastForward(14 * 60 * 1000);
       assert.equal(await active.inputValue('#worker-monthlySalary'), '5678', 'Idle tab cannot erase another tab actively editing');
       await waitForWorkerSession(idle, saved => saved?.monthlySalary === 5678);
@@ -734,12 +860,16 @@ async function runPrivacyRecoveryTest(browser, baseUrl) {
     await page.waitForSelector('#worker-monthlySalary');
     await page.fill('#worker-monthlySalary', '4321');
     await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+    await openOptionalDetails(page, '#worker-loanProratedDays');
+    await page.fill('#worker-loanProratedDays', '10');
+    assert.equal(await page.inputValue('#worker-loanProratedDays'), '10', 'Manual loan interest days are available in the optional drawer');
     await page.fill('#worker-sssOutstandingLoan', '1000');
     await page.fill('#worker-sssCalamityOutstandingLoan', '2500');
     await assertPrivacyControls(page);
     await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
     await page.selectOption('#worker-sector', 'government');
     await page.getByRole('button', { name: 'Susunod', exact: true }).click();
+    await openOptionalDetails(page, '#worker-gsisAdvanceInsuranceMonths');
     await page.selectOption('#worker-gsisAdvanceInsuranceMonths', '2');
     await assertPrivacyControls(page);
     await page.getByRole('button', { name: '1. Sektor at Kontribusyon', exact: true }).click();
