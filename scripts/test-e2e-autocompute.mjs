@@ -89,7 +89,11 @@ async function probePort(p) {
 async function waitForPageConditionWithNodePolling(page, predicate, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await page.evaluate(predicate)) return;
+    try {
+      if (await page.evaluate(predicate)) return;
+    } catch {
+      // Ignore transient errors caused by navigation or context destruction during polling
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error(`Timed out after ${timeoutMs}ms waiting for a page condition`);
