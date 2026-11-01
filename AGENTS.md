@@ -15,7 +15,7 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4; pnpm declared in pa
 - Verify assistance calculations, deduction order, rounding and zero/partial-bill cases when billing or triage logic changes. Guidance is not a guarantee of eligibility or funding.
 - Verify current assistance requirements against official agency sources before updating program claims.
 - Canonical Production URL: The official verified web app URL is `https://tulongph.vercel.app`. Never guess or invent domain names (e.g. `tulongph.org`). All campaign copy, dossiers, external references, and manifests must use the canonical URL.
-- For intake/autocompute changes run `pnpm run test:e2e` as well; inspect `scripts/test-e2e-autocompute.mjs` for required server/browser setup first. `pnpm test` includes both unit and E2E checks.
+- For intake/autocompute changes run `pnpm run test:e2e` as well; inspect `scripts/test-e2e-autocompute.mjs` for required server/browser setup first. `pnpm test` includes both unit and E2E checks. E2E browser tests require macOS LaunchServices / WindowServer access. Inside restricted terminal sandboxes (such as Codex CLI `workspace-write`), LaunchServices Mach lookup is blocked by Seatbelt, which causes Google Chrome to abort (`SIGABRT` in `TransformProcessType`); in sandboxed runs, use `pnpm run test:unit` for mechanical checks and delegate browser verification to Antigravity or an unsandboxed shell.
 - Verify document exports and print layouts if affected. Preserve server/client boundaries and offline recovery.
 
 ## Co-working and release controls
