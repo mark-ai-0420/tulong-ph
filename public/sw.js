@@ -1,7 +1,7 @@
 const SHELL_CACHE = 'tulongph-offline-shell-v1';
 const STATIC_CACHE = 'tulongph-offline-static-v1';
 const APP_CACHE_PREFIX = 'tulongph-offline-';
-const SHELL_ROUTES = ['/', '/edukasyon', '/manggagawa', '/privacy'];
+const SHELL_ROUTES = ['/', '/edukasyon', '/manggagawa', '/privacy', '/install'];
 const STATIC_PREFIX = '/_next/static/';
 const HASHED_ASSET = /(?:^|[-_.])[0-9a-z_-]{6,}(?:[._/-]|$)/i;
 let clearRequestedDuringInstall = false;

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { IdlePrivacyGuard } from "@/components/shared/IdlePrivacyGuard";
 import { ServiceWorkerRegistration } from "@/components/shared/ServiceWorkerRegistration";
 import "./globals.css";
 
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="fil-PH" className="h-full antialiased">
       <body className="min-h-full flex flex-col tabular-nums">
         {children}
+        <IdlePrivacyGuard />
         <ServiceWorkerRegistration />
       </body>
     </html>

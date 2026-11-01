@@ -2,9 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { clearAllUserData } from '@/lib/storage';
 import Link from 'next/link';
-import { HeartHandshake, Languages, Compass, Building2, Printer, Trash2 } from 'lucide-react';
+import { HeartHandshake, Languages, Compass, Building2, Printer, Trash2, Download } from 'lucide-react';
 import { getNextLanguage, Language, supportedLanguages, translations } from '@/lib/i18n';
 
 const compactLanguageNames: Record<Language, string> = {
@@ -48,50 +47,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     const refreshAfterRestore = () => { window.setTimeout(() => window.location.reload(), 300); };
     const recoverHistory = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
-    let timer: ReturnType<typeof setTimeout>;
-    const idleLimit = 15 * 60 * 1000;
-    const activityKey = 'tulongph-last-activity';
-    const channel = 'BroadcastChannel' in window ? new BroadcastChannel('tulongph-activity') : null;
-    let lastActivity = Date.now();
-    const receiveActivity = (value: unknown) => {
-      if (typeof value === 'number' && Number.isFinite(value) && value <= Date.now()) {
-        lastActivity = Math.max(lastActivity, value);
-      }
-    };
-    const schedule = () => {
-      clearTimeout(timer);
-      try { receiveActivity(Number(localStorage.getItem(activityKey))); } catch { /* BroadcastChannel still shares activity. */ }
-      timer = setTimeout(() => {
-        try { receiveActivity(Number(localStorage.getItem(activityKey))); } catch { /* Use the most recent broadcast. */ }
-        if (Date.now() - lastActivity < idleLimit) { schedule(); return; }
-        void clearAllUserData().catch(() => window.alert('Hindi nabura ang lahat ng datos. Burahin ang site data sa browser bago umalis.'));
-      }, Math.max(1, idleLimit - (Date.now() - lastActivity)));
-    };
-    const reset = () => {
-      lastActivity = Date.now();
-      try { localStorage.setItem(activityKey, String(lastActivity)); } catch { /* No applicant data is broadcast. */ }
-      channel?.postMessage(lastActivity);
-      schedule();
-    };
-    const sharedActivity = (event: StorageEvent) => {
-      if (event.key === activityKey) { receiveActivity(Number(event.newValue)); schedule(); }
-    };
-    if (channel) channel.onmessage = event => { receiveActivity(event.data); schedule(); };
-    const events = ['pointerdown', 'keydown', 'input', 'scroll'];
-    events.forEach(event => window.addEventListener(event, reset, { passive: true }));
     window.addEventListener('tulongph-data-cleared', reload);
     window.addEventListener('tulongph-data-restored', refreshAfterRestore);
     window.addEventListener('pageshow', recoverHistory);
-    window.addEventListener('storage', sharedActivity);
-    reset();
     return () => {
-      clearTimeout(timer);
-      events.forEach(event => window.removeEventListener(event, reset));
       window.removeEventListener('tulongph-data-cleared', reload);
       window.removeEventListener('tulongph-data-restored', refreshAfterRestore);
       window.removeEventListener('pageshow', recoverHistory);
-      window.removeEventListener('storage', sharedActivity);
-      channel?.close();
     };
   }, [pathname]);
 
@@ -202,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Utility Cluster: Pisonet Privacy Mode + Language Toggle */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Public Computer Shop Privacy Wipe Button (Available on all screens) */}
             <button
               type="button"
@@ -223,16 +185,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden 2xl:inline">Burahin ang Data</span>
             </button>
 
+            <Link
+              href="/install"
+              className="inline-flex h-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#E2DFD6] bg-white px-2.5 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-900 focus-ring"
+              aria-label={language === 'taglish'
+                ? 'Paano i-install ang TulongPH sa telepono (Android at iOS)'
+                : 'How to install TulongPH on your phone (Android & iOS)'}
+              title={language === 'taglish'
+                ? 'Paano i-install ang TulongPH sa telepono (Android at iOS)'
+                : 'How to install TulongPH on your phone (Android & iOS)'}
+            >
+              <Download className="h-3.5 w-3.5 shrink-0 text-blue-900" aria-hidden="true" />
+              <span className="hidden md:inline">{language === 'taglish' ? 'I-install ang App' : 'Install App'}</span>
+            </Link>
+
             {/* Language Toggle */}
             <button
               onClick={onToggleLanguage}
-              className="h-11 min-h-[44px] min-w-[44px] px-2.5 xl:px-3 2xl:px-3.5 py-2.5 rounded-lg border border-[#E2DFD6] bg-white hover:bg-stone-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 sm:gap-2 focus-ring cursor-pointer shrink-0"
+              className="h-11 min-h-[44px] min-w-[44px] px-1.5 sm:px-2.5 xl:px-3 2xl:px-3.5 py-2.5 rounded-lg border border-[#E2DFD6] bg-white hover:bg-stone-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors inline-flex items-center justify-center gap-1.5 sm:gap-2 focus-ring cursor-pointer shrink-0"
               aria-label={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
               title={`Current language: ${currentLanguage.label}. Switch to ${nextLanguage.label}`}
             >
               <Languages className="w-4 h-4 text-blue-900 shrink-0" />
               <span className="font-bold">{currentLanguage.shortLabel}</span>
-              <span className="inline 2xl:hidden">{compactLanguageNames[language]}</span>
+              <span className="hidden sm:inline 2xl:hidden">{compactLanguageNames[language]}</span>
               <span className="hidden 2xl:inline">{currentLanguage.label}</span>
             </button>
           </div>
