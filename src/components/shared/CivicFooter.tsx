@@ -16,6 +16,7 @@ export function CivicFooter({ language, onTabChange, onOpenPrivacyModal, disclai
             ['print_forms', tl ? 'I-print ang Forms' : 'Print Forms'],
             ['directory', tl ? 'Direktoryo at Desks' : 'Directory & Desks'],
           ].map(([tab, label]) => <button key={tab} type="button" onClick={() => onTabChange(tab)} className="min-h-[44px] inline-flex items-center text-xs font-semibold text-slate-700 hover:text-blue-900 focus-ring rounded">{label}</button>)}
+          <Link href="/install" className="min-h-[44px] inline-flex items-center font-semibold text-slate-700 hover:text-blue-900 focus-ring rounded">{tl ? 'I-install sa Phone (Offline App)' : 'Install on Phone (Offline App)'}</Link>
           <Link href="/privacy" className="min-h-[44px] inline-flex items-center font-semibold text-slate-700 hover:text-blue-900 focus-ring rounded">{tl ? 'Patakaran sa Privacy at Disclaimer' : 'Privacy Policy & Civic Disclaimer'}</Link>
         </nav>
       </div>

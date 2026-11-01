@@ -1,7 +1,22 @@
 import http from 'node:http';
+import { execSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert';
+
+function isLaunchServicesAvailable() {
+  if (process.platform !== 'darwin') return true;
+  try {
+    const out = execSync('lsappinfo front', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 2000,
+    });
+    return Boolean(out && out.includes('ASN:') && !out.includes('[ NULL ]'));
+  } catch {
+    return false;
+  }
+}
 
 const LANGUAGE_CYCLE = ['taglish', 'cebuano', 'ilocano', 'en'];
 const LANGUAGE_LABELS = {
@@ -1008,7 +1023,7 @@ async function runServiceWorkerTests(browser, baseUrl) {
         staticCount: (await statics.keys()).length,
       };
     });
-    assert.deepEqual(precached.routes, ['/','/edukasyon','/manggagawa','/privacy'].sort(), 'All public shell routes are precached');
+    assert.deepEqual(precached.routes, ['/','/edukasyon','/manggagawa','/privacy','/install'].sort(), 'All public shell routes are precached');
     assert.ok(precached.staticCount > 0, 'Hashed Next.js bundles are precached');
 
     await page.goto(`${baseUrl}/?applicant=must-not-be-cached`);
@@ -1019,7 +1034,7 @@ async function runServiceWorkerTests(browser, baseUrl) {
     assert.equal(cachedQueries, 0, 'Navigations with query data are not cached');
 
     await context.setOffline(true);
-    for (const [route, selector] of [['/', '#patient-first-name'], ['/edukasyon', '#edu-level'], ['/manggagawa', '#worker-sector'], ['/privacy', 'h1']]) {
+    for (const [route, selector] of [['/', '#patient-first-name'], ['/edukasyon', '#edu-level'], ['/manggagawa', '#worker-sector'], ['/privacy', 'h1'], ['/install', 'h1']]) {
       await page.goto(baseUrl + route);
       await page.waitForSelector(selector, { timeout: 20_000 });
     }
@@ -1033,6 +1048,69 @@ async function runServiceWorkerTests(browser, baseUrl) {
     assert.equal(await page.evaluate(() => sessionStorage.length), 0);
   } finally { await context.close(); }
   console.log('  PASS: production SW precache, offline route reloads, query exclusion and full cache wipe');
+}
+
+async function runInstallGuideTests(browser, baseUrl) {
+  console.log('\n[Install guide] Navigation, platform steps, language sync and responsive layout...');
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const page = await context.newPage();
+    await page.goto(baseUrl);
+    await page.waitForSelector('#patient-first-name');
+    const navbarInstallLink = page.locator('header a[href="/install"]');
+    assert.equal(await navbarInstallLink.count(), 1, 'Navbar links to the install guide');
+    assert.equal(await page.locator('footer a[href="/install"]').count(), 1, 'Footer links to the install guide');
+
+    const beforeInstallPromptWasCaptured = await page.evaluate(() => {
+      window.__tulongInstallPromptCalls = 0;
+      const event = new Event('beforeinstallprompt', { cancelable: true });
+      Object.assign(event, {
+        prompt: async () => { window.__tulongInstallPromptCalls += 1; },
+        userChoice: Promise.resolve({ outcome: 'accepted', platform: 'web' }),
+      });
+      return window.dispatchEvent(event) === false;
+    });
+    assert.equal(beforeInstallPromptWasCaptured, true, 'Root captures and prevents the install prompt event on /');
+
+    await page.setViewportSize({ width: 320, height: 800 });
+    await assertNoOverflow(page);
+    await navbarInstallLink.click();
+    await page.waitForURL('**/install');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    await assertPrivacyControls(page);
+    assert.equal(await page.locator('a[href="https://tulongph.vercel.app"]').count(), 3, 'Canonical production URL is shown and used in both platform guides');
+    assert.ok(await page.getByText(/Android · Google Chrome/).isVisible(), 'Android installation guide is visible');
+    assert.ok(await page.getByText(/iPhone \/ iPad · Apple Safari/).isVisible(), 'iOS installation guide is visible');
+    const installButton = page.getByRole('button', { name: /I-install Ngayon|Install Now/ });
+    await installButton.waitFor();
+    assert.ok(await installButton.isVisible(), 'A root-captured install prompt shows the native install button on /install');
+    await installButton.click();
+    await page.waitForFunction(() => window.__tulongInstallPromptCalls === 1);
+
+    await page.locator('#install-tab-android').click();
+    assert.equal(await page.locator('#install-tab-android').getAttribute('aria-pressed'), 'true');
+    assert.ok(await page.locator('#install-panel-android').isVisible());
+    assert.equal(await page.locator('#install-panel-ios').count(), 0, 'Android filter hides the iOS guide');
+    await page.locator('#install-tab-ios').click();
+    assert.equal(await page.locator('#install-tab-ios').getAttribute('aria-pressed'), 'true');
+    assert.ok(await page.locator('#install-panel-ios').isVisible());
+    assert.equal(await page.locator('#install-panel-android').count(), 0, 'iOS filter hides the Android guide');
+    await page.locator('#install-tab-all').click();
+    assert.equal(await page.locator('#install-tab-all').getAttribute('aria-pressed'), 'true');
+
+    for (const width of [320, 375, 390, 414, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+      await assertNoOverflow(page);
+    }
+    for (const language of ['cebuano', 'ilocano', 'en', 'taglish']) {
+      await switchToLanguage(page, language);
+      for (const width of [320, 375, 390, 414, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        await assertNoOverflow(page);
+      }
+    }
+  } finally { await context.close(); }
+  console.log('  PASS: root-captured native install prompt, navbar/footer links, both platform guides, filters, four-language persistence and 320/375/390/414/1280px overflow');
 }
 
 async function runUniformDesignTests(browser, baseUrl) {
@@ -1251,6 +1329,20 @@ async function runUniformDesignTests(browser, baseUrl) {
 }
 
 async function runE2ETests() {
+  if (!isLaunchServicesAvailable()) {
+    const isFullTestRun = process.env.npm_lifecycle_event === 'test' || process.env.SKIP_E2E_IN_SANDBOX === '1';
+    console.warn('\n⚠️ [SANDBOX GUARD] macOS LaunchServices / WindowServer is unavailable in this restricted execution context (e.g. Seatbelt sandbox).');
+    console.warn('⚠️ Google Chrome cannot be launched here without macOS terminating it with SIGABRT (TransformProcessType failure).');
+    if (isFullTestRun) {
+      console.warn('⚠️ Skipping E2E browser tests during full test suite run because browser execution is sandboxed. Unit checks have completed.');
+      console.warn('⚠️ To run E2E browser verification, execute outside the sandbox: PORT=3000 pnpm run test:e2e\n');
+      return;
+    }
+    console.error('❌ Cannot run E2E browser tests: LaunchServices Mach lookup is denied by macOS Seatbelt.');
+    console.error('❌ Please execute E2E browser tests in an unsandboxed terminal session or delegate browser verification to Antigravity.\n');
+    process.exit(1);
+  }
+
   let port = process.env.PORT;
   if (!port) {
     if (await probePort(3003)) port = '3003';
@@ -1258,10 +1350,17 @@ async function runE2ETests() {
     else port = '3000';
   }
   const baseUrl = `http://localhost:${port}`;
+
+  if (!(await probePort(port))) {
+    console.error(`\n❌ [SERVER OFFLINE] No running TulongPH server found on port ${port} (${baseUrl}).`);
+    console.error(`❌ Please start the server (e.g. 'pnpm run start' or 'pnpm run dev') before running E2E tests.\n`);
+    process.exit(1);
+  }
+
   console.log(`🚀 Starting Automated E2E Browser & DOM Test Suite on ${baseUrl}...`);
 
   const browser = await chromium.launch({
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true,
   });
 
@@ -1269,6 +1368,7 @@ async function runE2ETests() {
     if (process.env.SW_ONLY === '1') { await runServiceWorkerTests(browser, baseUrl); return; }
     if (process.env.CIVIC_ONLY === '1') { await runCivicPillarTests(browser, baseUrl); return; }
     if (process.env.UNIFORM_ONLY === '1') { await runUniformDesignTests(browser, baseUrl); return; }
+    await runInstallGuideTests(browser, baseUrl);
     // -------------------------------------------------------------
     // Test 1: Desktop Viewport (1280x800) - Full Auto-Compute Flow
     // -------------------------------------------------------------
