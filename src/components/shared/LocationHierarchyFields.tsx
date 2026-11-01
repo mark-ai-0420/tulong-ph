@@ -41,7 +41,7 @@ export function LocationHierarchyFields({ idPrefix, value, onChange, language = 
       <datalist id={`${field.id}-options`}>{field.options.map(option => <option key={option} value={option} />)}</datalist>
     </div>)}</div>
     <p id={hintId} className="text-xs leading-relaxed text-slate-600">{tl ? 'Piliin mula sa listahan o i-type ang tamang address. Kapag binago ang probinsya o lungsod, piliin muli ang mga kasunod.' : 'Choose from the list or type your address. After changing province or city, choose the remaining fields again.'}</p>
-    {showWageReference && wageInfo && <div className="min-w-0 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" aria-label="Official regional wage reference">
+    {showWageReference && wageInfo && <div className="min-w-0 rounded-xl border border-[#E2DFD6] border-l-4 border-l-blue-900 bg-[#F3F2EC] p-3 text-sm text-slate-800" aria-label="Official regional wage reference">
       <p className="font-bold">{wageInfo.minimumNonAgricultureDailyWage === null ? `NWPC: ${wageInfo.wageOrder}` : `NWPC Wage Order No. ${wageInfo.wageOrder}`}</p>
       {wageInfo.minimumNonAgricultureDailyWage !== null && <p className="mt-1">Non-agriculture daily rates: {wageRange}. Auto-filled value uses the lower regional rate.</p>}
       {wageInfo.effectiveDate && <p className="mt-1">Effective date: {wageInfo.effectiveDate}</p>}

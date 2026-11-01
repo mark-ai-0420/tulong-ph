@@ -242,11 +242,11 @@ export function QuickStartActionCard({ pillar, language, scenario, sector, organ
     destination = language === 'en' ? `Ask ${agency} about the claim and the records it needs` : language === 'cebuano' ? `Pangutana sa ${agency} bahin sa claim ug mga rekord nga gikinahanglan` : language === 'ilocano' ? `Damagem iti ${agency} maipapan iti claim ken dagiti kasapulan a rekord` : `Itanong sa ${agency} ang tungkol sa claim at mga rekord na kailangan`;
   }
 
-  return <section aria-labelledby={`quick-start-${pillar}`} className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 sm:p-5 space-y-4">
+  return <section aria-labelledby={`quick-start-${pillar}`} className="rounded-2xl border border-[#E2DFD6] border-l-4 border-l-blue-900 bg-[#F3F2EC] p-4 sm:p-5 space-y-4">
     <h2 id={`quick-start-${pillar}`} className="text-lg font-bold text-slate-900">{text.quickStart}</h2>
     <ol className="grid gap-3 md:grid-cols-3">
-      {text.actions.map((action, index) => <li key={action} className="rounded-xl border border-blue-100 bg-white p-3 text-sm leading-relaxed">
-        <h3 className="mb-1 font-bold text-blue-950">{index + 1}. {action}</h3>
+      {text.actions.map((action, index) => <li key={action} className="rounded-xl border border-[#E2DFD6] bg-white p-3 text-sm leading-relaxed">
+        <h3 className="mb-1 font-bold text-slate-900">{index + 1}. {action}</h3>
         {index === 0 ? <p>{destination}</p> : index === 1 ? <ul className="list-disc space-y-1 pl-5">{papers.map(paper => <li key={paper}>{paper}</li>)}</ul> : <p>{script}</p>}
       </li>)}
     </ol>

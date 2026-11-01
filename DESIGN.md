@@ -29,21 +29,25 @@ TulongPH is designed as an authoritative, calm, and compassionate public-sector 
 
 ---
 
-## 2. Color Calibration & Materiality
+## 2. Warm Architectural Slate & Mineral Tones
 
-The palette is anchored in **warm civic paper surfaces**, deep institutional navy, and crisp neutral borders. Glowing purple/indigo AI gradients are strictly banned.
+The palette pairs **warm civic paper surfaces** with Architectural Slate-Navy, Mineral Sage, and Warm Sandstone. Glowing purple/indigo AI gradients are strictly banned.
 
 | Semantic Token | Hex Code | Tailwind / Role | Application |
 | :--- | :--- | :--- | :--- |
 | **Canvas Background** | `#FAF9F5` | `bg-[#FAF9F5]` | Warm paper background; eliminates sterile hospital glare. |
 | **Surface (Card/Modal)** | `#FFFFFF` | `bg-white` | Elevated card surfaces and modal bodies. |
 | **Surface Border** | `#E2DFD6` | `border-[#E2DFD6]` | Hairline borders defining card containers and dividers. |
+| **Informational Callout** | `#F3F2EC` / `#E2DFD6` | `bg-[#F3F2EC] border-[#E2DFD6] border-l-4 border-l-blue-900` | Neutral Warm Stone surface with a 4px architectural slate accent; use for guidance, not warnings. |
 | **Primary Text** | `#0F172A` | `text-slate-900` | High-contrast body, labels, and headlines (WCAG AAA). |
 | **Secondary Text** | `#475569` | `text-slate-600` | Explanatory helper text, subtitles, and metadata. |
-| **Institutional Accent** | `#1E3A8A` / `#172554` | `bg-blue-900`, `text-blue-900` | Authoritative primary action buttons and civic badges. |
-| **Security / Verified** | `#047857` / `#ECFDF5` | `emerald-700`, `bg-emerald-50` | Offline-ready badges, verified seals, checklist completion. |
-| **Civic Advisory / Alert**| `#B45309` / `#FFFBEB` | `amber-700`, `bg-amber-50` | Pisonet / public computer privacy advisory and warnings. |
+| **Institutional Accent** | `#1E2D40` / `#162231` | `blue-900`, `blue-950` | Architectural Slate-Navy for primary actions and civic badges. |
+| **Focus / Active Control** | `#2B4058` / `#3A526E` | `blue-800`, `blue-600` | Clear focus rings and active controls. |
+| **Security / Verified** | `#2D5245` / `#F2F5F3` | `emerald-800`, `bg-emerald-50` | Mineral Sage for verified status, deductions, and checklist completion. |
+| **Civic Advisory / Alert**| `#6E5434` / `#F6F2EA` | `amber-800`, `bg-amber-50` | Warm Sandstone for actual warnings, deadlines, and advisories. |
 | **Critical / Data Wipe** | `#DC2626` / `#FEF2F2` | `red-600`, `bg-red-50` | Computer shop data wipe actions and error alerts. |
+
+Blue, emerald/green, and amber/yellow Tailwind scales use muted shades from 50 through 950. Mineral Sage is shared by emerald and green; Warm Sandstone is shared by amber and yellow. Semantic tints are reserved for status, deductions, and warnings. Informational callouts use Warm Stone so multiple guidance boxes do not compete for attention.
 
 ### 🚫 Strictly Banned Color Anti-Patterns:
 - No purple or neon indigo glowing buttons (`shadow-[0_0_15px_#8b5cf6]`).
@@ -145,11 +149,11 @@ All interactive controls strictly enforce the **$\ge 44\times 44\text{px}$ touch
 
 ### G. 3-Tier Button Token System
 Standardized interactive tokens ensuring unified tactile hierarchy, instant civic recognition, and strict WCAG AAA / Apple HIG touch target compliance ($\ge 44\text{px}$):
-1. **Tier 1: Institutional Navy** (`bg-blue-900 hover:bg-blue-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
+1. **Tier 1: Architectural Slate-Navy** (`bg-blue-900 hover:bg-blue-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
    - Canonical primary action across all views: advancing triage steps, triggering direct paper print, or submitting official dispatch requests.
 2. **Tier 2: Neutral Paper** (`bg-white hover:bg-stone-50 text-slate-800 border border-[#E2DFD6] min-h-[44px] h-11 px-4 rounded-xl font-semibold`)
    - Secondary utilities, file downloads, drawer toggles, and clipboard copy operations.
-3. **Tier 3: Verified Emerald** (`bg-emerald-700 hover:bg-emerald-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
+3. **Tier 3: Verified Mineral Sage** (`bg-emerald-700 hover:bg-emerald-800 text-white min-h-[44px] h-11 px-5 rounded-xl font-bold`)
    - High-trust outreach, Viber/Messenger family sharing, and government portal external handoffs.
 
 ---
