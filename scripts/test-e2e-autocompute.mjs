@@ -1051,7 +1051,7 @@ async function runServiceWorkerTests(browser, baseUrl) {
 }
 
 async function runInstallGuideTests(browser, baseUrl) {
-  console.log('\n[Install guide] Navigation, platform steps, language sync and responsive layout...');
+  console.log('\n[Install guide] Navigation, platform steps, privacy recovery and responsive layout...');
   const privacyContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {
     const privacyPage = await privacyContext.newPage();
@@ -1117,6 +1117,78 @@ async function runInstallGuideTests(browser, baseUrl) {
     assert.equal(idbCount, 0, 'Idle wipe clears IndexedDB records on /install');
   } finally { await privacyContext.close(); }
 
+  const recoveryContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const installPage = await recoveryContext.newPage();
+    await installPage.goto(baseUrl);
+    await installPage.waitForSelector('#patient-first-name');
+    await installPage.fill('#patient-first-name', 'Pre-wipe synthetic patient');
+    await waitForPageConditionWithNodePolling(installPage, async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').get('tulong_patient_profile');
+          request.onsuccess = () => resolve(request.result?.firstName === 'Pre-wipe synthetic patient');
+          request.onerror = () => reject(request.error);
+        });
+      } finally { database.close(); }
+    });
+    await installPage.goto(`${baseUrl}/install`);
+    await installPage.getByRole('heading', { level: 1 }).waitFor();
+    await installPage.locator('#install-tab-android').click();
+    await installPage.waitForFunction(() => document.querySelector('#install-tab-android')?.getAttribute('aria-pressed') === 'true');
+
+    const wipePage = await recoveryContext.newPage();
+    await wipePage.goto(`${baseUrl}/privacy`);
+    await wipePage.getByRole('button', { name: 'Subukan ang 1-Click Data Wipe', exact: true }).click();
+    const installReload = installPage.waitForNavigation({ waitUntil: 'domcontentloaded' });
+    await wipePage.getByRole('button', { name: 'Oo, Burahin ang Lahat', exact: true }).click();
+    await installReload;
+    await installPage.getByRole('heading', { level: 1 }).waitFor();
+    assert.equal(installPage.url(), `${baseUrl}/install`, 'A cross-tab wipe reloads the install guide');
+    const remainingRecords = await installPage.evaluate(async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally { database.close(); }
+    });
+    assert.equal(remainingRecords, 0, 'The cross-tab wipe clears IndexedDB before the install guide reloads');
+
+    await installPage.locator('header a[href="/"]').click();
+    await installPage.waitForURL(`${baseUrl}/`);
+    await installPage.waitForSelector('#patient-first-name');
+    await installPage.fill('#patient-first-name', 'Fresh after install wipe');
+    await waitForPageConditionWithNodePolling(installPage, async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').get('tulong_patient_profile');
+          request.onsuccess = () => resolve(request.result?.firstName === 'Fresh after install wipe');
+          request.onerror = () => reject(request.error);
+        });
+      } finally { database.close(); }
+    });
+    await installPage.reload();
+    await installPage.waitForFunction(() => document.querySelector('#patient-first-name')?.value === 'Fresh after install wipe');
+    assert.equal(await installPage.inputValue('#patient-first-name'), 'Fresh after install wipe', 'Patient profile saves work after returning from the reloaded install guide');
+  } finally { await recoveryContext.close(); }
+
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {
     const page = await context.newPage();
@@ -1175,7 +1247,7 @@ async function runInstallGuideTests(browser, baseUrl) {
       }
     }
   } finally { await context.close(); }
-  console.log('  PASS: root-captured native install prompt, navbar/footer links, both platform guides, filters, four-language persistence and 320/375/390/414/1280px overflow');
+  console.log('  PASS: root-captured native install prompt, cross-tab wipe reload and fresh patient save, navbar/footer links, platform guides, filters, four-language persistence and 320/375/390/414/1280px overflow');
 }
 
 async function runUniformDesignTests(browser, baseUrl) {

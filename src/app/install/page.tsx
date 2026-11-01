@@ -256,7 +256,7 @@ export default function InstallPage() {
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'tulong_lang' || event.key === null) syncLanguage();
     };
-    const onDataCleared = () => setLanguage('taglish');
+    const onDataCleared = () => window.location.replace('/install');
 
     queueMicrotask(syncLanguage);
     window.addEventListener('storage', onStorage);
