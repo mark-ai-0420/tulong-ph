@@ -1052,6 +1052,71 @@ async function runServiceWorkerTests(browser, baseUrl) {
 
 async function runInstallGuideTests(browser, baseUrl) {
   console.log('\n[Install guide] Navigation, platform steps, language sync and responsive layout...');
+  const privacyContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const privacyPage = await privacyContext.newPage();
+    await privacyPage.clock.install({ time: new Date('2026-10-12T00:00:00Z') });
+    await privacyPage.goto(baseUrl);
+    await privacyPage.waitForSelector('#patient-first-name');
+    await privacyPage.fill('#patient-first-name', 'Synthetic Patient');
+    await privacyPage.fill('#patient-last-name', 'Install Privacy Test');
+    await privacyPage.waitForFunction(async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').get('tulong_patient_profile');
+          request.onsuccess = () => resolve(request.result?.firstName === 'Synthetic Patient');
+          request.onerror = () => reject(request.error);
+        });
+      } finally { database.close(); }
+    });
+    await privacyPage.evaluate(() => {
+      localStorage.setItem('synthetic-private-record', 'wipe-me');
+      sessionStorage.setItem('synthetic-private-record', 'wipe-me');
+    });
+    await privacyPage.locator('header a[href="/install"]').click();
+    await privacyPage.waitForURL('**/install');
+    await privacyPage.clock.fastForward(15 * 60 * 1000 + 1000);
+    await privacyPage.waitForFunction(async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const count = await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        return count === 0
+          && Object.keys(localStorage).every(key => ['tulong_lang', 'tulongph-last-activity'].includes(key))
+          && sessionStorage.length === 0;
+      } finally { database.close(); }
+    });
+    assert.equal(await privacyPage.evaluate(() => localStorage.getItem('synthetic-private-record')), null, 'Idle wipe clears private localStorage keys on /install');
+    assert.equal(await privacyPage.evaluate(() => sessionStorage.length), 0, 'Idle wipe clears private sessionStorage on /install');
+    const idbCount = await privacyPage.evaluate(async () => {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('keyval').objectStore('keyval').count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally { database.close(); }
+    });
+    assert.equal(idbCount, 0, 'Idle wipe clears IndexedDB records on /install');
+  } finally { await privacyContext.close(); }
+
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {
     const page = await context.newPage();
