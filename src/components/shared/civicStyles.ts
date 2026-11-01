@@ -1,5 +1,6 @@
 export const civicContainer = 'max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8';
 export const civicCard = 'min-w-0 bg-white rounded-2xl border border-[#E2DFD6] p-6 sm:p-7 shadow-xs space-y-6';
+export const civicInfoCallout = 'rounded-xl border border-[#E2DFD6] border-l-4 border-l-blue-900 bg-[#F3F2EC] p-4 text-slate-800';
 export const civicLabel = 'text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5';
 export const civicInput = 'w-full min-w-0 h-11 min-h-11 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm bg-white text-slate-900 focus-ring';
 export const civicTextarea = 'w-full min-w-0 min-h-24 py-2.5 px-3.5 rounded-lg border border-slate-300 text-base sm:text-sm bg-white text-slate-900 focus-ring';

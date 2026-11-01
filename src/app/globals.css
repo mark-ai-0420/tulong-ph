@@ -13,8 +13,63 @@
 }
 
 @theme inline {
-  --color-primary: #1e3a8a;
-  --color-primary-hover: #172554;
+  --color-primary: #1E2D40;
+  --color-primary-hover: #162231;
+  --color-blue-50: #F2F4F7;
+  --color-blue-100: #E6EAF0;
+  --color-blue-200: #CBD4DF;
+  --color-blue-300: #AEBCCB;
+  --color-blue-400: #8798AA;
+  --color-blue-500: #5D7188;
+  --color-blue-600: #3A526E;
+  --color-blue-700: #334B67;
+  --color-blue-800: #2B4058;
+  --color-blue-900: #1E2D40;
+  --color-blue-950: #162231;
+  --color-emerald-50: #F2F5F3;
+  --color-emerald-100: #E7EDE9;
+  --color-emerald-200: #C9D8D1;
+  --color-emerald-300: #A9C0B5;
+  --color-emerald-400: #779888;
+  --color-emerald-500: #4B7868;
+  --color-emerald-600: #426D5D;
+  --color-emerald-700: #396354;
+  --color-emerald-800: #2D5245;
+  --color-emerald-900: #234237;
+  --color-emerald-950: #192E26;
+  --color-green-50: #F2F5F3;
+  --color-green-100: #E7EDE9;
+  --color-green-200: #C9D8D1;
+  --color-green-300: #A9C0B5;
+  --color-green-400: #779888;
+  --color-green-500: #4B7868;
+  --color-green-600: #426D5D;
+  --color-green-700: #396354;
+  --color-green-800: #2D5245;
+  --color-green-900: #234237;
+  --color-green-950: #192E26;
+  --color-amber-50: #F6F2EA;
+  --color-amber-100: #F1EADF;
+  --color-amber-200: #DDD2C0;
+  --color-amber-300: #E2CFAB;
+  --color-amber-400: #C4AD83;
+  --color-amber-500: #A88A5D;
+  --color-amber-600: #92734B;
+  --color-amber-700: #876843;
+  --color-amber-800: #6E5434;
+  --color-amber-900: #5C4529;
+  --color-amber-950: #4A3720;
+  --color-yellow-50: #F6F2EA;
+  --color-yellow-100: #F1EADF;
+  --color-yellow-200: #DDD2C0;
+  --color-yellow-300: #E2CFAB;
+  --color-yellow-400: #C4AD83;
+  --color-yellow-500: #A88A5D;
+  --color-yellow-600: #92734B;
+  --color-yellow-700: #876843;
+  --color-yellow-800: #6E5434;
+  --color-yellow-900: #5C4529;
+  --color-yellow-950: #4A3720;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -51,16 +106,16 @@ body {
 }
 
 @utility focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B4058] focus-visible:ring-offset-2;
 }
 
 ::selection {
-  background-color: #dbeafe;
-  color: #172554;
+  background-color: #CBD4DF;
+  color: #162231;
 }
 
 input, textarea {
-  caret-color: #1e3a8a;
+  caret-color: #1E2D40;
 }
 
 * {

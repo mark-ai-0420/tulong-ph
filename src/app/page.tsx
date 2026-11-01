@@ -292,14 +292,14 @@ export default function Home() {
       )}
       </>}>
       {privacyToast && <CivicStatusBanner language={language} onDismiss={() => setPrivacyToast(false)} />}
-      {backupRestorePending && <p role="status" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+      {backupRestorePending && <p role="status" className="mb-4 rounded-xl border border-[#E2DFD6] border-l-4 border-l-blue-900 bg-[#F3F2EC] p-4 text-sm text-slate-900">
         {language === 'taglish' ? 'Nakahinto muna ang pag-save habang nire-restore ang backup.' : 'Saving is paused while a backup is being restored.'}
       </p>}
-      {bridgeNotice && <div role="status" className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+      {bridgeNotice && <div role="status" className="mb-4 flex items-center gap-3 rounded-2xl border border-[#E2DFD6] border-l-4 border-l-blue-900 bg-[#F3F2EC] px-4 py-3 text-sm text-slate-900">
         <p className="flex-1">{language === 'taglish'
           ? 'Na-load mula sa family context ang lokasyon at detalye ng sektor. Pakisuri bago magpatuloy.'
           : 'Location and sector details were loaded from family context. Please review them before continuing.'}</p>
-        <button type="button" onClick={() => setBridgeNotice(false)} aria-label={language === 'taglish' ? 'Isara ang abiso' : 'Dismiss notice'} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl hover:bg-blue-100 focus-ring">
+        <button type="button" onClick={() => setBridgeNotice(false)} aria-label={language === 'taglish' ? 'Isara ang abiso' : 'Dismiss notice'} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl hover:bg-white focus-ring">
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>}

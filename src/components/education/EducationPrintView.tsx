@@ -2,7 +2,7 @@
 
 import { Printer, Download, Share2, CheckCircle2 } from 'lucide-react';
 import { CivicViewHeader } from '@/components/shared/CivicViewHeader';
-import { civicCard, civicLabel, civicInput, civicPrimary, civicSecondary, civicPill, civicSelectedPill, civicPaperMat, civicPaper } from '@/components/shared/civicStyles';
+import { civicCard, civicLabel, civicInput, civicPrimary, civicSecondary, civicPaperMat, civicPaper } from '@/components/shared/civicStyles';
 
 import { useEffect, useState } from 'react';
 import { LocationHierarchyFields } from '@/components/shared/LocationHierarchyFields';
@@ -26,7 +26,6 @@ interface Props {
   onUpdateDocuments: (documents: StoredDocument[]) => void;
 }
 const control = civicInput;
-const chipClass = civicPill;
 const money = (amount: number) => `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const recipientPresets = [
   'CHED / UniFAST Scholarship Coordinator',
@@ -158,10 +157,6 @@ export function EducationPrintView({ profile, onChange, language = 'taglish', do
           onChange={(event) => setIncludeVaultAttachments(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-blue-900" />
         <span>{tl ? `Isama ang ${attachableDocumentCount} compliant na vault image sa PDF packet` : `Append ${attachableDocumentCount} compliant vault image(s) to the PDF packet`}</span>
       </label>
-      <div className="space-y-3">
-        <div role="group" aria-label={tl ? 'Tatanggap ng liham' : 'Recipient presets'} className="flex flex-wrap gap-2">{recipientPresets.map(item => <button type="button" key={item} className={recipient === item ? civicSelectedPill : chipClass} aria-pressed={recipient === item} onClick={() => setRecipient(item)}>{item}</button>)}</div>
-        <p className="text-xs text-slate-600">{tl ? 'Piliin ang halimbawa at palitan ng eksaktong paaralan o lungsod bago isumite.' : 'Choose an example and enter the exact school or city before submission.'}</p>
-      </div>
       <p className="text-xs text-slate-600">{tl ? 'Native print: buong Filipino at mga pangalan. PDF: English, PHP currency at transliterated names para sa built-in font.' : 'Native print preserves full Filipino text and names. PDF uses English, PHP currency and transliterated names for its built-in font.'}</p>{successToast && <p role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />{successToast}</p>}{error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     </div>
     <div className={civicPaperMat}><p className="mb-4 text-xs font-semibold text-slate-600 print:hidden">{tl ? 'Preview: A4 worksheet, matipid sa tinta' : 'Preview: A4 worksheet, low-ink print'}</p><div className={`education-print-packet ${civicPaper} space-y-8`}>
