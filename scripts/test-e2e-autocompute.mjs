@@ -161,8 +161,8 @@ async function assertStepCardLayout(page, route, step) {
     const form = document.querySelector('form');
     const headings = [...(form?.querySelectorAll('h2') ?? [])];
     const heading = headings.find(item => new RegExp(`(?:Step|Hakbang)\\s*${expectedStep}\\b`).test(item.textContent ?? ''))
-      ?? headings.find(item => item.tabIndex === -1 && !item.textContent?.includes('sample profile'))
-      ?? headings.find(item => !item.textContent?.includes('sample profile'));
+      ?? headings.find(item => item.tabIndex === -1)
+      ?? headings[0];
     const banners = [...(document.querySelector('main')?.querySelectorAll('section') ?? [])].filter(section =>
       [...section.querySelectorAll('h2')].some(title => title.closest('section') === section && /Subukan ang sample profile|Try a sample profile/.test(title.textContent ?? '')));
     if (expectedRoute === '/' && expectedStep === 3) {
@@ -197,7 +197,6 @@ async function assertStepCardLayout(page, route, step) {
     }
     if (!form || !heading) return { error: 'No active wizard heading found', bannerCount: banners.length };
     const subtitle = heading.nextElementSibling;
-    const banner = banners[0];
     if (!subtitle || subtitle.tagName !== 'P') return { error: 'Expected one subtitle after the active heading', bannerCount: banners.length };
     if (expectedRoute === '/' && expectedStep === 2) {
       const followingBody = subtitle.nextElementSibling ?? heading.parentElement?.nextElementSibling;
@@ -214,25 +213,27 @@ async function assertStepCardLayout(page, route, step) {
         hasSubmit: Boolean(form.querySelector('button[type="submit"]')),
       };
     }
-    if (banners.length !== 1) return { error: 'Expected one sample banner', bannerCount: banners.length };
     const ancestors = [];
     for (let node = heading.parentElement; node && node !== form.parentElement; node = node.parentElement) ancestors.push(node);
     const card = ancestors.find(node => {
       const style = getComputedStyle(node);
-      return node.contains(subtitle) && node.contains(banner)
+      return node.contains(subtitle)
         && style.backgroundColor === 'rgb(255, 255, 255)'
         && parseFloat(style.borderTopWidth) >= 1
         && parseFloat(style.borderTopLeftRadius) >= 12
         && parseFloat(style.paddingTop) >= 24;
     });
-    if (!card || !card.contains(banner)) return { error: 'Heading, subtitle and sample banner do not share a white card', bannerCount: banners.length };
-    const followingBody = [...card.children].find(child => child !== banner && banner.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const order = [heading, subtitle, banner, followingBody].map(node => node ? [...form.querySelectorAll('*')].indexOf(node) : -1);
+    if (!card) return { error: 'Heading and subtitle do not share a white card', bannerCount: banners.length };
+    let followingBody = null;
+    for (let node = subtitle; node && node !== form; node = node.parentElement) {
+      if (node.nextElementSibling) { followingBody = node.nextElementSibling; break; }
+    }
+    const formNodes = [...form.querySelectorAll('*')];
+    const order = [heading, subtitle, followingBody].map(node => node ? formNodes.indexOf(node) : -1);
     const backButtons = [...card.querySelectorAll('button')].filter(button => /Bumalik|Back/.test(button.textContent ?? ''));
     return {
       order,
       bannerCount: banners.length,
-      noFloatingBanner: banners.every(item => card.contains(item)),
       card: {
         background: getComputedStyle(card).backgroundColor,
         border: getComputedStyle(card).borderTopWidth,
@@ -248,24 +249,21 @@ async function assertStepCardLayout(page, route, step) {
     };
   }, { expectedRoute: route, expectedStep: step });
   assert.ok(!layout.error, `${route} step ${step}: ${layout.error ?? ''}`);
+  assert.equal(layout.bannerCount, 0, `${route} step ${step}: no sample banner is rendered`);
   if (route === '/' && step === 3) {
-    assert.equal(layout.bannerCount, 0, `${route} step ${step}: medical roadmap has no sample banner`);
     assert.equal(layout.card.background, 'rgb(255, 255, 255)', `${route} step ${step}: medical roadmap card has a white surface`);
     assert.ok(parseFloat(layout.card.border) >= 1 && parseFloat(layout.card.radius) >= 12 && parseFloat(layout.card.padding) >= 24,
       `${route} step ${step}: roadmap card has a visible border, rounded corners and padding`);
     return;
   }
   if (route === '/' && step === 2) {
-    assert.equal(layout.bannerCount, 0, `${route} step ${step}: medical intake has no sample banner`);
     assert.ok(layout.order[0] < layout.order[1] && layout.order[1] < layout.order[2], `${route} step ${step}: heading, subtitle and body are in DOM order`);
     assert.equal(layout.card.background, 'rgb(255, 255, 255)');
     assert.ok(parseFloat(layout.card.border) >= 1 && parseFloat(layout.card.radius) >= 12 && parseFloat(layout.card.padding) >= 24, `${route} step ${step}: card has a visible white surface, border, radius and padding`);
     assert.ok(layout.hasControls && layout.hasLiveBreakdown && layout.hasBack && layout.hasSubmit, `${route} step ${step}: card contains controls, live breakdown, Back and submit`);
     return;
   }
-  assert.ok(layout.order[0] < layout.order[1] && layout.order[1] < layout.order[2] && layout.order[2] < layout.order[3], `${route} step ${step}: title, subtitle, banner and body must be in DOM order`);
-  assert.equal(layout.bannerCount, 1, `${route} step ${step}: one sample banner is rendered`);
-  assert.ok(layout.noFloatingBanner, `${route} step ${step}: no sample banner floats above its card`);
+  assert.ok(layout.order[0] < layout.order[1] && layout.order[1] < layout.order[2], `${route} step ${step}: title, subtitle and body are in DOM order`);
   assert.equal(layout.card.background, 'rgb(255, 255, 255)');
   assert.ok(parseFloat(layout.card.border) >= 1 && parseFloat(layout.card.radius) >= 12 && parseFloat(layout.card.padding) >= 24, `${route} step ${step}: card has a visible white surface, border, radius and padding`);
   if (step < 3) {
@@ -287,13 +285,22 @@ async function assertLocationHierarchy(page, prefix) {
   assert.ok(barangays.includes('Daine I'));
   await page.fill(`#${prefix}-barangay`, 'Daine 1');
   assert.equal(await page.inputValue(`#${prefix}-barangay`), 'Daine I');
+  const wageReference = page.locator('[aria-label="Official regional wage reference"]');
+  if (prefix === 'worker') {
+    assert.equal(await wageReference.count(), 1, 'Worker location shows the official wage reference');
+    assert.ok(await wageReference.isVisible(), 'Worker wage reference is visible after entering a location');
+  } else {
+    assert.equal(await wageReference.count(), 0, `${prefix} route does not show the Worker-only wage reference`);
+  }
   const order = await page.locator(`#${prefix}-province, #${prefix}-city, #${prefix}-barangay`).evaluateAll(elements => elements.map(element => element.id));
   assert.deepEqual(order, [`${prefix}-province`, `${prefix}-city`, `${prefix}-barangay`]);
   await page.fill(`#${prefix}-province`, 'Laguna');
   assert.equal(await page.inputValue(`#${prefix}-city`), '');
   assert.equal(await page.inputValue(`#${prefix}-barangay`), '');
   assert.equal(await page.locator(`#${prefix}-barangay-options option`).count(), 0);
-  await page.getByRole('button', { name: 'Cavite → Indang → Daine I', exact: true }).click();
+  await page.fill(`#${prefix}-province`, 'Cavite');
+  await page.fill(`#${prefix}-city`, 'Indang');
+  await page.fill(`#${prefix}-barangay`, 'Daine 1');
   assert.equal(await page.inputValue(`#${prefix}-province`), 'Cavite');
   assert.equal(await page.inputValue(`#${prefix}-city`), 'Indang');
   assert.equal(await page.inputValue(`#${prefix}-barangay`), 'Daine I');
@@ -360,11 +367,12 @@ async function runCivicPillarTests(browser, baseUrl) {
   await switchToLanguage(page, 'en');
   assert.match(await page.locator('#edu-voucher-category option[value="public_jhs"]').innerText(), /Alternative Learning System \(ALS\) \/ Placement Test \(PEPT\)/);
   await switchToLanguage(page, 'taglish');
-  await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
+  await page.selectOption('#edu-level', 'tvet');
   assert.equal(await page.inputValue('#edu-level'), 'tvet');
-  await page.getByRole('button', { name: 'Sample: DOST / CHED Honor (96%)', exact: true }).click();
+  await page.fill('#edu-gwa', '96');
   assert.equal(await page.inputValue('#edu-gwa'), '96');
-  await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
+  await page.selectOption('#edu-level', 'college');
+  await page.selectOption('#edu-school-type', 'suc_luc');
   assert.equal(await page.inputValue('#edu-school-type'), 'suc_luc');
   await page.fill('#edu-school-search', 'PUP');
   assert.ok(await page.getByRole('listbox').isVisible(), 'School search opens its suggestion list');
@@ -378,21 +386,24 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.fill('#edu-school-search', 'UP');
   await page.locator('#edu-level').click();
   assert.equal(await page.getByRole('listbox').count(), 0, 'Clicking outside closes the suggestion list');
-  await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
+  await page.selectOption('#edu-level', 'shs');
+  await page.selectOption('#edu-school-type', 'private');
+  await page.fill('#edu-tuition', '30000');
   assert.equal(await page.inputValue('#edu-level'), 'shs');
   assert.equal(await page.inputValue('#edu-tuition'), '30000');
-  await page.getByRole('button', { name: 'JHS', exact: true }).click();
+  await page.selectOption('#edu-level', 'jhs');
   assert.equal(await page.inputValue('#edu-year'), '7');
-  await page.getByRole('button', { name: 'SHS', exact: true }).click();
+  await page.selectOption('#edu-level', 'shs');
   assert.equal(await page.inputValue('#edu-year'), '11');
-  await page.getByRole('button', { name: 'Pribadong paaralan, kolehiyo, o unibersidad', exact: true }).click();
+  await page.selectOption('#edu-school-type', 'private');
   assert.equal(await page.inputValue('#edu-school-type'), 'private');
   await assertLocationHierarchy(page, 'edu');
   assert.equal(await page.inputValue('#edu-location'), 'other');
-  await page.getByRole('button', { name: 'Cebu City (Region VII)', exact: true }).click();
+  await openOptionalDetails(page, '#edu-location');
+  await page.selectOption('#edu-location', 'HUC');
   assert.equal(await page.inputValue('#edu-location'), 'HUC');
-  await page.getByRole('button', { name: 'Quezon City (NCR)', exact: true }).click();
-  await page.getByRole('button', { name: '₱50,000', exact: true }).click();
+  await page.selectOption('#edu-location', 'NCR');
+  await page.fill('#edu-tuition', '50000');
   assert.equal(await page.inputValue('#edu-tuition'), '50000');
   await assertNoOverflow(page);
   await page.selectOption('#edu-level', 'shs');
@@ -407,18 +418,28 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   await assertPrivacyControls(page); await assertNoOverflow(page);
   await assertSchoolQuestionFilter(page);
-  await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
+  await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
+  await page.selectOption('#edu-level', 'college');
+  await page.selectOption('#edu-school-type', 'suc_luc');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
+  await page.fill('#edu-income', '120000');
+  await page.check('#edu-4ps');
   await openOptionalDetails(page, '#edu-daily-wage');
-  assert.ok(await page.locator('#edu-daily-wage').isVisible(), 'Sample on Step 2 stays on Step 2');
+  assert.ok(await page.locator('#edu-daily-wage').isVisible(), 'Optional local wage input is available on Step 2');
   assert.equal(await page.getByLabel('May 4Ps o Listahanan record ang pamilya', { exact: true }).count(), 1);
   await switchToLanguage(page, 'en');
   assert.equal(await page.getByLabel('Family has a 4Ps or Listahanan record', { exact: true }).count(), 1);
   await switchToLanguage(page, 'taglish');
-  await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
+  await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
+  await page.selectOption('#edu-level', 'tvet');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
   assert.ok(await page.locator('#edu-training-days').isVisible());
   assert.ok(await page.locator('#edu-nc3').isVisible());
   assert.equal(await page.locator('#edu-incoming').count(), 0);
-  await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
+  await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
+  await page.selectOption('#edu-level', 'shs');
+  await page.selectOption('#edu-school-type', 'private');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
   await assertSchoolQuestionFilter(page);
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
   await page.selectOption('#edu-level', 'college');
@@ -433,11 +454,20 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Susunod', exact: true }).click();
   assert.equal(await page.inputValue('#edu-daily-wage'), '777', 'Barangay-only edit preserves manual regional wage');
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
-  await page.selectOption('#edu-level', 'jhs');
-  await page.getByRole('button', { name: 'Susunod', exact: true }).click();
-  await assertSchoolQuestionFilter(page);
-  await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
-  await page.getByRole('button', { name: '₱240,000 Low-Income', exact: true }).click();
+  await page.selectOption('#edu-level', 'shs');
+  await page.selectOption('#edu-school-type', 'private');
+  await openOptionalDetails(page, '#edu-location');
+  await page.selectOption('#edu-location', 'NCR');
+  await page.fill('#edu-tuition', '30000');
+  await page.fill('#edu-province', 'Metro Manila');
+  await page.fill('#edu-city', 'Quezon City');
+  await page.fill('#edu-barangay', '');
+  await page.selectOption('#edu-voucher-category', 'public_jhs');
+  await page.check('#edu-school-participates');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
+  await page.uncheck('#edu-4ps');
+  await page.fill('#edu-income', '240000');
+  await page.fill('#edu-age', '16');
   assert.equal(await page.inputValue('#edu-income'), '240000');
   await page.getByRole('button', { name: 'Tingnan ang mga programa', exact: true }).click();
   await assertPrivacyControls(page); await assertNoOverflow(page);
@@ -446,16 +476,42 @@ async function runCivicPillarTests(browser, baseUrl) {
   const roadmap = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: 'Unang Hakbang' }) }).first();
   assert.ok(await roadmap.getAttribute('open') !== null, 'Tuition roadmap opens by default');
   for (const title of ['Libreng Tuition / Voucher sa Paaralan', 'Cash Allowance at Scholarship', 'Dagdag na Tulong at Printable Packet']) assert.ok(await page.locator('summary').filter({ hasText: title }).isVisible());
-  await page.getByRole('button', { name: 'Sample: State Univ (SUC) 4Ps', exact: true }).click();
-  assert.ok(await page.getByText('Tatlong Hakbang: Action Roadmap', { exact: true }).isVisible(), 'Sample on Step 3 stays on roadmap');
+  assert.ok(await page.getByText('Tatlong Hakbang: Action Roadmap', { exact: true }).isVisible(), 'Education Step 3 displays the roadmap');
+  await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
+  await page.selectOption('#edu-level', 'college');
+  await page.selectOption('#edu-school-type', 'suc_luc');
+  await page.fill('#edu-province', 'Cavite');
+  await page.fill('#edu-city', 'Indang');
+  await page.fill('#edu-barangay', 'Daine I');
+  await page.fill('#edu-tuition', '0');
+  await page.check('#edu-school-participates');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
+  await page.fill('#edu-income', '120000');
+  await page.fill('#edu-age', '18');
+  await page.check('#edu-4ps');
+  await page.getByRole('button', { name: 'Tingnan ang mga programa', exact: true }).click();
   const cash = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: 'Cash Allowance at Scholarship' }) }).first();
   assert.ok(await cash.locator('details').first().getAttribute('open') !== null, 'Top scholarship match is expanded');
-  await page.getByRole('button', { name: 'Sample: DOST / CHED Honor (96%)', exact: true }).click();
   await page.fill('#education-roadmap-search', 'no-such-scholarship');
   assert.ok(await page.getByText('May eligible na primary scholarship, pero walang tumugma sa kasalukuyang filter.', { exact: false }).isVisible(), 'Eligible primary scholarships explain when the active filter hides them');
   assert.equal(await page.getByText(/Wala pang primary match sa iyong inputs|No primary match for these inputs/).count(), 0, 'Search filtering does not claim the profile is ineligible');
   await page.getByRole('button', { name: 'I-clear ang roadmap filter', exact: true }).click();
-  await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
+  await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
+  await page.selectOption('#edu-level', 'shs');
+  await page.selectOption('#edu-school-type', 'private');
+  await openOptionalDetails(page, '#edu-location');
+  await page.selectOption('#edu-location', 'NCR');
+  await page.fill('#edu-province', 'Metro Manila');
+  await page.fill('#edu-city', 'Quezon City');
+  await page.fill('#edu-barangay', '');
+  await page.fill('#edu-tuition', '30000');
+  await page.check('#edu-school-participates');
+  await page.selectOption('#edu-voucher-category', 'public_jhs');
+  await page.getByRole('button', { name: '2. Pamilya at Kwalipikasyon', exact: true }).click();
+  await page.uncheck('#edu-4ps');
+  await page.fill('#edu-income', '240000');
+  await page.fill('#edu-age', '16');
+  await page.getByRole('button', { name: 'Tingnan ang mga programa', exact: true }).click();
   await page.getByRole('button', { name: '1. Paaralan at Tuition', exact: true }).click();
   await page.selectOption('#edu-level', 'college');
   await openOptionalDetails(page, '#edu-location');
@@ -472,7 +528,7 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.locator('header button:visible').filter({ hasText: /Forms/ }).first().click();
   await page.fill('#edu-print-school', 'UP');
   await page.getByRole('option', { name: /University of the Philippines Diliman/ }).click();
-  await page.getByRole('button', { name: 'DSWD Crisis Intervention Unit', exact: true }).click();
+  await page.selectOption('#edu-print-recipient', 'DSWD Crisis Intervention Unit');
   assert.equal(await page.inputValue('#edu-print-school'), 'University of the Philippines Diliman');
   assert.equal(await page.inputValue('#edu-print-city'), 'Quezon City');
   assert.equal(await page.inputValue('#edu-print-province'), 'Metro Manila');
@@ -489,7 +545,9 @@ async function runCivicPillarTests(browser, baseUrl) {
   const printedProfile = await page.evaluate(() => JSON.parse(localStorage.getItem('tulongph_education_session')));
   assert.equal(printedProfile.location, 'NCR', 'Print school selection fills the location tier');
   assert.equal(printedProfile.regionalDailyWage, 755, 'Print school selection fills the official regional wage');
-  await page.getByRole('button', { name: 'Cavite → Indang → Daine I', exact: true }).click();
+  await page.fill('#edu-print-province', 'Cavite');
+  await page.fill('#edu-print-city', 'Indang');
+  await page.fill('#edu-print-barangay', 'Daine 1');
   assert.ok((await page.locator('.education-print-packet').innerText()).includes('Daine I, Indang, Cavite'));
   await checkPacket(page, 'education');
   await page.locator('header button:visible').filter({ hasText: /Direktoryo/ }).first().click();
@@ -535,7 +593,9 @@ async function runCivicPillarTests(browser, baseUrl) {
   await switchToLanguage(page, 'en');
   assert.equal(await page.getByText('Based on the highest 6 of 12 months that count for the claim.', { exact: true }).count(), 1);
   await switchToLanguage(page, 'taglish');
-  await page.getByRole('button', { name: 'Sample: Maternity + Differential', exact: true }).click();
+  await page.getByLabel('Maternity at salary differential', { exact: true }).check();
+  await page.fill('#worker-monthlySalary', '25000');
+  await page.getByRole('button', { name: 'Ibalik ang tantiya ng SSS mula sa sahod', exact: true }).click();
   assert.equal(await page.inputValue('#worker-monthlySalary'), '25000');
   await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
   assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '20000', 'SSS salary estimate is populated from monthly pay by default');
@@ -553,8 +613,9 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.getByRole('button', { name: 'Ibalik ang tantiya ng SSS mula sa sahod', exact: true }).click();
   assert.equal(await page.inputValue('#worker-averageMonthlySalaryCredit'), '18000', 'SSS estimate button clears the manual override');
   assert.equal(await page.inputValue('#worker-highestSixMonthlySalaryCredit'), '18000');
-  await page.getByRole('button', { name: 'Sample: SSS at Pag-IBIG Loan', exact: true }).click();
+  await page.getByLabel('Emergency cash / calamity loan', { exact: true }).check();
   await openOptionalDetails(page, '#worker-pagibigTAV');
+  await page.fill('#worker-pagibigContributionMonths', '72');
   assert.equal(await page.inputValue('#worker-pagibigContributionMonths'), '72');
   assert.equal(await page.inputValue('#worker-pagibigTAV'), '28800', 'Pag-IBIG estimate is populated from contribution months by default');
   await page.fill('#worker-pagibigContributionMonths', '36');
@@ -657,12 +718,13 @@ async function runCivicPillarTests(browser, baseUrl) {
   assert.ok(await page.getByRole('button', { name: 'Open Printable Worker Packet', exact: true }).isVisible());
   await switchToLanguage(page, 'taglish');
   await page.getByRole('button', { name: 'Buksan ang Printable Worker Packet', exact: true }).click();
-  await page.getByRole('button', { name: 'Hindi nabayarang sahod', exact: true }).click();
+  await page.fill('#worker-print-unpaid', 'Hindi nabayarang sahod');
   assert.ok((await page.inputValue('#worker-print-unpaid')).includes('Hindi nabayarang sahod'));
-  await page.getByRole('button', { name: 'Hindi nabayarang 13th Month Pay', exact: true }).click();
+  await page.fill('#worker-print-unpaid', 'Hindi nabayarang sahod\nHindi nabayarang 13th Month Pay');
   assert.ok((await page.inputValue('#worker-print-unpaid')).includes('Hindi nabayarang sahod'));
   assert.ok((await page.inputValue('#worker-print-unpaid')).includes('13th Month Pay'));
-  await page.getByRole('button', { name: 'Sari-Sari Store at Bigasan (PHP 25,000)', exact: true }).click();
+  await page.fill('#worker-print-project', 'Sari-Sari Store at Bigasan');
+  await page.fill('#worker-print-budget', 'PHP 25,000');
   assert.ok((await page.inputValue('#worker-print-project')).includes('Sari-Sari'));
   assert.ok((await page.inputValue('#worker-print-budget')).includes('25,000'));
   await page.fill('#worker-print-name', 'Synthetic Worker');
@@ -746,7 +808,6 @@ async function runCivicPillarTests(browser, baseUrl) {
   await page.locator('header button:visible').filter({ hasText: /Gabay|Navigator/ }).first().click();
   await page.waitForSelector('#worker-sector');
   await page.getByLabel('Emergency cash / calamity loan', { exact: true }).check();
-  await page.getByRole('button', { name: 'Sample: SSS at Pag-IBIG Loan', exact: true }).click();
   await openOptionalDetails(page, '#worker-averageMonthlySalaryCredit');
   await page.fill('#worker-monthlySalary', '10000');
   await page.fill('#worker-averageMonthlySalaryCredit', '9000');
@@ -1058,46 +1119,36 @@ async function runUniformDesignTests(browser, baseUrl) {
         const step2 = steps.getByRole('button', { name: route.step2, exact: true });
         await step2.click();
         if (route.path === '/edukasyon') {
-          const educationSamples = ['Sample: Private SHS NCR', 'Sample: State Univ (SUC) 4Ps', 'Sample: DOST / CHED Honor (96%)', 'Sample: TESDA Tech-Voc'];
-          for (const name of educationSamples) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 1, `${name} is unique on Education Step 2`);
-          await page.getByRole('button', { name: 'Sample: Private SHS NCR', exact: true }).click();
-          const initialRelief = await page.getByTestId('education-relief').innerText();
-          await page.getByRole('button', { name: 'Sample: TESDA Tech-Voc', exact: true }).click();
-          assert.equal(await step2.getAttribute('aria-current'), 'step', 'Education Step 2 samples update without changing steps');
-          assert.ok(await page.locator('#edu-training-days').isVisible(), 'Education Step 2 sample updates conditional fields in place');
-          assert.notEqual(await page.getByTestId('education-relief').innerText(), initialRelief, 'Education Step 2 sample updates the live relief amount');
+          await page.fill('#edu-income', '120000');
+          await page.check('#edu-4ps');
+          assert.equal(await step2.getAttribute('aria-current'), 'step', 'Education Step 2 direct entries stay on the current step');
+          assert.equal(await page.inputValue('#edu-income'), '120000');
+          assert.ok(await page.locator('#edu-4ps').isChecked());
+          await steps.getByRole('button', { name: route.step1, exact: true }).click();
+          await page.selectOption('#edu-level', 'tvet');
+          await step2.click();
+          assert.ok(await page.locator('#edu-training-days').isVisible(), 'Education level selection reveals TVET fields');
+          assert.equal(await step2.getAttribute('aria-current'), 'step', 'Education Step 2 remains active after selecting a level directly');
         } else {
-          const workerSamples = ['Sample: Maternity + Differential', 'Sample: Sakit + ECC Work Claim', 'Sample: SSS at Pag-IBIG Loan', 'Sample: Unpaid Sahod / SEnA'];
-          for (const name of workerSamples) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 1, `${name} is unique on Worker Step 2`);
-          await page.getByRole('button', { name: 'Sample: Maternity + Differential', exact: true }).click();
-          assert.ok(await page.locator('#worker-maternityType').isVisible());
-          assert.ok(await page.locator('[aria-live="polite"]').filter({ hasText: 'SSS maternity' }).isVisible());
-          await page.getByRole('button', { name: 'Sample: Sakit + ECC Work Claim', exact: true }).click();
-          assert.equal(await step2.getAttribute('aria-current'), 'step', 'Worker Step 2 samples update without changing steps');
-          assert.ok(await page.locator('#worker-sicknessDays').isVisible(), 'Worker Step 2 sample updates conditional fields in place');
+          await steps.getByRole('button', { name: route.step1, exact: true }).click();
+          await page.getByLabel("Sakit o aksidente sa trabaho (Employees' Compensation / EC claim)", { exact: true }).check();
+          await step2.click();
+          await page.fill('#worker-sicknessDays', '10');
+          await page.check('#worker-sickLeaveExhausted');
+          await page.check('#worker-isWorkRelated');
+          assert.equal(await step2.getAttribute('aria-current'), 'step', 'Worker Step 2 direct entries stay on the current step');
+          assert.ok(await page.locator('#worker-sicknessDays').isVisible(), 'Worker scenario selection reveals sickness fields');
           assert.ok(await page.locator('[aria-live="polite"]').filter({ hasText: 'Total separate claims' }).isVisible());
         }
         await assertStepCardLayout(page, route.path, 2);
         const step3 = steps.getByRole('button', { name: route.step3, exact: true });
         await step3.click();
         if (route.path === '/edukasyon') {
-          const educationSamples = ['Sample: Private SHS NCR', 'Sample: State Univ (SUC) 4Ps', 'Sample: DOST / CHED Honor (96%)', 'Sample: TESDA Tech-Voc'];
-          for (const name of educationSamples) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 1, `${name} is unique on Education Step 3`);
-          const initialPrimary = await page.getByTestId('education-primary').innerText();
-          await page.getByRole('button', { name: 'Sample: DOST / CHED Honor (96%)', exact: true }).click();
-          assert.equal(await step3.getAttribute('aria-current'), 'step', 'Education Step 3 samples update without changing steps');
-          assert.ok(await page.getByTestId('education-primary').isVisible(), 'Education Step 3 sample updates the summary in place');
-          assert.notEqual(await page.getByTestId('education-primary').innerText(), initialPrimary, 'Education Step 3 sample updates the primary amount');
+          assert.equal(await step3.getAttribute('aria-current'), 'step', 'Education Step 3 remains active after opening the roadmap');
+          assert.ok(await page.locator(route.search).isVisible(), 'Education Step 3 displays the roadmap search');
         } else {
-          const workerSamples = ['Sample: Maternity + Differential', 'Sample: Sakit + ECC Work Claim', 'Sample: SSS at Pag-IBIG Loan', 'Sample: Unpaid Sahod / SEnA'];
-          for (const name of workerSamples) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 1, `${name} is unique on Worker Step 3`);
-          await page.getByRole('button', { name: 'Sample: Maternity + Differential', exact: true }).click();
-          assert.ok(await page.getByTestId('worker-maternity-total').isVisible());
-          await page.getByRole('button', { name: 'Sample: Sakit + ECC Work Claim', exact: true }).click();
-          assert.ok(await page.getByTestId('worker-sickness-total').isVisible());
-          await page.getByRole('button', { name: 'Sample: SSS at Pag-IBIG Loan', exact: true }).click();
-          assert.equal(await step3.getAttribute('aria-current'), 'step', 'Worker Step 3 samples update without changing steps');
-          assert.ok(await page.getByText(/candidate loan illustrations/i).isVisible(), 'Worker Step 3 sample updates the roadmap in place');
+          assert.equal(await step3.getAttribute('aria-current'), 'step', 'Worker Step 3 remains active after opening the roadmap');
+          assert.ok(await page.getByTestId('worker-sickness-total').isVisible(), 'Worker Step 3 displays the entered sickness claim');
         }
         await assertStepCardLayout(page, route.path, 3);
       }
@@ -1245,10 +1296,11 @@ async function runE2ETests() {
       await seniorCheckbox.check();
     }
 
-    await page.getByRole('button', { name: 'Quezon City (NCR)', exact: true }).click();
+    await page.fill('#patient-province', 'Metro Manila');
+    await page.fill('#patient-city', 'Quezon City');
     assert.equal(await page.inputValue('#patient-city'), 'Quezon City');
     assert.equal(await page.inputValue('#patient-province'), 'Metro Manila');
-    assert.equal(await page.inputValue('#patient-barangay'), '', 'Preset leaves unknown barangay empty');
+    assert.equal(await page.inputValue('#patient-barangay'), '', 'Direct city entry leaves the unknown barangay empty');
     await assertLocationHierarchy(page, 'patient');
     await page.fill('#patient-province', 'Metro Manila');
     await page.fill('#patient-city', 'Quezon City');
@@ -1266,15 +1318,16 @@ async function runE2ETests() {
     assert.ok(diagInput, 'Step 2 Medical Case diagnosis input should be visible');
 
     await assertPrivacyControls(page);
-    // Public presets use canonical directory names and cities, with an active desk.
+    // Search the retained hospital autocomplete for public facilities.
     await page.getByRole('button', { name: /Public - DOH Retained \/ Specialty/ }).click();
-    const heartCenterPreset = page.getByRole('button', { name: 'Philippine Heart Center', exact: true });
-    await heartCenterPreset.click();
+    await page.fill('#hospital-name', 'Philippine Heart Center');
+    const heartCenterSuggestion = page.locator('#hospital-suggestions-list').getByRole('button', { name: /Philippine Heart Center/ }).first();
+    await heartCenterSuggestion.click();
     assert.equal(await page.inputValue('#hospital-name'), 'Philippine Heart Center (PHC)');
-    assert.equal(await heartCenterPreset.getAttribute('aria-pressed'), 'true');
     await page.getByText('Aktibo ang Malasakit Center sa pasilidad na ito (Quezon City).', { exact: true }).waitFor({ state: 'visible' });
     await page.getByRole('button', { name: /Public LGU Provincial/ }).click();
-    await page.getByRole('button', { name: 'Ospital ng Maynila Medical Center', exact: true }).click();
+    await page.fill('#hospital-name', 'Ospital ng Maynila Medical Center');
+    await page.locator('#hospital-suggestions-list').getByRole('button', { name: /Ospital ng Maynila Medical Center/ }).first().click();
     assert.equal(await page.inputValue('#hospital-name'), 'Ospital ng Maynila Medical Center (OMMC)');
     await page.getByText('Aktibo ang Malasakit Center sa pasilidad na ito (City of Manila).', { exact: true }).waitFor({ state: 'visible' });
     // Select Private Hospital
@@ -1283,11 +1336,6 @@ async function runE2ETests() {
     await privateHospitalCard.click();
     await page.waitForTimeout(400);
 
-    await page.getByRole('button', { name: "St. Luke's Medical Center", exact: true }).click();
-    assert.equal(await page.inputValue('#hospital-name'), "St. Luke's Medical Center");
-    await page.getByRole('button', { name: '₱100,000', exact: true }).click();
-    assert.equal(await page.inputValue('#total-bill'), '100000');
-
     // Fill Hospital Name
     await page.fill('#hospital-name', "St. Luke's Medical Center");
 
@@ -1295,16 +1343,13 @@ async function runE2ETests() {
     await page.fill('#total-bill', '100000');
     await page.waitForTimeout(300);
 
-    // Click Diagnosis Quick Chip: 🩺 Pneumonia (Pulmonya)
-    const pneumoniaChip = await page.$('button:has-text("Pneumonia")');
-    assert.ok(pneumoniaChip, 'Pneumonia quick preset chip should exist');
-    await pneumoniaChip.click();
+    await page.fill('#case-diagnosis', 'Pneumonia (Pulmonya)');
     await page.waitForTimeout(500);
 
     // Assert diagnosis input updated
     const diagnosisVal = await page.inputValue('#case-diagnosis');
     assert.ok(diagnosisVal.includes('Pneumonia'), 'Diagnosis field should be filled with Pneumonia');
-    console.log(`  ✓ Diagnosis quick preset successfully selected: "${diagnosisVal}"`);
+    console.log(`  ✓ Direct diagnosis entry recorded: "${diagnosisVal}"`);
 
     // Click ⚡ Auto-Kalkulahin (PhilHealth & Senior/PWD)
     const autoComputeBtn = await page.$('#btn-auto-compute');
@@ -1397,22 +1442,19 @@ async function runE2ETests() {
     assert.ok(mobileBtnBox && mobileBtnBox.height >= 44, `Mobile Auto-Compute button height (${mobileBtnBox?.height}px) must be >= 44px`);
     console.log(`  ✓ Mobile Auto-Compute button height: ${mobileBtnBox.height}px (>= 44px)`);
 
-    // Check diagnostic quick preset chips on mobile
-    const dengueChip = await mobilePage.$('button:has-text("Dengue")');
-    assert.ok(dengueChip, 'Dengue quick preset chip should exist on mobile');
-    await dengueChip.click();
+    await mobilePage.fill('#case-diagnosis', 'Dengue');
     await mobilePage.waitForTimeout(300);
 
     const mobileDiagVal = await mobilePage.inputValue('#case-diagnosis');
     assert.ok(mobileDiagVal.includes('Dengue'), 'Mobile diagnosis input should update to Dengue');
-    console.log(`  ✓ Mobile quick preset selection works: "${mobileDiagVal}"`);
+    console.log(`  ✓ Mobile direct diagnosis entry works: "${mobileDiagVal}"`);
 
     await mobileContext.close();
 
     // -------------------------------------------------------------
-    // Test 3: QoL Features - 1-Click Sample Data, Form Validation, Admission Status & Search
+    // Test 3: QoL Features - Form Validation, Admission Status & Search
     // -------------------------------------------------------------
-    console.log('\n🔍 [Test 3] Testing 1-Click Sample Data, Form Validation & Roadmap Search...');
+    console.log('\n🔍 [Test 3] Testing direct form entry, validation, admission status & roadmap search...');
     const qolContext = await browser.newContext({
       viewport: { width: 1280, height: 800 },
     });
@@ -1429,17 +1471,18 @@ async function runE2ETests() {
     assert.ok(bannerErrorEl, 'Error banner should appear when submitting incomplete form');
     console.log('  ✓ Form validation blocked submission and displayed error alert');
 
-    // 2. Test 1-Click Sample Data loader
-    const sampleBtn = await qolPage.$('button:has-text("Subukan gamit ang Sample Data")');
-    assert.ok(sampleBtn, '1-Click Sample Data button must exist');
-    await sampleBtn.click();
-    await qolPage.waitForTimeout(500);
-
-    const sampleName = await qolPage.inputValue('#patient-first-name');
-    const sampleContact = await qolPage.inputValue('#patient-contact');
-    assert.strictEqual(sampleName, 'Juan', 'Sample loader should populate first name as Juan');
-    assert.strictEqual(sampleContact, '09171234567', 'Sample loader should populate contact as 09171234567');
-    console.log('  ✓ 1-Click Sample Data successfully populated form');
+    // 2. Enter a valid intake directly through the form controls.
+    await qolPage.fill('#patient-first-name', 'Juan');
+    await qolPage.fill('#patient-last-name', 'Dela Cruz');
+    await qolPage.fill('#patient-dob', '1955-08-15');
+    await qolPage.fill('#patient-province', 'Metro Manila');
+    await qolPage.fill('#patient-city', 'Manila');
+    await qolPage.fill('#patient-barangay', 'Barangay 123');
+    await qolPage.fill('#patient-contact', '09171234567');
+    await qolPage.check('#patient-is-senior');
+    assert.equal(await qolPage.inputValue('#patient-first-name'), 'Juan');
+    assert.equal(await qolPage.inputValue('#patient-contact'), '09171234567');
+    console.log('  ✓ Direct form entry populated the medical intake');
 
     // Test Digit Limit and Clamping (11 digits for cellphone, 12 digits for PhilHealth)
     await qolPage.fill('#patient-contact', '0917123456789999');
@@ -1461,6 +1504,11 @@ async function runE2ETests() {
     const nextStep2 = await qolPage.$('button[type="submit"]:has-text("Susunod")');
     await nextStep2?.click();
     await qolPage.waitForTimeout(800);
+
+    await qolPage.getByRole('button', { name: /Public - DOH Retained \/ Specialty/ }).click();
+    await qolPage.fill('#hospital-name', 'Philippine General Hospital');
+    await qolPage.fill('#case-diagnosis', 'Pneumonia');
+    await qolPage.fill('#total-bill', '100000');
 
     // Check Admission Status toggle exists
     const runningBillBtn = await qolPage.$('button:has-text("Naka-confine pa")');

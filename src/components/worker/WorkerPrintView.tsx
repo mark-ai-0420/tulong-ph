@@ -43,22 +43,6 @@ export function WorkerPrintView({ profile, language = 'taglish', worksheet: fiel
     void loadOFWCaseTracker().then(record => { if (active) setOFWCase(record); }).catch(() => { if (active) setOFWCaseUnavailable(true); });
     return () => { active = false; };
   }, []);
-  const issuePresets = ['Hindi nabayarang sahod', 'Hindi nabayarang 13th Month Pay', 'Naantalang Final Pay at COE', 'Kulang sa Minimum Wage / OT / Holiday Pay', 'Tinanggal nang walang tamang proseso'];
-  const eventPresets = ['Naaksidente habang nasa trabaho', 'Naaksidente papasok o pauwi (Commuting)', 'Nagkasakit dahil sa trabaho', 'Maternity Leave at Salary Differential'];
-  const projectPresets = [
-    { project: 'Sari-Sari Store at Bigasan', amount: 25000, budget: 'Paninda at kagamitan: PHP 25,000' },
-    { project: 'Karinderya / Food Cart', amount: 25000, budget: 'Lutuan at ingredients: PHP 25,000' },
-    { project: 'Welding / Repair Shop', amount: 30000, budget: 'Equipment at tools: PHP 30,000' },
-    { project: 'Tahian / Laundry Shop', amount: 25000, budget: 'Makina at supplies: PHP 25,000' },
-  ];
-  function toggleText(key: 'worksheetUnpaidDetails' | 'worksheetEventDetails', text: string) {
-    const lines = fields[key].split('\n').filter(Boolean);
-    onWorksheetChange({
-      ...fields,
-      [key]: (lines.includes(text) ? lines.filter(line => line !== text) : [...lines, text]).join('\n'),
-    });
-  }
-  const chip = civicPill;
   const [error, setError] = useState('');
   const peso = (n: number) => `PHP ${n.toFixed(2)}`;
   const sections: { key: string; title: string; lines: string[]; checklistItems?: string[] }[] = [
@@ -197,16 +181,6 @@ export function WorkerPrintView({ profile, language = 'taglish', worksheet: fiel
     </label>
     <form autoComplete="off" onSubmit={e => e.preventDefault()} className={`${civicCard} grid sm:grid-cols-2 gap-4 print:hidden`}>
       {worksheetInputs.map(({ id, field, label }) => <div key={id} className={['unpaid', 'event', 'project'].includes(id) ? 'sm:col-span-2 min-w-0' : 'min-w-0'}><label htmlFor={`worker-print-${id}`} className={civicLabel}>{label}</label>
-        {(id === 'unpaid' || id === 'event') && <div className="flex flex-wrap gap-2 mb-2" aria-label={`${label} quick picks`}>
-          {(id === 'unpaid' ? issuePresets : eventPresets).map(text => <button key={text} type="button" aria-pressed={fields[field].split('\n').includes(text)}
-            className={`${chip} ${fields[field].split('\n').includes(text) ? 'border-blue-900 bg-blue-50 text-blue-900' : 'border-[#E2DFD6] bg-white'}`}
-            onClick={() => toggleText(id === 'unpaid' ? 'worksheetUnpaidDetails' : 'worksheetEventDetails', text)}>{text}</button>)}
-        </div>}
-        {id === 'project' && <div className="flex flex-wrap gap-2 mb-2" aria-label="Livelihood project presets">
-          {projectPresets.map(preset => <button key={preset.project} type="button" aria-pressed={fields.worksheetProjectTitle === preset.project && fields.worksheetProposedBudget === preset.budget}
-            className={`${chip} ${fields.worksheetProjectTitle === preset.project && fields.worksheetProposedBudget === preset.budget ? 'border-blue-900 bg-blue-50 text-blue-900' : 'border-[#E2DFD6] bg-white'}`}
-            onClick={() => onWorksheetChange({ ...fields, worksheetProjectTitle: preset.project, worksheetProposedBudget: preset.budget })}>{preset.project} (PHP {preset.amount.toLocaleString('en-PH')})</button>)}
-        </div>}
         <textarea id={`worker-print-${id}`} autoComplete="off" rows={2} maxLength={WORKER_WORKSHEET_LIMITS[field]} value={fields[field]} onChange={e => onWorksheetChange({ ...fields, [field]: e.target.value.slice(0, WORKER_WORKSHEET_LIMITS[field]) })} className={`${civicTextarea} tabular-nums`} />
       </div>)}
     </form>

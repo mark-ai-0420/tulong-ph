@@ -1,8 +1,8 @@
 'use client';
 
-import { civicInput, civicLabel, civicPill, civicSelectedPill } from './civicStyles';
+import { civicInput, civicLabel } from './civicStyles';
 import type { Language } from '@/lib/i18n';
-import { PH_LOCATIONS, QUICK_LOCATIONS, getProvince, getCities, getBarangays, normalizeBarangay, resolveLocationMetadata } from '@/lib/data/phLocations';
+import { PH_LOCATIONS, getCities, getBarangays, normalizeBarangay, resolveLocationMetadata } from '@/lib/data/phLocations';
 import type { LocationSelection } from '@/lib/data/phLocations';
 export type { LocationSelection } from '@/lib/data/phLocations';
 
@@ -12,9 +12,10 @@ interface Props {
   onChange: (value: LocationSelection, updateMetadata: boolean) => void;
   language?: Language;
   cityId?: string;
+  showWageReference?: boolean;
 }
 
-export function LocationHierarchyFields({ idPrefix, value, onChange, language = 'taglish', cityId }: Props) {
+export function LocationHierarchyFields({ idPrefix, value, onChange, language = 'taglish', cityId, showWageReference = false }: Props) {
   const province = value.province ?? '';
   const cityMunicipality = value.cityMunicipality ?? '';
   const barangay = value.barangay ?? '';
@@ -39,9 +40,8 @@ export function LocationHierarchyFields({ idPrefix, value, onChange, language = 
       <input id={field.id} name={field.name} type="text" autoComplete="off" list={`${field.id}-options`} aria-describedby={hintId} value={field.value} placeholder={field.placeholder} onChange={event => field.change(event.target.value)} className={civicInput} />
       <datalist id={`${field.id}-options`}>{field.options.map(option => <option key={option} value={option} />)}</datalist>
     </div>)}</div>
-    <div role="group" aria-label={tl ? 'Mabilis na pili ng lokasyon' : 'Location presets'} className="flex flex-wrap gap-2">{QUICK_LOCATIONS.map(preset => <button key={preset.label} type="button" onClick={() => emit(preset)} aria-pressed={getProvince(province)?.name === preset.province && cityMunicipality === preset.cityMunicipality && barangay === preset.barangay} className={getProvince(province)?.name === preset.province && cityMunicipality === preset.cityMunicipality && barangay === preset.barangay ? civicSelectedPill : civicPill}>{preset.label}</button>)}</div>
     <p id={hintId} className="text-xs leading-relaxed text-slate-600">{tl ? 'Piliin mula sa listahan o i-type ang tamang address. Kapag binago ang probinsya o lungsod, piliin muli ang mga kasunod.' : 'Choose from the list or type your address. After changing province or city, choose the remaining fields again.'}</p>
-    {wageInfo && <div className="min-w-0 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" aria-label="Official regional wage reference">
+    {showWageReference && wageInfo && <div className="min-w-0 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" aria-label="Official regional wage reference">
       <p className="font-bold">{wageInfo.minimumNonAgricultureDailyWage === null ? `NWPC: ${wageInfo.wageOrder}` : `NWPC Wage Order No. ${wageInfo.wageOrder}`}</p>
       {wageInfo.minimumNonAgricultureDailyWage !== null && <p className="mt-1">Non-agriculture daily rates: {wageRange}. Auto-filled value uses the lower regional rate.</p>}
       {wageInfo.effectiveDate && <p className="mt-1">Effective date: {wageInfo.effectiveDate}</p>}

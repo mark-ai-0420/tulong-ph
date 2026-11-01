@@ -1,7 +1,6 @@
 'use client';
 
 import { ArrowLeft, ArrowRight, Search, BriefcaseBusiness, CheckCircle2 } from 'lucide-react';
-import { SampleDataBanner } from '@/components/shared/SampleDataBanner';
 import { civicCard, civicLabel, civicInput, civicPrimary, civicSecondary, civicPill, civicSelectedPill } from '@/components/shared/civicStyles';
 
 import { useEffect, useRef, useState } from 'react';
@@ -13,13 +12,12 @@ import { CrossPillarBridgeCard } from '@/components/shared/CrossPillarBridgeCard
 import { OFWCaseTrackerCard } from '@/components/worker/OFWCaseTrackerCard';
 import type { Language } from '@/lib/i18n';
 import type { WorkerProfileInput, WorkerScenario } from '@/types/worker';
-import { calculateWorkerBenefitsAndLoans, defaultWorkerProfile } from '@/lib/workerBenefitsCalculator';
+import { calculateWorkerBenefitsAndLoans } from '@/lib/workerBenefitsCalculator';
 import { createDefaultOFWCaseRecord, type OFWCaseRecord } from '@/lib/ofwTracker';
 import { loadOFWCaseTracker, saveOFWCaseTracker, type WorkerWorksheetFields } from '@/lib/storage';
 
 const control = civicInput;
 const button = civicSecondary;
-const chip = civicPill;
 const peso = (n: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
 const estimateSalaryCredit = (value: number) => value > 0 ? Math.min(20_000, Math.max(5_000, Math.round(value / 500) * 500)) : 0;
 const manualOverrideStorageKeys = {
@@ -362,50 +360,11 @@ export function WorkerWizard({ profile, onChange, onPrint, worksheet, onWorkshee
     void saveOFWCaseTracker(record).catch(() => setOFWCaseStorageError(true));
   }
   function go(next: number) { if (next === step) return; setMoving(true); setBackward(next < step); setStep(next); }
-  function loadSample(scenario: WorkerScenario) {
-    const sample: LocatedWorkerProfile = {
-      ...defaultWorkerProfile, province: 'Metro Manila (NCR)', cityMunicipality: 'Quezon City', barangay: '', regionalDailyWage: 755, regionalDailyWageManual: false, age: profile.age, contingencyDate: profile.contingencyDate,
-      scenario, monthlySalary: 25000, averageMonthlySalaryCredit: 20000, highestSixMonthlySalaryCredit: 20000,
-      contributionMonths: 72, recentContributionMonths: 6, qualifyingBenefitContributions: 3,
-      pagibigContributionMonths: 72, pagibigRecentContribution: true, pagibigTAV: 28800,
-      employerRemittancesCurrent: true,
-    };
-    if (scenario === 'sickness') Object.assign(sample, { sicknessDays: 10, sickLeaveExhausted: true, isWorkRelated: true });
-    if (scenario === 'pension_savings') Object.assign(sample, { contributionMonths: 240, averageMonthlySalaryCredit: 20000, mp2MonthlyContribution: 500, mp2DividendRatePercent: 7, mp2PayoutType: 'compounded' });
-    if (scenario === 'wages') Object.assign(sample, { sector: 'displaced', regionalDailyWage: 755, regionalDailyWageManual: false, tupadDays: 10 });
-    clearManualOverrides();
-    setAverageSalaryCreditManual(false);
-    setHighestSixSalaryCreditManual(false);
-    setPagibigTAVManual(false);
-    onChange(sample);
-  }
-  function applyPreset(key: keyof WorkerProfileInput, value: number) {
-    if (key === 'contributionMonths') {
-      onChange({ ...profile, contributionMonths: value, pagibigContributionMonths: value,
-        ...(!pagibigTAVManual ? { pagibigTAV: value * 400 } : {}) });
-    } else update(key, value as never);
-  }
-  const presets: Partial<Record<keyof WorkerProfileInput, { value: number; label: string }[]>> = {
-    monthlySalary: [10000, 15000, 20000, 25000, 30000, 40000, 50000].map(value => ({ value, label: `₱${value.toLocaleString('en-PH')}` })),
-    contributionMonths: [
-      { value: 6, label: '6 buwan' }, { value: 12, label: '12 buwan (1 yr)' },
-      { value: 36, label: '36 buwan (3 yrs - 1-Mo Loan)' }, { value: 72, label: '72 buwan (6 yrs - 2-Mo Loan)' },
-      { value: 120, label: '120 buwan (10 yrs)' },
-    ],
-    pagibigTAV: [10000, 25000, 50000, 100000].map(value => ({ value, label: `₱${value.toLocaleString('en-PH')}` })),
-    sicknessDays: [4, 7, 10, 15, 30, 60].map(value => ({ value, label: `${value} ${english ? 'days' : 'araw'}` })),
-    tupadDays: [10, 15, 30].map(value => ({ value, label: `${value} ${english ? 'days' : 'araw'}` })),
-  };
   function numeric(key: keyof WorkerProfileInput, label: string, hint?: string, max?: number) {
     return <div key={key}>
       <label htmlFor={`worker-${key}`} className={civicLabel}>{labelText(label)}</label>
       <input id={`worker-${key}`} type="number" min="0" max={max} step="any" autoComplete="off"
         className={control} value={Number(profile[key])} onChange={e => update(key, Math.max(0, Number(e.target.value)) as never)} />
-      {presets[key] && <div className="flex flex-wrap gap-2 mt-2" aria-label={`${labelText(label)} presets`}>
-        {presets[key]?.map(preset => <button key={preset.value} type="button" aria-pressed={Number(profile[key]) === preset.value}
-          className={`${chip} ${Number(profile[key]) === preset.value ? 'bg-blue-50 border-blue-900 text-blue-900' : 'bg-white border-[#E2DFD6]'}`}
-          onClick={() => applyPreset(key, preset.value)}>{preset.label}</button>)}
-      </div>}
       {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
     </div>;
   }
@@ -470,15 +429,6 @@ export function WorkerWizard({ profile, onChange, onPrint, worksheet, onWorkshee
       <h2 ref={heading} className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 focus:outline-none" tabIndex={-1}><BriefcaseBusiness aria-hidden="true" className="mr-2 inline h-5 w-5 text-blue-900" />{english ? 'Step' : 'Hakbang'} <span className="tabular-nums">{step}</span>: {english ? ['Sector and contributions', 'Current needs', 'Calculation and guide'][step - 1] : step === 1 ? 'Sektor at kontribusyon' : step === 2 ? 'Pangangailangan ngayon' : 'Kompyutasyon at gabay'}</h2>
       <p className="mt-1 text-sm text-slate-600 leading-relaxed">{step === 1 ? (english ? 'What is your sector and what is in your contribution records?' : 'Anong sektor mo at ano ang nasa contribution records?') : step === 2 ? (english ? 'What support do you need and what records do you have?' : 'Anong tulong ang kailangan at anong records ang mayroon ka?') : (english ? 'Review the estimate and prepare your records for the claim.' : 'Suriin ang tantiya at ihanda ang records para sa claim.')}</p>
     </div>
-    <SampleDataBanner language={language}>
-      <div className="flex flex-wrap gap-2">
-        {([
-          ['maternity', 'Sample: Maternity + Differential'], ['sickness', 'Sample: Sakit + ECC Work Claim'],
-          ['loans', 'Sample: SSS at Pag-IBIG Loan'], ['wages', 'Sample: Unpaid Sahod / SEnA'], ['pension_savings', pensionText.title],
-        ] as const).map(([scenario, label]) => <button key={scenario} type="button" className={`${chip} bg-white border-[#E2DFD6]`} onClick={() => loadSample(scenario)}>{label}</button>)}
-      </div>
-      <p className="text-xs text-slate-600">{english ? "Employees' Compensation (EC) covers qualifying work-related injury or illness. DOLE Single Entry Approach (SEnA) is an early conciliation process for labor concerns." : "Ang Employees' Compensation (EC) ay para sa kwalipikadong sakit o pinsalang dulot ng trabaho. Ang Single Entry Approach (SEnA) ng DOLE ay maagang pag-uusap para sa alitan sa trabaho."}</p>
-    </SampleDataBanner>
   </div>;
   return <section aria-label="Worker benefits simulator" className="space-y-6">
     <WizardStepper currentStep={step} onStepChange={go} steps={[
@@ -514,7 +464,7 @@ export function WorkerWizard({ profile, onChange, onPrint, worksheet, onWorkshee
             {profile.scenario !== 'pension_savings' && !['wages', 'livelihood'].includes(profile.scenario) && numeric('contributionMonths', government ? local('Ilang buwan ang hulog sa GSIS?', 'Months contributed to GSIS', 'Pila ka bulan ang hulog sa GSIS?', 'Mano a bulan dagiti kontribusion iti GSIS?') : local('Ilang buwan ang hulog sa SSS?', 'Months contributed to SSS', 'Pila ka bulan ang hulog sa SSS?', 'Mano a bulan dagiti kontribusion iti SSS?'))}
             {profile.scenario === 'loans' && numeric('pagibigContributionMonths', local('Ilang buwan ang hulog sa Pag-IBIG?', 'Months contributed to Pag-IBIG', 'Pila ka bulan ang hulog sa Pag-IBIG?', 'Mano a bulan dagiti kontribusion iti Pag-IBIG?'), local('Kailangan ng hindi bababa sa 24 buwan para sa ilang Pag-IBIG cash loan.', 'Some Pag-IBIG cash loans require at least 24 monthly contributions.', 'Kinahanglan ang labing menos 24 ka bulan para sa pipila ka Pag-IBIG cash loan.', 'Kasapulan ti saan a nababbaba ngem 24 a bulan para iti sumagmamano a Pag-IBIG cash loan.'))}
           </div>
-          {profile.scenario !== 'pension_savings' && <LocationHierarchyFields idPrefix="worker" value={profile} language={language} onChange={(location, updateMetadata) => onChange({ ...profile, province: location.province, cityMunicipality: location.cityMunicipality, barangay: location.barangay, ...(updateMetadata ? { regionalDailyWage: profile.regionalDailyWageManual ? profile.regionalDailyWage : location.regionalDailyWage } : {}) } as LocatedWorkerProfile)} />}
+          {profile.scenario !== 'pension_savings' && <LocationHierarchyFields idPrefix="worker" value={profile} language={language} showWageReference={true} onChange={(location, updateMetadata) => onChange({ ...profile, province: location.province, cityMunicipality: location.cityMunicipality, barangay: location.barangay, ...(updateMetadata ? { regionalDailyWage: profile.regionalDailyWageManual ? profile.regionalDailyWage : location.regionalDailyWage } : {}) } as LocatedWorkerProfile)} />}
           {profile.scenario !== 'pension_savings' && <label htmlFor="worker-disability-context" className={`flex min-h-[44px] items-center gap-3 rounded-xl border p-3 text-sm ${profile.hasDisabilityOrDependent ? 'border-blue-600 bg-blue-50/50 text-blue-900' : 'border-[#E2DFD6] bg-white text-slate-800'}`}>
             <input id="worker-disability-context" type="checkbox" autoComplete="off" checked={Boolean(profile.hasDisabilityOrDependent)}
               onChange={event => onChange({ ...profile, hasDisabilityOrDependent: event.target.checked })}
