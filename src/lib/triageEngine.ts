@@ -1,3 +1,4 @@
+import { buildOwwaMedPlusStep, buildPcsoMapStep, buildPaceStep, buildSenateAssistStep, buildDswdAicsStep } from './triageStepBuilders.ts';
 import type {
   PatientProfile,
   MedicalCase,
@@ -323,24 +324,11 @@ function buildPublicDOHTriage(patient: PatientProfile, medicalCase: MedicalCase)
   // Optional: OWWA MedPlus if OFW
   if (patient.isOFWOrDependent) {
     docSet.add('proof_of_relationship');
-    steps.push({
-      stepNumber: steps.length + 1,
-      agencyId: 'owwa_welfare',
-      agencyName: 'OWWA MedPlus Program',
-      actionTitleEn: 'Claim OWWA MedPlus Grant (Up to ₱50,000)',
-      actionTitleTl: 'Kunin ang OWWA MedPlus Grant (Hanggang ₱50,000)',
-      explanationEn:
-        'Registered active/inactive OFWs and immediate dependents qualify for financial grants matching the PhilHealth medical coverage.',
-      explanationTl:
-        'Ang mga aktibo o dating OFW at kanilang pamilya ay may karapatan sa supplemental cash grant na tutapat sa bawas ng PhilHealth.',
+    steps.push(buildOwwaMedPlusStep(steps.length + 1, {
+      explanationEn: 'Registered active/inactive OFWs and immediate dependents qualify for financial grants matching the PhilHealth medical coverage.',
+      explanationTl: 'Ang mga aktibo o dating OFW at kanilang pamilya ay may karapatan sa supplemental cash grant na tutapat sa bawas ng PhilHealth.',
       targetExpense: 'Supplemental Medical Balance',
-      estimatedTime: '3 to 5 Days',
-      priorityScore: 95,
-      requiredDocuments: ['clinical_abstract', 'statement_of_account', 'patient_valid_id', 'proof_of_relationship'],
-      pathwayScope: 'all',
-      badgeTagEn: 'OFW Supplemental Aid',
-      badgeTagTl: 'Tulong para sa OFW',
-    });
+    }));
   }
 
   // STEP 2: In-Hospital Malasakit Center Desk (DOH MAIP)
@@ -366,115 +354,65 @@ function buildPublicDOHTriage(patient: PatientProfile, medicalCase: MedicalCase)
   });
 
   // STEP 3: PCSO Medical Access Program (MAP)
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'pcso_map',
+  steps.push(buildPcsoMapStep(steps.length + 1, {
     agencyName: 'PCSO Medical Access Program (MAP / Online)',
     actionTitleEn: 'Obtain PCSO Guarantee Letter for Specialty Medicines & Procedures',
     actionTitleTl: 'Kumuha ng PCSO Guarantee Letter para sa Gamutan at Operasyon',
-    explanationEn:
-      'Apply via the PCSO E-Services portal starting at 7:00 AM on weekdays. Ensure all uploaded attachments are strictly single PDF files under 2MB each.',
-    explanationTl:
-      'Mag-apply sa PCSO E-Services simula 7:00 AM ng umaga tuwing weekdays. Tiyaking ang bawat ia-upload na PDF ay hindi lalampas sa 2MB.',
+    explanationEn: 'Apply via the PCSO E-Services portal starting at 7:00 AM on weekdays. Ensure all uploaded attachments are strictly single PDF files under 2MB each.',
+    explanationTl: 'Mag-apply sa PCSO E-Services simula 7:00 AM ng umaga tuwing weekdays. Tiyaking ang bawat ia-upload na PDF ay hindi lalampas sa 2MB.',
     targetExpense: 'Hospital confinement deficit, chemotherapy drugs, dialysis, or surgical implants',
-    estimatedTime: '1 to 2 Business Days',
     priorityScore: 82,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'patient_valid_id',
-      'authorization_letter',
-      'proof_of_relationship',
-    ],
     pathwayScope: 'all',
-    badgeTagEn: 'National GL',
-    badgeTagTl: 'Pambansang GL',
     warningNoteEn: 'Upload limits are strictly 2MB per PDF. If portal slots are full, coordinate through the in-hospital Malasakit PCSO desk.',
     warningNoteTl: 'Mahigpit ang 2MB limit. Kung puno na ang online slot, makipag-ugnayan sa PCSO desk ng Malasakit Center.',
-  });
+  }));
 
   // STEP 4: PACe Malacañang for bills >= ₱50k or ICU
   const isHighBill = checkIsHighDeficit(medicalCase);
   if (isHighBill) {
     docSet.add('social_case_study');
-    steps.push({
-      stepNumber: steps.length + 1,
-      agencyId: 'pace_op',
-      agencyName: 'Presidential Action Center (PACe) - Malacañang',
+    steps.push(buildPaceStep(steps.length + 1, {
       actionTitleEn: 'Apply for High-Deficit Guarantee Letter via PACe (Office of the President)',
       actionTitleTl: 'Mag-file sa Presidential Action Center (PACe - Malacañang) para sa Malaking Bill',
-      explanationEn:
-        'PACe is the highest executive lifeline for bills exceeding ₱50,000, intensive care (ICU), and major surgical operations. Submit a formal request letter addressed to the President with your Social Case Study to pace@op.gov.ph or Malacañang Complex.',
-      explanationTl:
-        'Pangunahing sandigan para sa hospital bill na ₱50k pataas, ICU confinement, o major surgery. Mag-email ng liham-kahilingan sa Pangulo at Social Case Study sa pace@op.gov.ph o dalhin sa Malacañang Complex.',
+      explanationEn: 'PACe is the highest executive lifeline for bills exceeding ₱50,000, intensive care (ICU), and major surgical operations. Submit a formal request letter addressed to the President with your Social Case Study to pace@op.gov.ph or Malacañang Complex.',
+      explanationTl: 'Pangunahing sandigan para sa hospital bill na ₱50k pataas, ICU confinement, o major surgery. Mag-email ng liham-kahilingan sa Pangulo at Social Case Study sa pace@op.gov.ph o dalhin sa Malacañang Complex.',
       targetExpense: 'Catastrophic surgical deficit, ICU charges, organ transplants, or high medical balances',
-      estimatedTime: '3 to 7 Business Days',
       priorityScore: 80,
-      requiredDocuments: [
-        'clinical_abstract',
-        'statement_of_account',
-        'barangay_indigency',
-        'social_case_study',
-        'patient_valid_id',
-        'authorization_letter',
-      ],
       pathwayScope: 'all',
       badgeTagEn: 'Executive High-Bill Lifeline',
       badgeTagTl: 'Tulong ng Pangulo sa Malaking Bill',
       warningNoteEn: 'Requires a Social Case Study Report (SCSR) explicitly indicating indigent or financially incapacitated status.',
       warningNoteTl: 'Kailangan ng Social Case Study Report mula sa CSWDO/MSWDO na nagpapatunay ng kakapusan sa pambayad.',
-    });
+    }));
   }
 
   // STEP 5: Senate Assist GL
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'senate_assist',
-    agencyName: 'Senate Public Assistance Office (Senate Assist)',
+  steps.push(buildSenateAssistStep(steps.length + 1, {
     actionTitleEn: 'File for Hospital Guarantee Letter (GL) via assist.senate.gov.ph',
     actionTitleTl: 'Mag-apply ng Hospital Guarantee Letter sa assist.senate.gov.ph',
-    explanationEn:
-      'Upload remaining hospital billing and clinical abstract to receive an institutional Guarantee Letter. Note: Senate GL covers hospital billing directly and has a 90-day reapplication cooldown.',
-    explanationTl:
-      'I-upload ang natitirang billing at abstract para sa electronic Guarantee Letter (GL). Paalala: Ang Senate GL ay direktang ibinabawas sa hospital bill at may 90-araw na cooldown.',
+    explanationEn: 'Upload remaining hospital billing and clinical abstract to receive an institutional Guarantee Letter. Note: Senate GL covers hospital billing directly and has a 90-day reapplication cooldown.',
+    explanationTl: 'I-upload ang natitirang billing at abstract para sa electronic Guarantee Letter (GL). Paalala: Ang Senate GL ay direktang ibinabawas sa hospital bill at may 90-araw na cooldown.',
     targetExpense: 'Hospital bill deficit or specialty medical procedures (Guarantee Letter only)',
-    estimatedTime: '2 to 3 Business Days',
     priorityScore: 75,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'barangay_indigency',
-      'patient_valid_id',
-      'authorization_letter',
-    ],
     pathwayScope: 'all',
     badgeTagEn: 'Online Senate GL',
     badgeTagTl: 'Online GL sa Senado',
     warningNoteEn: 'Strict 90-day reapplication cooldown from the date of the previous Senate Guarantee Letter.',
     warningNoteTl: 'Mahigpit ang 90-day cooldown bago makapag-apply muli sa Senado.',
-  });
+  }));
 
   // STEP 6: DSWD AICS Direct Cash
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'dswd_aics',
-    agencyName: 'DSWD AICS Direct Cash Assistance',
+  steps.push(buildDswdAicsStep(steps.length + 1, {
     actionTitleEn: 'Claim Direct Cash Aid for Outside Pharmacies & Transportation',
     actionTitleTl: 'Humingi ng Cash Aid para sa Gamot sa Labas at Pamasahe',
-    explanationEn:
-      'The premier government channel for outright cash grants (₱1,000–₱10,000). Best used for prescription medicines bought from outside pharmacies when out of stock in-house, outside laboratory/CT scans, or travel fare.',
-    explanationTl:
-      'Pangunahing pinagkukunan ng direct cash aid (₱1,000–₱10,000). Gamitin ito para sa mga gamot na binili sa labas (Mercury/generic), outside laboratory/CT scans, o pamasahe pauwi ng probinsya.',
+    explanationEn: 'The premier government channel for outright cash grants (₱1,000–₱10,000). Best used for prescription medicines bought from outside pharmacies when out of stock in-house, outside laboratory/CT scans, or travel fare.',
+    explanationTl: 'Pangunahing pinagkukunan ng direct cash aid (₱1,000–₱10,000). Gamitin ito para sa mga gamot na binili sa labas (Mercury/generic), outside laboratory/CT scans, o pamasahe pauwi ng probinsya.',
     targetExpense: 'Out-of-pocket external pharmacy medicines, outside CT/MRI scans, transport fare, or caregiver food',
-    estimatedTime: '1 to 3 Business Days',
     priorityScore: 70,
-    requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id'],
     pathwayScope: 'all',
-    badgeTagEn: 'Direct Cash Grant',
-    badgeTagTl: 'Direktang Ayudang Cash',
     warningNoteEn: 'Anti-Duplication Note: If your Senate GL is endorsed to DSWD for hospital bills, do not file a duplicate claim for the same bill. Reserve DSWD for outside medicine receipts and transport.',
     warningNoteTl: 'Paalala: Kung ang Senate GL ay naka-endorso na sa DSWD para sa hospital bill, huwag mag-file ng hiwalay para sa parehong billing. Gamitin ang DSWD sa reseta sa labas at pamasahe.',
-  });
+  }));
 
   criticalWarningsEn.push(
     'Anti-Duplication Note: If your Senate Assist Guarantee Letter is endorsed to DSWD for your hospital bill, do not file a separate DSWD claim for the same hospital statement. Reserve DSWD AICS for outside pharmacy receipts and travel fare.'
@@ -533,24 +471,11 @@ function buildPublicLGUTriage(patient: PatientProfile, _medicalCase: MedicalCase
   // Optional: OWWA MedPlus if OFW
   if (patient.isOFWOrDependent) {
     docSet.add('proof_of_relationship');
-    steps.push({
-      stepNumber: steps.length + 1,
-      agencyId: 'owwa_welfare',
-      agencyName: 'OWWA MedPlus Program',
-      actionTitleEn: 'Claim OWWA MedPlus Grant (Up to ₱50,000)',
-      actionTitleTl: 'Kunin ang OWWA MedPlus Grant (Hanggang ₱50,000)',
-      explanationEn:
-        'Registered active/inactive OFWs and immediate dependents qualify for financial grants matching the PhilHealth medical coverage.',
-      explanationTl:
-        'Ang mga aktibo o dating OFW at kanilang pamilya ay may karapatan sa supplemental cash grant na tutapat sa bawas ng PhilHealth.',
+    steps.push(buildOwwaMedPlusStep(steps.length + 1, {
+      explanationEn: 'Registered active/inactive OFWs and immediate dependents qualify for financial grants matching the PhilHealth medical coverage.',
+      explanationTl: 'Ang mga aktibo o dating OFW at kanilang pamilya ay may karapatan sa supplemental cash grant na tutapat sa bawas ng PhilHealth.',
       targetExpense: 'Supplemental Medical Balance',
-      estimatedTime: '3 to 5 Days',
-      priorityScore: 95,
-      requiredDocuments: ['clinical_abstract', 'statement_of_account', 'patient_valid_id', 'proof_of_relationship'],
-      pathwayScope: 'all',
-      badgeTagEn: 'OFW Supplemental Aid',
-      badgeTagTl: 'Tulong para sa OFW',
-    });
+    }));
   }
 
   // STEP 2: Malasakit Center or City/Municipal Social Welfare (CSWDO/MSWDO)
@@ -602,76 +527,40 @@ function buildPublicLGUTriage(patient: PatientProfile, _medicalCase: MedicalCase
   });
 
   // STEP 4: PCSO MAP
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'pcso_map',
+  steps.push(buildPcsoMapStep(steps.length + 1, {
     agencyName: 'PCSO Medical Access Program (MAP)',
     actionTitleEn: 'Secure PCSO Online Queue Slot or Branch Guarantee Letter',
     actionTitleTl: 'Kumuha ng PCSO Online Queue Slot o GL sa Branch',
-    explanationEn:
-      'File an online application at 7:00 AM on weekdays via PCSO E-Services, or visit the nearest PCSO Provincial Branch Office if online slots fill up quickly in your region.',
-    explanationTl:
-      'Mag-apply online ng 7:00 AM tuwing weekdays sa PCSO E-Services, o pumunta sa pinakamalapit na sangay ng PCSO sa probinsya kung maubusan ng online slots.',
+    explanationEn: 'File an online application at 7:00 AM on weekdays via PCSO E-Services, or visit the nearest PCSO Provincial Branch Office if online slots fill up quickly in your region.',
+    explanationTl: 'Mag-apply online ng 7:00 AM tuwing weekdays sa PCSO E-Services, o pumunta sa pinakamalapit na sangay ng PCSO sa probinsya kung maubusan ng online slots.',
     targetExpense: 'Remaining hospital balance, specialty diagnostic tests, or dialysis/chemo supplies',
-    estimatedTime: '1 to 2 Business Days',
     priorityScore: 80,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'patient_valid_id',
-      'authorization_letter',
-      'proof_of_relationship',
-    ],
     pathwayScope: 'all',
-    badgeTagEn: 'National GL',
-    badgeTagTl: 'Pambansang GL',
-  });
+  }));
 
   // STEP 5: Senate Assist GL
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'senate_assist',
-    agencyName: 'Senate Public Assistance Office (Senate Assist)',
+  steps.push(buildSenateAssistStep(steps.length + 1, {
     actionTitleEn: 'File for Hospital Guarantee Letter via assist.senate.gov.ph',
     actionTitleTl: 'Mag-apply ng Hospital Guarantee Letter sa assist.senate.gov.ph',
-    explanationEn:
-      'Submit the running hospital bill to the Senate Assist portal for an additional digital Guarantee Letter credited to your LGU hospital account.',
-    explanationTl:
-      'Isumite ang running bill sa Senate Assist portal para sa karagdagang Guarantee Letter na ibabawas sa bill ng inyong LGU ospital.',
+    explanationEn: 'Submit the running hospital bill to the Senate Assist portal for an additional digital Guarantee Letter credited to your LGU hospital account.',
+    explanationTl: 'Isumite ang running bill sa Senate Assist portal para sa karagdagang Guarantee Letter na ibabawas sa bill ng inyong LGU ospital.',
     targetExpense: 'Hospital bill balance deficit',
-    estimatedTime: '2 to 3 Business Days',
     priorityScore: 75,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'barangay_indigency',
-      'patient_valid_id',
-      'authorization_letter',
-    ],
     pathwayScope: 'all',
     badgeTagEn: 'National Senate GL',
     badgeTagTl: 'Pambansang Senate GL',
-  });
+  }));
 
   // STEP 6: DSWD AICS Direct Cash
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'dswd_aics',
-    agencyName: 'DSWD AICS Direct Cash Assistance',
+  steps.push(buildDswdAicsStep(steps.length + 1, {
     actionTitleEn: 'Claim Direct Cash Aid for Outside Medicines & Transport',
     actionTitleTl: 'Kumuha ng Direct Cash Aid para sa Gamot sa Labas at Pamasahe',
-    explanationEn:
-      'Essential for purchasing prescribed medications and medical disposables that the LGU hospital pharmacy does not have in stock, as well as patient and watcher travel expenses.',
-    explanationTl:
-      'Mahalaga para sa pambili ng mga gamot at medical supplies na wala sa botika ng LGU ospital, pati na rin sa pamasahe ng pasyente at bantay.',
+    explanationEn: 'Essential for purchasing prescribed medications and medical disposables that the LGU hospital pharmacy does not have in stock, as well as patient and watcher travel expenses.',
+    explanationTl: 'Mahalaga para sa pambili ng mga gamot at medical supplies na wala sa botika ng LGU ospital, pati na rin sa pamasahe ng pasyente at bantay.',
     targetExpense: 'External pharmacy medicines, out-of-stock medical disposables, and transportation',
-    estimatedTime: '1 to 3 Business Days',
     priorityScore: 70,
-    requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id'],
     pathwayScope: 'all',
-    badgeTagEn: 'Direct Cash Grant',
-    badgeTagTl: 'Direktang Ayudang Cash',
-  });
+  }));
 
   criticalWarningsEn.push(
     'LGU hospitals may have fluctuating medicine supplies. Always request stamped outside prescriptions to claim cash assistance from DSWD AICS and your Mayor\'s Office.'
@@ -752,24 +641,11 @@ function buildPrivateGLStackingTriage(patient: PatientProfile, medicalCase: Medi
   // Optional: OWWA MedPlus if OFW
   if (patient.isOFWOrDependent) {
     docSet.add('proof_of_relationship');
-    steps.push({
-      stepNumber: steps.length + 1,
-      agencyId: 'owwa_welfare',
-      agencyName: 'OWWA MedPlus Program',
-      actionTitleEn: 'Claim OWWA MedPlus Grant (Up to ₱50,000)',
-      actionTitleTl: 'Kunin ang OWWA MedPlus Grant (Hanggang ₱50,000)',
-      explanationEn:
-        'Active and inactive OFWs and recognized dependents can claim cash reimbursements up to ₱50,000 matching their PhilHealth hospital coverage.',
-      explanationTl:
-        'Ang mga miyembro ng OWWA at kanilang dependents ay may karapatan sa hanggang ₱50,000 na cash grant na tumutugma sa ibinawas ng PhilHealth.',
+    steps.push(buildOwwaMedPlusStep(steps.length + 1, {
+      explanationEn: 'Active and inactive OFWs and recognized dependents can claim cash reimbursements up to ₱50,000 matching their PhilHealth hospital coverage.',
+      explanationTl: 'Ang mga miyembro ng OWWA at kanilang dependents ay may karapatan sa hanggang ₱50,000 na cash grant na tumutugma sa ibinawas ng PhilHealth.',
       targetExpense: 'Private hospital bill balance',
-      estimatedTime: '3 to 5 Days',
-      priorityScore: 95,
-      requiredDocuments: ['clinical_abstract', 'statement_of_account', 'patient_valid_id', 'proof_of_relationship'],
-      pathwayScope: 'all',
-      badgeTagEn: 'OFW Supplemental Aid',
-      badgeTagTl: 'Tulong para sa OFW',
-    });
+    }));
   }
 
   // STEP 3: Credit & Collection Preliminary SOA & Medical Abstract coordination
@@ -795,115 +671,65 @@ function buildPrivateGLStackingTriage(patient: PatientProfile, medicalCase: Medi
   });
 
   // STEP 4: PCSO MAP Guarantee Letter (verify hospital MOA)
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'pcso_map',
+  steps.push(buildPcsoMapStep(steps.length + 1, {
     agencyName: 'PCSO Medical Access Program (Accredited Partner Facility)',
     actionTitleEn: 'Secure PCSO Online Guarantee Letter for Private Confinement / Chemo / Dialysis',
     actionTitleTl: 'Mag-file ng PCSO Guarantee Letter para sa Accredited Private Hospital',
-    explanationEn:
-      'Apply at 7:00 AM on weekdays via PCSO E-Services. Verify that your private hospital is included in the PCSO partner facility dropdown. PCSO issues Guarantee Letters creditable against the hospital bill.',
-    explanationTl:
-      'Mag-apply ng 7:00 AM tuwing weekdays sa PCSO E-Services portal. Tiyaking kasama ang inyong pribadong ospital sa dropdown ng accredited facilities. Ang GL ay direktang ibabawas sa bill.',
+    explanationEn: 'Apply at 7:00 AM on weekdays via PCSO E-Services. Verify that your private hospital is included in the PCSO partner facility dropdown. PCSO issues Guarantee Letters creditable against the hospital bill.',
+    explanationTl: 'Mag-apply ng 7:00 AM tuwing weekdays sa PCSO E-Services portal. Tiyaking kasama ang inyong pribadong ospital sa dropdown ng accredited facilities. Ang GL ay direktang ibabawas sa bill.',
     targetExpense: 'Private hospital room balance, surgical procedures, chemotherapy, or dialysis',
-    estimatedTime: '1 to 2 Business Days',
     priorityScore: 85,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'patient_valid_id',
-      'authorization_letter',
-      'proof_of_relationship',
-    ],
     pathwayScope: 'private_gl',
-    badgeTagEn: 'National GL',
-    badgeTagTl: 'Pambansang GL',
     warningNoteEn: 'Ensure all uploaded files are strictly single PDFs under 2MB. GL amounts are determined by the PCSO charity evaluation scale.',
     warningNoteTl: 'Dapat ay PDF under 2MB bawat file. Ang halaga ng GL ay batay sa pagsusuri ng PCSO social worker.',
-  });
+  }));
 
   // STEP 5: PACe Malacañang Guarantee Letter (for bills >= ₱50k, ICU, transplants)
   const isHighBill = checkIsHighDeficit(medicalCase);
   if (isHighBill) {
     docSet.add('social_case_study');
-    steps.push({
-      stepNumber: steps.length + 1,
-      agencyId: 'pace_op',
-      agencyName: 'Presidential Action Center (PACe) - Malacañang',
+    steps.push(buildPaceStep(steps.length + 1, {
       actionTitleEn: 'Apply for High-Value Private Deficit Guarantee Letter via PACe',
       actionTitleTl: 'Mag-apply ng High-Value Guarantee Letter sa PACe (Office of the President)',
-      explanationEn:
-        'PACe can issue high-value Guarantee Letters (₱50,000 to ₱1,000,000+) to private hospitals that maintain an accreditation arrangement with the national government for catastrophic ICU care, organ transplants, and major surgeries. Send a formal letter addressed to the President with your Social Case Study to pace@op.gov.ph.',
-      explanationTl:
-        'Ang Malacañang PACe ay nagkakaloob ng malalaking Guarantee Letter (₱50k pataas) sa mga accredited na pribadong ospital para sa ICU confinement, organ transplant, at malalaking operasyon. I-email ang liham sa Pangulo at Social Case Study sa pace@op.gov.ph.',
+      explanationEn: 'PACe can issue high-value Guarantee Letters (₱50,000 to ₱1,000,000+) to private hospitals that maintain an accreditation arrangement with the national government for catastrophic ICU care, organ transplants, and major surgeries. Send a formal letter addressed to the President with your Social Case Study to pace@op.gov.ph.',
+      explanationTl: 'Ang Malacañang PACe ay nagkakaloob ng malalaking Guarantee Letter (₱50k pataas) sa mga accredited na pribadong ospital para sa ICU confinement, organ transplant, at malalaking operasyon. I-email ang liham sa Pangulo at Social Case Study sa pace@op.gov.ph.',
       targetExpense: 'Catastrophic private ICU deficits, open-heart surgeries, or six-figure hospital balances',
-      estimatedTime: '3 to 7 Business Days',
       priorityScore: 82,
-      requiredDocuments: [
-        'clinical_abstract',
-        'statement_of_account',
-        'barangay_indigency',
-        'social_case_study',
-        'patient_valid_id',
-        'authorization_letter',
-      ],
       pathwayScope: 'private_gl',
       badgeTagEn: 'High-Deficit GL',
       badgeTagTl: 'GL para sa Malaking Bill',
       warningNoteEn: 'Ensure the Social Case Study explicitly states that private hospitalization was necessitated by an acute emergency or referral.',
       warningNoteTl: 'Tiyaking nakasaad sa Social Case Study na emergency o walang available na public ICU kaya na-confine sa pribado.',
-    });
+    }));
   }
 
   // STEP 6: Senate Assist Hospital Guarantee Letter
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'senate_assist',
-    agencyName: 'Senate Public Assistance Office (Senate Assist)',
+  steps.push(buildSenateAssistStep(steps.length + 1, {
     actionTitleEn: 'Submit Online Guarantee Letter Application via assist.senate.gov.ph',
     actionTitleTl: 'Isumite ang Online Guarantee Letter sa assist.senate.gov.ph',
-    explanationEn:
-      'Senate Assist issues electronic Guarantee Letters strictly to partner private hospitals that have a signed Memorandum of Agreement (MOA). Verify that your private hospital appears in the official portal directory before submitting.',
-    explanationTl:
-      'Nagbibigay ang Senado ng electronic Guarantee Letter sa mga pribadong ospital na may pinirmahang MOA. Tiyaking nakalista ang inyong ospital sa portal bago magsumite.',
+    explanationEn: 'Senate Assist issues electronic Guarantee Letters strictly to partner private hospitals that have a signed Memorandum of Agreement (MOA). Verify that your private hospital appears in the official portal directory before submitting.',
+    explanationTl: 'Nagbibigay ang Senado ng electronic Guarantee Letter sa mga pribadong ospital na may pinirmahang MOA. Tiyaking nakalista ang inyong ospital sa portal bago magsumite.',
     targetExpense: 'Remaining private hospital room deficit or inpatient medicines',
-    estimatedTime: '2 to 3 Business Days',
     priorityScore: 78,
-    requiredDocuments: [
-      'clinical_abstract',
-      'statement_of_account',
-      'barangay_indigency',
-      'patient_valid_id',
-      'authorization_letter',
-    ],
     pathwayScope: 'private_gl',
     badgeTagEn: 'Senate Partner GL',
     badgeTagTl: 'GL sa Partner Hospital',
     warningNoteEn: 'Strict 90-day cooldown period applies between Senate Assist grants per patient.',
     warningNoteTl: 'May 90-day cooldown bago makapag-apply muli ng Senate GL.',
-  });
+  }));
 
   // STEP 7: DSWD AICS Direct Cash (essential for buying outside pharmacy medicines to avoid private hospital markups)
-  steps.push({
-    stepNumber: steps.length + 1,
-    agencyId: 'dswd_aics',
-    agencyName: 'DSWD AICS Direct Cash Assistance',
+  steps.push(buildDswdAicsStep(steps.length + 1, {
     actionTitleEn: 'Claim Direct Cash Aid to Purchase Outside Pharmacy Medicines',
     actionTitleTl: 'Kumuha ng Direct Cash Aid para sa Gamot sa Labas (Iwas-Markup)',
-    explanationEn:
-      'Private in-hospital pharmacies frequently mark up medicine and IV prices by 100% to 300%. Request outside doctor prescriptions and use DSWD AICS cash grants to purchase medicines at retail or generic pharmacies outside the hospital.',
-    explanationTl:
-      'Napakataas ng patong sa gamot sa loob ng pribadong botika (100%–300% markup). Humingi ng reseta sa labas at gamitin ang DSWD AICS cash para bumili sa generic o tingiang botika sa labas.',
+    explanationEn: 'Private in-hospital pharmacies frequently mark up medicine and IV prices by 100% to 300%. Request outside doctor prescriptions and use DSWD AICS cash grants to purchase medicines at retail or generic pharmacies outside the hospital.',
+    explanationTl: 'Napakataas ng patong sa gamot sa loob ng pribadong botika (100%–300% markup). Humingi ng reseta sa labas at gamitin ang DSWD AICS cash para bumili sa generic o tingiang botika sa labas.',
     targetExpense: 'External pharmacy medicines, maintenance medications, and diagnostic imaging procedures',
-    estimatedTime: '1 to 3 Business Days',
     priorityScore: 72,
-    requiredDocuments: ['clinical_abstract', 'barangay_indigency', 'patient_valid_id'],
     pathwayScope: 'private_gl',
-    badgeTagEn: 'Direct Cash Grant',
-    badgeTagTl: 'Direktang Ayudang Cash',
     warningNoteEn: 'Bring doctor prescriptions explicitly authorizing external pharmacy procurement along with your Barangay Indigency.',
     warningNoteTl: 'Magdala ng reseta ng doktor na pinapayagang bilhin sa labas kasama ang Barangay Indigency.',
-  });
+  }));
 
   // STEP 8: RA 9439 (Anti-Hospital Detention Act) Promissory Note literacy if residual balance remains
   steps.push({

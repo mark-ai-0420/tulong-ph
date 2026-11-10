@@ -37,6 +37,12 @@ export function ServiceWorkerRegistration() {
     void navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(() => {
       // Offline caching is an enhancement; the app remains usable without a registered worker.
     });
+    const warmUp = () => { void import("jspdf").catch(() => {}); };
+    if (navigator.serviceWorker.controller) {
+      warmUp();
+    } else {
+      navigator.serviceWorker.addEventListener("controllerchange", warmUp, { once: true });
+    }
   }, []);
 
   useEffect(() => {

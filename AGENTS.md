@@ -51,7 +51,7 @@ Lower levels can add project detail but cannot override higher levels. If two ap
 
 - Purpose: Free, offline-ready civic web application guiding Filipino families through Philippine government medical and crisis assistance (Malasakit Centers, PCSO MAP, DSWD AICS, Senate/DOLE).
 - Primary users: Distressed Filipino families, caregivers in hospital corridors, medical social workers (MSWD), and public computer shop (pisonet) users.
-- Main entry points: `src/app/page.tsx` (Medical Triage), `src/app/forms/page.tsx` (Printable Forms & PDF Packet), `src/app/directory/page.tsx` (Hospital & Malasakit Directory), `src/app/edukasyon/page.tsx` (Education Aid Wizard), `src/app/manggagawa/page.tsx` (Worker Aid Wizard).
+- Main entry points: `src/app/page.tsx` (Medical Triage, with Printable Forms & PDF Packet and Hospital & Malasakit Directory available as client tabs on `/`), `src/app/edukasyon/page.tsx` (Education Aid Wizard), and `src/app/manggagawa/page.tsx` (Worker Aid Wizard).
 
 Keep this file focused on rules agents need before changing code. Put product requirements in [`PRD.md`](PRD.md) and use the routing table below to find other project context.
 

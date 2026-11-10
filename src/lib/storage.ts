@@ -670,46 +670,63 @@ export const defaultMedicalCase: MedicalCase = {
 };
 
 // Storage Helpers
-export async function savePatientProfile(data: PatientProfile, token?: RestoreSessionToken): Promise<void> {
+async function saveSimpleRecord<T>(key: string, data: T, token?: RestoreSessionToken): Promise<void> {
   if (token === undefined) await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping) return;
+  if (typeof window === 'undefined' || wiping || !canWriteDuringRestore(token)) return;
+  await set(key, data);
+}
+
+async function loadSimpleRecord<T>(key: string, fallback: T): Promise<T> {
+  await ensureReadyForStorage();
+  if (typeof window === 'undefined') return fallback;
+  const data = await get<T>(key);
+  return data || fallback;
+}
+
+async function saveTrackedRecord<T>(key: string, data: T, token?: RestoreSessionToken): Promise<void> {
+  const expectedGeneration = wipeGeneration;
+  await ensureReadyForStorage();
+  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
   if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.PATIENT, data);
+  await set(key, data);
+}
+
+async function loadNullableRecord<T>(key: string): Promise<T | null> {
+  await ensureReadyForStorage();
+  if (typeof window === 'undefined') return null;
+  return (await get<T>(key)) ?? null;
+}
+
+async function clearTrackedRecord(key: string, token?: RestoreSessionToken): Promise<void> {
+  const expectedGeneration = wipeGeneration;
+  await ensureReadyForStorage();
+  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
+  if (!canWriteDuringRestore(token)) return;
+  await del(key);
+}
+
+export async function savePatientProfile(data: PatientProfile, token?: RestoreSessionToken): Promise<void> {
+  return saveSimpleRecord(KEYS.PATIENT, data, token);
 }
 
 export async function loadPatientProfile(): Promise<PatientProfile> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return defaultPatientProfile;
-  const data = await get<PatientProfile>(KEYS.PATIENT);
-  return data || defaultPatientProfile;
+  return loadSimpleRecord<PatientProfile>(KEYS.PATIENT, defaultPatientProfile);
 }
 
 export async function saveRepresentativeProfile(data: RepresentativeProfile, token?: RestoreSessionToken): Promise<void> {
-  if (token === undefined) await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.REPRESENTATIVE, data);
+  return saveSimpleRecord(KEYS.REPRESENTATIVE, data, token);
 }
 
 export async function loadRepresentativeProfile(): Promise<RepresentativeProfile> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return defaultRepresentativeProfile;
-  const data = await get<RepresentativeProfile>(KEYS.REPRESENTATIVE);
-  return data || defaultRepresentativeProfile;
+  return loadSimpleRecord<RepresentativeProfile>(KEYS.REPRESENTATIVE, defaultRepresentativeProfile);
 }
 
 export async function saveMedicalCase(data: MedicalCase, token?: RestoreSessionToken): Promise<void> {
-  if (token === undefined) await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.CASE, data);
+  return saveSimpleRecord(KEYS.CASE, data, token);
 }
 
 export async function loadMedicalCase(): Promise<MedicalCase> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return defaultMedicalCase;
-  const data = await get<MedicalCase>(KEYS.CASE);
-  return data || defaultMedicalCase;
+  return loadSimpleRecord<MedicalCase>(KEYS.CASE, defaultMedicalCase);
 }
 
 export async function saveDocuments(docs: StoredDocument[], expectedGeneration?: number, token?: RestoreSessionToken): Promise<void> {
@@ -729,71 +746,40 @@ export async function loadDocuments(): Promise<StoredDocument[]> {
 }
 
 export async function saveApplications(apps: ApplicationRecord[], token?: RestoreSessionToken): Promise<void> {
-  if (token === undefined) await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.APPLICATIONS, apps);
+  return saveSimpleRecord(KEYS.APPLICATIONS, apps, token);
 }
 
 export async function loadApplications(): Promise<ApplicationRecord[]> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return [];
-  const apps = await get<ApplicationRecord[]>(KEYS.APPLICATIONS);
-  return apps || [];
+  return loadSimpleRecord<ApplicationRecord[]>(KEYS.APPLICATIONS, []);
 }
 
 export async function saveTreatmentTracker(data: TreatmentSessionTracker, token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.TREATMENT_TRACKER, data);
+  return saveTrackedRecord(KEYS.TREATMENT_TRACKER, data, token);
 }
 
 export async function loadTreatmentTracker(): Promise<TreatmentSessionTracker | null> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return null;
-  const data = await get<TreatmentSessionTracker>(KEYS.TREATMENT_TRACKER);
-  return data ?? null;
+  return loadNullableRecord<TreatmentSessionTracker>(KEYS.TREATMENT_TRACKER);
 }
 
 export async function clearTreatmentTracker(token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await del(KEYS.TREATMENT_TRACKER);
+  return clearTrackedRecord(KEYS.TREATMENT_TRACKER, token);
 }
 
 export async function saveOFWCaseTracker(data: OFWCaseRecord, token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.OFW_CASE_TRACKER, data);
+  return saveTrackedRecord(KEYS.OFW_CASE_TRACKER, data, token);
 }
 
 export async function loadOFWCaseTracker(): Promise<OFWCaseRecord | null> {
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined') return null;
-  return (await get<OFWCaseRecord>(KEYS.OFW_CASE_TRACKER)) ?? null;
+  return loadNullableRecord<OFWCaseRecord>(KEYS.OFW_CASE_TRACKER);
 }
 
 export async function clearOFWCaseTracker(token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await del(KEYS.OFW_CASE_TRACKER);
+  return clearTrackedRecord(KEYS.OFW_CASE_TRACKER, token);
 }
 
 export async function saveGWATracker(data: GWATrackerRecord, token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
   if (!isGWATrackerRecord(data)) throw new TypeError('Invalid GWA tracker record.');
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await set(KEYS.GWA_TRACKER, data);
+  return saveTrackedRecord(KEYS.GWA_TRACKER, data, token);
 }
 
 export async function loadGWATracker(): Promise<GWATrackerRecord | null> {
@@ -804,11 +790,7 @@ export async function loadGWATracker(): Promise<GWATrackerRecord | null> {
 }
 
 export async function clearGWATracker(token?: RestoreSessionToken): Promise<void> {
-  const expectedGeneration = wipeGeneration;
-  await ensureReadyForStorage();
-  if (typeof window === 'undefined' || wiping || (token === undefined && expectedGeneration !== wipeGeneration)) return;
-  if (!canWriteDuringRestore(token)) return;
-  await del(KEYS.GWA_TRACKER);
+  return clearTrackedRecord(KEYS.GWA_TRACKER, token);
 }
 
 export async function clearAllUserData(): Promise<void> {

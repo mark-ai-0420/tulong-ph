@@ -1,5 +1,7 @@
 'use client';
 
+import { useCivicRouteSync } from '@/components/shared/useCivicRouteSync';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CivicPageShell } from '@/components/shared/CivicPageShell';
 import { CivicFooter } from '@/components/shared/CivicFooter';
@@ -36,7 +38,7 @@ import {
   defaultMedicalCase,
   loadSharedFamilyContext,
 } from '@/lib/storage';
-import { getNextLanguage, isLanguage, Language, translations } from '@/lib/i18n';
+import { getNextLanguage, Language, translations } from '@/lib/i18n';
 import { X, Layers } from 'lucide-react';
 import { StackingInfographic } from '@/components/StackingInfographic';
 
@@ -45,8 +47,7 @@ export default function Home() {
   const [currentTab, setCurrentTab] = useState<string>('triage');
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
-  const [triageResetKey] = useState(0);
-  const [privacyToast, setPrivacyToast] = useState(false);
+  const { privacyToast, setPrivacyToast } = useCivicRouteSync(setLanguage);
   const [bridgeNotice, setBridgeNotice] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [wipeError, setWipeError] = useState('');
@@ -54,31 +55,9 @@ export default function Home() {
   const [backupRestorePending, setBackupRestorePending] = useState(false);
   const manualWipe = useRef(false);
   const writesDisabled = useRef(false);
-  useEffect(() => {
-    if (window.location.hash !== '#privacy-cleared') return;
-    const timer = setTimeout(() => {
-      setPrivacyToast(true);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }, 0);
-    const dismiss = setTimeout(() => setPrivacyToast(false), 5000);
-    return () => { clearTimeout(timer); clearTimeout(dismiss); };
-  }, []);
 
-  useEffect(() => {
-    const syncLanguage = () => {
-      try {
-        const savedLanguage = localStorage.getItem('tulong_lang');
-        setLanguage(isLanguage(savedLanguage) ? savedLanguage : 'taglish');
-      }
-      catch { setLanguage('taglish'); }
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'tulong_lang' || event.key === null) syncLanguage();
-    };
-    syncLanguage();
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+
+
 
 
   // Domain State
@@ -319,7 +298,6 @@ export default function Home() {
         >
           {currentTab === 'triage' && (
             <TriageWizard
-              key={triageResetKey}
               patient={patient}
               representative={representative}
               medicalCase={medicalCase}
