@@ -113,7 +113,4 @@ export function calculateHospitalBill(input: CalculationInput): DetailedBillBrea
   };
 }
 
-// Alias for semantic clarity across calculation workflows
-export const calculateStatutoryBill = calculateHospitalBill;
 export const computeStatutoryDeductions = calculateHospitalBill;
-export default calculateHospitalBill;

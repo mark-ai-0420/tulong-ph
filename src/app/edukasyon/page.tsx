@@ -1,5 +1,7 @@
 'use client';
 
+import { useCivicRouteSync } from '@/components/shared/useCivicRouteSync';
+
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CivicPageShell } from '@/components/shared/CivicPageShell';
@@ -24,7 +26,7 @@ import {
 } from '@/lib/storage';
 import type { StoredDocument } from '@/types/assistance';
 import type { StudentEducationProfile } from '@/types/education';
-import { getNextLanguage, isLanguage } from '@/lib/i18n';
+import { getNextLanguage } from '@/lib/i18n';
 import type { Language } from '@/lib/i18n';
 
 type LocatedEducationProfile = StudentEducationProfile & { province?: string; barangay?: string };
@@ -48,18 +50,10 @@ export default function EducationPage() {
   const [wipeError, setWipeError] = useState('');
   const [writesDisabled, setWritesDisabled] = useState(false);
   const manualWipe = useRef(false);
-  const [privacyToast, setPrivacyToast] = useState(false);
+  const { privacyToast, setPrivacyToast } = useCivicRouteSync(setLanguage);
   const [bridgeNotice, setBridgeNotice] = useState(false);
   const [bridgeSource, setBridgeSource] = useState('medical');
-  useEffect(() => {
-    if (window.location.hash !== '#privacy-cleared') return;
-    const timer = setTimeout(() => {
-      setPrivacyToast(true);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }, 0);
-    const dismiss = setTimeout(() => setPrivacyToast(false), 5000);
-    return () => { clearTimeout(timer); clearTimeout(dismiss); };
-  }, []);
+
 
 
   useEffect(() => {
@@ -112,21 +106,7 @@ export default function EducationPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const syncLanguage = () => {
-      try {
-        const savedLanguage = localStorage.getItem('tulong_lang');
-        setLanguage(isLanguage(savedLanguage) ? savedLanguage : 'taglish');
-      }
-      catch { setLanguage('taglish'); }
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'tulong_lang' || event.key === null) syncLanguage();
-    };
-    syncLanguage();
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+
 
   function update(next: StudentEducationProfile) {
     if (!loaded || writesDisabled) return;

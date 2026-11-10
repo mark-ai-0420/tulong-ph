@@ -1080,7 +1080,9 @@ async function runInstallGuideTests(browser, baseUrl) {
     });
     await privacyPage.locator('header a[href="/install"]').click();
     await privacyPage.waitForURL('**/install');
+    const reloadPromise = privacyPage.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => null);
     await privacyPage.clock.fastForward(15 * 60 * 1000 + 1000);
+    await reloadPromise;
     await privacyPage.waitForFunction(async () => {
       const database = await new Promise((resolve, reject) => {
         const request = indexedDB.open('keyval-store');

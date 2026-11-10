@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { DocumentType } from '@/types/assistance';
 
 export interface CompressionResult {
@@ -135,46 +134,44 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 /**
  * Embeds image into an A4 PDF document fitted nicely with standard margins.
  */
-function renderPdfFromJpeg(jpegDataUrl: string, imgWidth: number, imgHeight: number): Promise<Blob> {
-  return new Promise((resolve) => {
-    const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
-    const pdf = new jsPDF({
-      orientation,
-      unit: 'mm',
-      format: 'a4',
-      compress: true,
-    });
-
-    const pageWidth = orientation === 'landscape' ? 297 : 210;
-    const pageHeight = orientation === 'landscape' ? 210 : 297;
-    const margin = 10; // 10mm margins
-
-    const availWidth = pageWidth - margin * 2;
-    const availHeight = pageHeight - margin * 2;
-
-    const imgAspect = imgWidth / imgHeight;
-    const availAspect = availWidth / availHeight;
-
-    let finalW = availWidth;
-    let finalH = availHeight;
-
-    if (imgAspect > availAspect) {
-      // Image is wider than available page area
-      finalW = availWidth;
-      finalH = availWidth / imgAspect;
-    } else {
-      // Image is taller
-      finalH = availHeight;
-      finalW = availHeight * imgAspect;
-    }
-
-    const posX = (pageWidth - finalW) / 2;
-    const posY = (pageHeight - finalH) / 2;
-
-    pdf.addImage(jpegDataUrl, 'JPEG', posX, posY, finalW, finalH, undefined, 'FAST');
-    const blob = pdf.output('blob');
-    resolve(blob);
+async function renderPdfFromJpeg(jpegDataUrl: string, imgWidth: number, imgHeight: number): Promise<Blob> {
+  const { jsPDF } = await import('jspdf');
+  const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({
+    orientation,
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
   });
+
+  const pageWidth = orientation === 'landscape' ? 297 : 210;
+  const pageHeight = orientation === 'landscape' ? 210 : 297;
+  const margin = 10; // 10mm margins
+
+  const availWidth = pageWidth - margin * 2;
+  const availHeight = pageHeight - margin * 2;
+
+  const imgAspect = imgWidth / imgHeight;
+  const availAspect = availWidth / availHeight;
+
+  let finalW = availWidth;
+  let finalH = availHeight;
+
+  if (imgAspect > availAspect) {
+    // Image is wider than available page area
+    finalW = availWidth;
+    finalH = availWidth / imgAspect;
+  } else {
+    // Image is taller
+    finalH = availHeight;
+    finalW = availHeight * imgAspect;
+  }
+
+  const posX = (pageWidth - finalW) / 2;
+  const posY = (pageHeight - finalH) / 2;
+
+  pdf.addImage(jpegDataUrl, 'JPEG', posX, posY, finalW, finalH, undefined, 'FAST');
+  return pdf.output('blob');
 }
 
 /**
