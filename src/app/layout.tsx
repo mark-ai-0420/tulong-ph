@@ -4,7 +4,7 @@ import { ServiceWorkerRegistration } from "@/components/shared/ServiceWorkerRegi
 import "./globals.css";
 
 export const viewport: Viewport = {
-  themeColor: "#1e3a8a",
+  themeColor: "#1E2D40",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "TulongPH Community" }],
   metadataBase: new URL("https://tulongph.vercel.app"),
+  alternates: { canonical: "/" },
   openGraph: {
     title: "TulongPH - Kalusugan, Edukasyon at Manggagawa",
     description:
@@ -35,12 +36,14 @@ export const metadata: Metadata = {
     siteName: "TulongPH",
     locale: "fil_PH",
     type: "website",
+    images: [{ url: "/og/home.png", width: 1200, height: 630, alt: "TulongPH - Gabay sa Kalusugan at Ospital" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "TulongPH - Kalusugan, Edukasyon at Manggagawa",
     description:
       "Gabay sa kalusugan, scholarship, benepisyo at karapatan sa trabaho. Kompyutasyon, checklist at direktoryo.",
+    images: ["/og/home.png"],
   },
   robots: {
     index: true,
@@ -52,6 +55,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fil-PH" className="h-full antialiased">
       <body className="min-h-full flex flex-col tabular-nums">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: "TulongPH",
+            url: "https://tulongph.vercel.app",
+            description: "An independent, free civic utility for Philippine assistance guidance. Non-government; records stay on your device.",
+            applicationCategory: "UtilitiesApplication",
+            operatingSystem: "Any",
+            isAccessibleForFree: true,
+          }) }}
+        />
         {children}
         <IdlePrivacyGuard />
         <ServiceWorkerRegistration />

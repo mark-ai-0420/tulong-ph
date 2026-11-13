@@ -3,7 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { HeartHandshake, Languages, Compass, Building2, Printer, Trash2, Download } from 'lucide-react';
+import { TulongLogo } from './shared/TulongLogo';
+import { Languages, Compass, Building2, Printer, Trash2, Download } from 'lucide-react';
 import { getNextLanguage, Language, supportedLanguages, translations } from '@/lib/i18n';
 
 const compactLanguageNames: Record<Language, string> = {
@@ -99,14 +100,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }
               }}
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-900 flex items-center justify-center text-white shadow-xs group-hover:bg-blue-900 transition-colors shrink-0">
-                <HeartHandshake className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-              </div>
               <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                    Tulong<span className="text-blue-900">PH</span>
-                  </span>
+                <div className="flex items-center">
+                  <TulongLogo className="h-8 sm:h-10 w-auto shrink-0" />
+                  <span className="sr-only">TulongPH</span>
                 </div>
                 <p className="text-xs text-slate-500 font-medium hidden sm:block lg:hidden 2xl:block">
                   Gabay sa Ayuda ng Gobyerno

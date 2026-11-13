@@ -1,13 +1,15 @@
 import React from 'react';
 import Link from 'next/link';
-import { Compass, HeartHandshake } from 'lucide-react';
+import { TulongLogo } from '@/components/shared/TulongLogo';
+import { Compass } from 'lucide-react';
 
 export default function NotFound() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-[#FAF9F5] text-slate-900 font-sans">
       <div className="max-w-md w-full bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-center mx-auto shadow-2xs">
-          <HeartHandshake className="w-7 h-7 text-blue-900" />
+        <div className="flex items-center justify-center mx-auto">
+          <TulongLogo className="h-12 w-auto" />
+          <span className="sr-only">TulongPH</span>
         </div>
 
         <div className="space-y-2">
