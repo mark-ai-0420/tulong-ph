@@ -101,9 +101,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
             >
               <div className="flex flex-col">
-                <div className="flex items-center">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <TulongLogo className="h-8 sm:h-10 w-auto shrink-0" />
-                  <span className="sr-only">TulongPH</span>
+                  <span className="text-xs sm:text-sm font-bold tracking-tight text-slate-800">
+                    Tulong<span className="text-blue-900">PH</span>
+                  </span>
                 </div>
                 <p className="text-xs text-slate-500 font-medium hidden sm:block lg:hidden 2xl:block">
                   Gabay sa Ayuda ng Gobyerno

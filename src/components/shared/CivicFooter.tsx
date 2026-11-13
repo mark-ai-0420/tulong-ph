@@ -10,7 +10,7 @@ export function CivicFooter({ language, onTabChange, onOpenPrivacyModal, disclai
   return <footer className="print:hidden bg-white border-t border-[#E2DFD6] mt-6 py-8 text-xs text-slate-600">
     <div className={`${civicContainer} space-y-4`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-2.5 min-w-0"><TulongLogo className="h-7 w-auto shrink-0" /><span className="sr-only">TulongPH</span><span>· Open-Source Philippine Assistance Navigator</span></div>
+        <div className="flex flex-wrap items-center gap-2 min-w-0"><TulongLogo className="h-6 w-auto shrink-0" /><span className="font-bold text-xs text-slate-900">TulongPH</span><span>· Open-Source Philippine Assistance Navigator</span></div>
         <nav aria-label={tl ? 'Mga shortcut sa footer' : 'Footer shortcuts'} className="flex flex-wrap items-center gap-x-4">
           {[
             ['triage', tl ? 'Gabay sa Tulong' : 'Aid Navigator'],

@@ -55,7 +55,7 @@ function card(section, heading, description) {
   return box({ width: '100%', height: '100%', background: colors.paper, color: colors.ink, fontFamily: 'Geist', padding: 32 },
     box({ width: '100%', height: '100%', flexDirection: 'column', border: `2px solid ${colors.rule}`, borderTop: `12px solid ${colors.slate}`, padding: '32px 40px' },
       box({ alignItems: 'center', justifyContent: 'space-between' },
-        box({ alignItems: 'center' }, mark(180)),
+        box({ alignItems: 'center', gap: 14 }, mark(156), text({ fontSize: 22, color: colors.slate, letterSpacing: 0.4, textShadow: '0.4px 0 currentColor' }, 'TulongPH')),
         text({ color: colors.sage, border: `1px solid ${colors.sage}`, borderRadius: 28, padding: '10px 20px', fontSize: 20 }, 'Libre · Pribado · Offline')),
       text({ marginTop: 28, fontSize: 22, color: colors.sage, letterSpacing: 3, textTransform: 'uppercase' }, section),
       text({ marginTop: 12, fontSize: 62, lineHeight: 1.05, letterSpacing: -2, textShadow: '1px 0 currentColor', maxWidth: 980 }, heading),

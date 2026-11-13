@@ -7,9 +7,9 @@ export default function NotFound() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-[#FAF9F5] text-slate-900 font-sans">
       <div className="max-w-md w-full bg-white border border-[#E2DFD6] rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
-        <div className="flex items-center justify-center mx-auto">
+        <div className="flex flex-col items-center justify-center gap-1 mx-auto">
           <TulongLogo className="h-12 w-auto" />
-          <span className="sr-only">TulongPH</span>
+          <span className="text-xs font-bold tracking-wide text-[#1E2D40]">TulongPH</span>
         </div>
 
         <div className="space-y-2">

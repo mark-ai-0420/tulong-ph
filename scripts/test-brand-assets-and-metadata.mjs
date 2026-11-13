@@ -116,8 +116,13 @@ test('inline and standalone emblems use the same static artwork and accessible d
   assert.ok(iconSvg.includes(emblem.artwork));
   assert.match(renderToStaticMarkup(createElement(TulongLogo, { 'aria-hidden': false, 'aria-label': 'TulongPH' })), /aria-hidden="false"/);
   for (const color of ['#1E2D40', '#D4A44A']) assert.ok(emblem.artwork.includes(color));
-  assert.ok(!read('scripts/generate-brand-assets.mjs').includes("'TulongPH'"));
-  for (const path of ['src/components/Navbar.tsx', 'src/app/not-found.tsx']) assert.ok(!read(path).includes('HeartHandshake'));
+  assert.ok(!emblem.artwork.includes('TulongPH') && !iconSvg.includes('TulongPH'));
+  assert.ok(read('scripts/generate-brand-assets.mjs').includes("'TulongPH'"));
+  for (const path of ['src/components/Navbar.tsx', 'src/components/shared/CivicFooter.tsx', 'src/app/not-found.tsx']) {
+    const src = read(path);
+    assert.ok(src.includes('TulongLogo') && src.includes('Tulong') && src.includes('PH') && !src.includes('sr-only'));
+    assert.ok(!src.includes('HeartHandshake'));
+  }
 });
 
 test('manifest and every route export complete independent civic metadata', () => {
